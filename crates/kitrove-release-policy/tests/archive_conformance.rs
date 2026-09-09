@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::fmt::Write as _;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -104,10 +105,13 @@ fn rust_matches_shared_archive_conformance_corpus() {
             spec.archive_name()
         );
         let archive = fs::read(root.join(&case.archive)).unwrap();
-        let observed_digest = Sha256::digest(&archive)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
+        let observed_digest =
+            Sha256::digest(&archive)
+                .iter()
+                .fold(String::with_capacity(64), |mut output, byte| {
+                    write!(output, "{byte:02x}").expect("writing to a String cannot fail");
+                    output
+                });
         assert_eq!(
             observed_digest, case.sha256,
             "corpus digest {:?}",

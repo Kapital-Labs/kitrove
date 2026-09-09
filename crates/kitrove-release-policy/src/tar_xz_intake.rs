@@ -556,10 +556,10 @@ struct BoundedXzReader<'a> {
 impl<'a> BoundedXzReader<'a> {
     fn new(input: &'a [u8], failed: Rc<Cell<bool>>) -> Result<Self, ArchiveIntakeError> {
         let decoder_state_bytes = std::mem::size_of::<XzDecoder<'static>>() as u64;
-        if !APPLICATION_ARCHIVE_LIMITS
+        if APPLICATION_ARCHIVE_LIMITS
             .max_xz_dictionary_bytes
             .checked_add(decoder_state_bytes)
-            .is_some_and(|total| total <= APPLICATION_ARCHIVE_LIMITS.max_xz_decoder_memory_bytes)
+            .is_none_or(|total| total > APPLICATION_ARCHIVE_LIMITS.max_xz_decoder_memory_bytes)
         {
             return Err(ArchiveIntakeError::InvalidXz);
         }
