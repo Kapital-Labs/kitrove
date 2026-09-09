@@ -1,0 +1,21 @@
+[package]
+name = "kitrove-prompt-commands"
+description = "Harness-neutral prompt-command primitives"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+blake3.workspace = true
+kitrove-model.workspace = true
+kitrove-frontmatter.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+yaml_serde.workspace = true
+
+[lints]
+workspace = true

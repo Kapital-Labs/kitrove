@@ -1,0 +1,521 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: Validation scope
+        required: true
+        default: full
+        type: choice
+        options:
+          - full
+          - windows
+          - windows-core
+          - windows-installer
+          - windows-installer-replacement
+          - windows-private-state
+          - windows-quarantine
+          - windows-security
+          - windows-version-probe
+          - linux-msrv
+          - windows-governance
+          - windows-signing-rehearsal
+      reuse_verified_windows_build:
+        description: Reuse only the digest-pinned Windows build from run 34305010454
+        type: boolean
+        default: false
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.scope || 'canonical' }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  windows-signing-build:
+    name: Windows signing rehearsal (build without credentials)
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.scope == 'windows-signing-rehearsal' &&
+      !inputs.reuse_verified_windows_build &&
+      github.repository == 'brandon-kaplan/kitrove' &&
+      github.ref == 'refs/heads/test/windows-signing-rehearsal' &&
+      github.sha == vars.KITROVE_WINDOWS_REHEARSAL_SHA
+    runs-on: windows-2025
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    outputs:
+      inventory-digest: ${{ steps.build.outputs.inventory-digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build and inspect the Windows handoff
+        id: build
+        shell: pwsh
+        run: ./.github/scripts/windows-signing-rehearsal.ps1 -Stage Build
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: windows-signing-input-${{ github.run_id }}-${{ github.run_attempt }}
+          path: signing-input/*
+          if-no-files-found: error
+          retention-days: 1
+
+  windows-signing-test:
+    name: Windows signing rehearsal (isolated signer)
+    needs: windows-signing-build
+    if: >-
+      !cancelled() && (needs.windows-signing-build.result == 'success' || inputs.reuse_verified_windows_build) &&
+      github.event_name == 'workflow_dispatch' && inputs.scope == 'windows-signing-rehearsal' &&
+      github.repository == 'brandon-kaplan/kitrove' &&
+      github.ref == 'refs/heads/test/windows-signing-rehearsal' &&
+      github.sha == vars.KITROVE_WINDOWS_REHEARSAL_SHA
+    runs-on: windows-2025
+    timeout-minutes: 10
+    environment: windows-signing-rehearsal
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      EXPECTED_SOURCE_SHA: ${{ inputs.reuse_verified_windows_build && '65af48a7c8e94da59311530c19505ea350b6dcb3' || github.sha }}
+      EXPECTED_INVENTORY_DIGEST: ${{ inputs.reuse_verified_windows_build && '9766889ea7d2acd58afb5bd25b54c3b0454771ce30210f7eb7ee0966130d5e57' || needs.windows-signing-build.outputs.inventory-digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        if: '!inputs.reuse_verified_windows_build'
+        with:
+          name: windows-signing-input-${{ github.run_id }}-${{ github.run_attempt }}
+          path: signing-input
+      - name: Download the exact reviewed prior build
+        if: inputs.reuse_verified_windows_build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: windows-signing-input-34305010454-1
+          run-id: 34305010454
+          github-token: ${{ github.token }}
+          path: signing-input
+      - name: Verify handoff and provision pinned Microsoft tools
+        shell: pwsh
+        run: ./.github/scripts/windows-signing-rehearsal.ps1 -Stage Provision
+      - name: Authenticate with short-lived GitHub identity
+        id: login
+        uses: azure/login@8216e11d8cd9b42fe925c852af8e76311ff067ac
+        with:
+          client-id: 07747a48-9b88-446a-a0d0-d0cad10408c2
+          tenant-id: e9f3481c-93fd-4dfb-a12a-bd388aec4959
+          subscription-id: e8a5a51b-ae3f-43bb-ba42-5630969a4a29
+      - name: Sign both archives and verify exact publisher and digests
+        shell: pwsh
+        run: ./.github/scripts/windows-signing-rehearsal.ps1 -Stage Sign
+      - name: Clear Azure authentication
+        if: always() && steps.login.outcome != 'skipped'
+        shell: pwsh
+        run: |
+          # Clear even a partially initialized cache after a failed login.
+          az account clear
+          if ($LASTEXITCODE -ne 0) { throw 'Azure account cleanup failed' }
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: windows-signing-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: signing-evidence/*
+          if-no-files-found: error
+          retention-days: 1
+
+  changes:
+    name: Classify changes
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      (inputs.scope != 'windows-core' && inputs.scope != 'windows-installer' && inputs.scope != 'windows-installer-replacement' && inputs.scope != 'windows-private-state' && inputs.scope != 'windows-quarantine' && inputs.scope != 'windows-security' && inputs.scope != 'windows-version-probe' && inputs.scope != 'windows-signing-rehearsal')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      source: ${{ steps.classify.outputs.source }}
+      os-sensitive: ${{ steps.classify.outputs.os-sensitive }}
+      validation-matrix: ${{ steps.validation.outputs.matrix }}
+      run-platform-ci: ${{ steps.validation.outputs.platform-ci }}
+      run-msrv: ${{ steps.validation.outputs.msrv }}
+      run-audit: ${{ steps.validation.outputs.audit }}
+    steps:
+      - name: Configure manual validation scope
+        id: validation
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          VALIDATION_SCOPE: ${{ inputs.scope }}
+        run: |
+          case "$EVENT_NAME:$VALIDATION_SCOPE" in
+            workflow_dispatch:windows)
+              matrix='["windows-latest"]'
+              platform_ci=true
+              msrv=false
+              audit=false
+              ;;
+            workflow_dispatch:linux-msrv)
+              matrix='["ubuntu-latest"]'
+              platform_ci=false
+              msrv=true
+              audit=false
+              ;;
+            workflow_dispatch:windows-governance)
+              matrix='["windows-latest"]'
+              platform_ci=false
+              msrv=false
+              audit=false
+              ;;
+            *)
+              matrix='["ubuntu-latest","macos-latest","windows-latest"]'
+              platform_ci=true
+              msrv=true
+              audit=true
+              ;;
+          esac
+          {
+            echo "matrix=$matrix"
+            echo "platform-ci=$platform_ci"
+            echo "msrv=$msrv"
+            echo "audit=$audit"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Classify validation scope
+        id: classify
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" || -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
+            echo "source=true" >> "$GITHUB_OUTPUT"
+            echo "os-sensitive=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git diff --name-only "$BASE_SHA" "$HEAD_SHA" > changed-files.txt
+          # Only an explicitly documentation-only change may skip canonical CI. Unknown paths
+          # fail closed into source validation so new build or policy files cannot bypass it.
+          if [[ ! -s changed-files.txt ]] || grep -Eqv '^(docs/|.*\.md$)' changed-files.txt; then
+            echo "source=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "source=false" >> "$GITHUB_OUTPUT"
+          fi
+          if grep -Eq '^(Cargo\.(toml|lock)|rust-toolchain[^/]*|\.cargo/|\.github/workflows/ci\.yml|\.github/scripts/|crates/|third_party/)' changed-files.txt; then
+            echo "os-sensitive=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "os-sensitive=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  governance:
+    name: Governance (documentation-only change)
+    needs: changes
+    if: needs.changes.outputs.source != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Validate governance documents and architecture boundaries
+        run: cargo xtask governance
+
+  pull-request-ci:
+    name: CI (pull request)
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.source == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install stable Rust components
+        run: rustup toolchain install stable --profile minimal --component clippy,rustfmt
+      - name: Run canonical repository validation
+        run: cargo ci
+
+  pull-request-msrv:
+    name: Check (Rust 1.85.0)
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.source == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Rust 1.85.0
+        run: rustup toolchain install 1.85.0 --profile minimal
+      - name: Check all targets on the MSRV
+        run: cargo +1.85.0 check --locked --workspace --all-targets
+
+  pull-request-os:
+    name: Check (${{ matrix.os }})
+    needs: changes
+    if: >-
+      github.event_name == 'pull_request' &&
+      needs.changes.outputs.source == 'true' &&
+      needs.changes.outputs.os-sensitive == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install stable Rust
+        run: rustup toolchain install stable --profile minimal
+      - name: Check every workspace target on this operating system
+        run: cargo check --locked --workspace --all-targets
+      - name: Run native Windows installer recovery tests
+        if: runner.os == 'Windows'
+        run: cargo test --locked -p kitrove-installer
+      - name: Run positive installer boundary as a standard Windows user
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./.github/scripts/test-windows-installer-standard-user.ps1
+      - name: Install Rust 1.85.0 for the Windows dependency boundary
+        if: runner.os == 'Windows'
+        run: rustup toolchain install 1.85.0 --profile minimal
+      - name: Check the complete Windows CLI boundary on Rust 1.85.0
+        if: runner.os == 'Windows'
+        run: cargo +1.85.0 check --locked --all-targets -p kitrove-cli
+
+  ci:
+    name: CI (${{ matrix.os }})
+    needs: changes
+    if: github.event_name != 'pull_request' && needs.changes.outputs.source == 'true' && needs.changes.outputs.run-platform-ci == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(needs.changes.outputs.validation-matrix) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install stable Rust components
+        run: rustup toolchain install stable --profile minimal --component clippy,rustfmt
+      - name: Run canonical repository validation
+        run: cargo ci
+      - name: Run positive installer boundary as a standard Windows user
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./.github/scripts/test-windows-installer-standard-user.ps1
+      - name: Install Rust 1.85.0 for the Windows dependency boundary
+        if: runner.os == 'Windows' && needs.changes.outputs.os-sensitive == 'true'
+        run: rustup toolchain install 1.85.0 --profile minimal
+      - name: Check the complete Windows CLI boundary on Rust 1.85.0
+        if: runner.os == 'Windows' && needs.changes.outputs.os-sensitive == 'true'
+        run: cargo +1.85.0 check --locked --all-targets -p kitrove-cli
+      - name: Read the public Git smart-HTTPS fixture through production TLS
+        if: runner.os == 'Linux'
+        run: >-
+          cargo test --locked -p kitrove-core
+          git_sync_backend::tests::public_github_fixture_uses_the_production_connector_and_pinned_roots
+          -- --ignored --exact
+
+  windows-governance:
+    name: Governance (Windows)
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' && inputs.scope == 'windows-governance'
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install stable Rust
+        run: rustup toolchain install stable --profile minimal
+      - name: Validate governance with native Windows paths
+        run: cargo xtask governance
+
+  windows-private-state:
+    name: Validate Windows private state
+    if: github.event_name == 'workflow_dispatch' && inputs.scope == 'windows-private-state'
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install stable Rust
+        run: rustup toolchain install stable --profile minimal
+      - name: Validate the native security wrapper
+        run: cargo test --locked -p kitrove-windows-security
+      - name: Validate lifecycle initialization and lock handoff
+        run: cargo test --locked -p kitrove-state-lifecycle --lib -- --nocapture
+      - name: Validate private-state initialization directly
+        run: >-
+          cargo test --locked -p kitrove-core --lib
+          object_mutation::internal_tests::concurrent_initializers_never_remove_successful_authority
+          -- --exact --nocapture
+      - name: Validate no-journal lock handoff directly
+        run: >-
+          cargo test --locked -p kitrove-core --lib
+          apply_batch_transaction::tests::no_journal_recovery_releases_locks_before_immediate_commit
+          -- --exact --nocapture
+      - name: Validate private-state initialization through the CLI
+        run: >-
+          cargo test --locked -p kitrove-cli --test init_cli
+          init_creates_complete_exact_authority_and_refuses_reinitialization
+          -- --exact --nocapture
+      - name: Validate atomic no-replace control moves
+        run: >-
+          cargo test --locked -p kitrove-core --lib
+          object_mutation::internal_tests::windows_noreplace_preserves_collisions_and_moves_to_absent_names
+          -- --exact --nocapture
+      - name: Validate exact text installation and recovery directly
+        run: >-
+          cargo test --locked -p kitrove-core --lib
+          object_mutation::internal_tests::exact_text_lifecycle_preserves_bytes_and_mode
+          -- --exact --nocapture
+      - name: Validate instruction adoption directly
+        run: >-
+          cargo test --locked -p kitrove-core --lib
+          portable_transaction::tests::instruction_adoption_commits_objects_manifest_and_generated_lock
+          -- --exact --nocapture
+      - name: Validate executable trust private state through the CLI
+        run: cargo test --locked -p kitrove-cli --test trust_cli -- --nocapture
+      - name: Validate project instruction batch lock handoff through the CLI
+        run: >-
+          cargo test --locked -p kitrove-cli --test portable_cli
+          instruction_region -- --nocapture
+      - name: Validate retained sync-base authority through the CLI
+        run: cargo test --locked -p kitrove-cli --test sync_cli -- --nocapture
+
+  windows-installer:
+    name: Validate Windows installer
+    if: github.event_name == 'workflow_dispatch' && (inputs.scope == 'windows-installer' || inputs.scope == 'windows-installer-replacement')
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install stable Rust
+        run: rustup toolchain install stable --profile minimal
+      - name: Validate native installer authority
+        if: inputs.scope == 'windows-installer'
+        run: cargo test --locked -p kitrove-windows-security
+      - name: Validate lifecycle state preflight
+        if: inputs.scope == 'windows-installer'
+        run: cargo test --locked -p kitrove-state-lifecycle
+      - name: Validate application version probing
+        if: inputs.scope == 'windows-installer'
+        run: >-
+          cargo test --locked -p kitrove-version-probe
+          --test windows_probe --features windows-test-fixture
+          windows_application_probe_requires_the_authenticated_version -- --exact
+      - name: Validate installer staging and publication
+        run: cargo test --locked -p kitrove-installer
+      - name: Validate public staging as a standard Windows user
+        shell: pwsh
+        env:
+          INSTALLER_TEST_SCOPE: ${{ inputs.scope }}
+        run: |
+          if ($env:INSTALLER_TEST_SCOPE -eq 'windows-installer-replacement') {
+            ./.github/scripts/test-windows-installer-standard-user.ps1 -Suite Replacement
+          } else {
+            ./.github/scripts/test-windows-installer-standard-user.ps1
+          }
+
+  windows-security:
+    name: Validate Windows security boundary
+    if: github.event_name == 'workflow_dispatch' && inputs.scope == 'windows-security'
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install stable Rust
+        run: rustup toolchain install stable --profile minimal
+      - name: Validate the native security wrapper
+        run: cargo test --locked -p kitrove-windows-security
+
+  windows-quarantine:
+    name: Validate Windows quarantine authority
+    if: github.event_name == 'workflow_dispatch' && inputs.scope == 'windows-quarantine'
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install stable Rust
+        run: rustup toolchain install stable --profile minimal
+      - name: Validate handle-bound native security operations
+        run: cargo test --locked -p kitrove-windows-security
+      - name: Validate Windows quarantine naming and authority
+        run: cargo test --locked -p kitrove-core --lib windows -- --nocapture
+      - name: Validate legacy retained tombstones remain non-authoritative
+        run: cargo test --locked -p kitrove-core --lib quarantine_cleanup::inspection::tests::retained_names_are_inspectable_but_never_deletable -- --exact --nocapture
+      - name: Validate generic failed writes still discard partial contents
+        run: cargo test --locked -p kitrove-core --lib object_mutation::internal_tests::create_new_failure_after_parent_sync_quarantines_only_the_owned_inode -- --exact --nocapture
+
+  windows-core:
+    name: Validate Windows core library
+    if: github.event_name == 'workflow_dispatch' && inputs.scope == 'windows-core'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install stable Rust
+        run: rustup toolchain install stable --profile minimal
+      - name: Run the complete core library suite
+        run: cargo test --locked -p kitrove-core --lib
+
+  windows-version-probe:
+    name: Validate Windows version probes
+    if: github.event_name == 'workflow_dispatch' && inputs.scope == 'windows-version-probe'
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install stable Rust
+        run: rustup toolchain install stable --profile minimal
+      - name: Validate native executable authority
+        run: cargo test --locked -p kitrove-windows-security
+      - name: Validate contained process primitives
+        run: cargo test --locked -p kitrove-windows-process --features test-support
+      - name: Validate native version probes
+        run: cargo test --locked -p kitrove-version-probe --all-targets --features windows-test-fixture
+      - name: Validate saved project trust semantics
+        run: cargo test --locked -p kitrove-core --lib pi_project_trust::tests
+      - name: Validate the Windows CLI version diagnostic
+        run: >-
+          cargo test --locked -p kitrove-cli
+          --test windows_version_probe_cli
+          --features windows-test-fixture
+      - name: Install Rust 1.85.0
+        run: rustup toolchain install 1.85.0 --profile minimal
+      - name: Compile the focused Windows boundary on the MSRV
+        run: >-
+          cargo +1.85.0 check --locked --all-targets
+          -p kitrove-windows-security
+          -p kitrove-windows-process --features test-support
+          -p kitrove-version-probe --features windows-test-fixture
+      - name: Compile the complete CLI boundary on the MSRV
+        run: >-
+          cargo +1.85.0 check --locked --all-targets
+          -p kitrove-cli --features windows-test-fixture
+
+  msrv:
+    name: CI (Rust 1.85.0)
+    needs: changes
+    if: github.event_name != 'pull_request' && needs.changes.outputs.source == 'true' && needs.changes.outputs.run-msrv == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Rust 1.85.0 components
+        run: rustup toolchain install 1.85.0 --profile minimal --component clippy,rustfmt
+      - name: Run canonical repository validation on the MSRV
+        run: cargo +1.85.0 ci
+
+  advisory-audit:
+    name: Dependency advisory audit
+    needs: changes
+    if: github.event_name != 'pull_request' && needs.changes.outputs.source == 'true' && needs.changes.outputs.run-audit == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install the reviewed cargo-audit release
+        run: cargo install cargo-audit --version 0.22.1 --locked
+      - name: Audit the exact locked dependency graph
+        run: cargo audit

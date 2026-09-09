@@ -1,0 +1,28 @@
+[package]
+name = "kitrove-agent-skills"
+description = "Harness-neutral Agent Skills parsing and bounded capture"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+blake3.workspace = true
+cap-std.workspace = true
+cap-fs-ext.workspace = true
+kitrove-model.workspace = true
+kitrove-risk.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+unicase.workspace = true
+unicode-normalization.workspace = true
+yaml_serde.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,26 @@
+name: Feature proposal
+description: Propose a capability-portability feature.
+title: "proposal: "
+labels: ["proposal"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem
+      description: Describe the portability or synchronization problem, not merely the requested mechanism.
+    validations:
+      required: true
+  - type: textarea
+    id: lifecycle
+    attributes:
+      label: Capability lifecycle
+      description: Explain discovery, adoption, portable form, native variants, fidelity, and synchronization.
+    validations:
+      required: true
+  - type: textarea
+    id: northstar
+    attributes:
+      label: North Star impact
+      description: Name affected NS-* invariants.
+    validations:
+      required: true

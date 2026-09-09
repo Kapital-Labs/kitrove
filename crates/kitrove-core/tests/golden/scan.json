@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "mode": "classified",
+  "versions": {
+    "claude": {
+      "status": "unknown"
+    },
+    "opencode": {
+      "status": "verified",
+      "observed": "2.0 fixture",
+      "policy_line": "open_code_v2",
+      "evidence": "fixture.opencode.v2"
+    }
+  },
+  "entries": [
+    {
+      "observation_id": null,
+      "harness": "claude",
+      "scope": "user",
+      "root_tier": "user",
+      "logical_root": "golden.claude.user",
+      "policy_rank": 7,
+      "source_relative_path": "review",
+      "layout": "directory",
+      "native_id": "review \"quoted\"",
+      "asset_id": "review",
+      "receipt_id": "receipt-review",
+      "normalized_destination": "/Users/dev/Skill \"Review\"",
+      "receipt_rendered_hash": "blake3:1111111111111111111111111111111111111111111111111111111111111111",
+      "classification": "managed_modified",
+      "exact_source_hash": "blake3:2222222222222222222222222222222222222222222222222222222222222222",
+      "portable_hash": "blake3:3333333333333333333333333333333333333333333333333333333333333333",
+      "shadowed_by": null,
+      "findings": [
+        {
+          "code": "scan.receipt_stale_desired_state",
+          "severity": "attention",
+          "subject": {
+            "type": "destination",
+            "harness": "claude",
+            "scope": "user",
+            "normalized_destination": "/Users/dev/Skill \"Review\""
+          },
+          "evidence": [
+            "fixture.receipt"
+          ],
+          "action": "plan the desired-state transition"
+        }
+      ]
+    },
+    {
+      "observation_id": null,
+      "harness": "pi",
+      "scope": "project",
+      "root_tier": null,
+      "logical_root": null,
+      "policy_rank": null,
+      "source_relative_path": null,
+      "layout": null,
+      "native_id": null,
+      "asset_id": "missing",
+      "receipt_id": "receipt-missing",
+      "normalized_destination": "/workspace/.pi/skills/missing",
+      "receipt_rendered_hash": "blake3:4444444444444444444444444444444444444444444444444444444444444444",
+      "classification": "missing_managed",
+      "exact_source_hash": null,
+      "portable_hash": null,
+      "shadowed_by": null,
+      "findings": []
+    }
+  ],
+  "related": [
+    {
+      "harness": "codex",
+      "scope": "project",
+      "root_tier": "compatibility",
+      "logical_root": "golden.codex.related",
+      "policy_rank": 11,
+      "source_relative_path": "commands/review.md",
+      "kind": "command",
+      "findings": [
+        {
+          "code": "scan.related_capability",
+          "severity": "informational",
+          "subject": {
+            "type": "related",
+            "logical_root": "golden.codex.related",
+            "source_relative_path": "commands/review.md"
+          },
+          "evidence": [
+            "fixture.related"
+          ],
+          "action": "inspect the related capability separately"
+        }
+      ]
+    }
+  ],
+  "prompt_commands": [],
+  "agents": [],
+  "native_extensions": [],
+  "instructions": [],
+  "mcp_servers": [],
+  "findings": [
+    {
+      "code": "scan.version_unknown",
+      "severity": "informational",
+      "subject": {
+        "type": "harness",
+        "harness": "claude"
+      },
+      "evidence": [
+        "fixture.version"
+      ],
+      "action": "supply typed evidence only from a trusted caller"
+    }
+  ]
+}

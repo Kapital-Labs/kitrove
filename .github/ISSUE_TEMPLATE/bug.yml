@@ -1,0 +1,31 @@
+name: Bug report
+description: Report incorrect behavior without exposing credentials or private assets.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Observed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Kitrove revision, harness versions, and scope. Redact sensitive paths and values.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed credentials, tokens, and proprietary capability content.
+          required: true

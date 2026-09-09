@@ -1,0 +1,34 @@
+[package]
+name = "kitrove-state-lifecycle"
+description = "Shared lifecycle coordination for Kitrove local state"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+cap-fs-ext.workspace = true
+cap-std.workspace = true
+fs2.workspace = true
+sha2.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+rustix = { workspace = true, features = ["process"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+calcifer-macos-acl.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+kitrove-windows-security.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[target.'cfg(windows)'.dev-dependencies]
+kitrove-windows-security = { workspace = true, features = ["test-support"] }
+
+[lints]
+workspace = true

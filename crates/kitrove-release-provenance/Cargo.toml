@@ -1,0 +1,32 @@
+[package]
+name = "kitrove-release-provenance"
+description = "Offline release provenance verification for Kitrove application and installer artifacts"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+test-support = []
+
+[dependencies]
+const-oid.workspace = true
+der.workspace = true
+kitrove-release-policy.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+sigstore-trust-root.workspace = true
+sigstore-types.workspace = true
+sigstore-verify.workspace = true
+x509-cert.workspace = true
+
+[dev-dependencies]
+zip.workspace = true
+
+[lints]
+workspace = true

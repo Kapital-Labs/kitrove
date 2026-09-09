@@ -1,0 +1,64 @@
+[package]
+name = "kitrove-cli"
+description = "Command-line interface for Kitrove"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+default = []
+windows-test-fixture = []
+
+[package.metadata.dist]
+dist = true
+
+[package.metadata.dist.binaries]
+aarch64-apple-darwin = ["kitrove"]
+x86_64-apple-darwin = ["kitrove"]
+x86_64-unknown-linux-gnu = ["kitrove"]
+x86_64-pc-windows-msvc = ["kitrove"]
+
+[[bin]]
+name = "kitrove"
+path = "src/main.rs"
+
+[[bin]]
+name = "kitrove-windows-version-probe-fixture"
+path = "test-fixtures/windows_version_probe_fixture.rs"
+required-features = ["windows-test-fixture"]
+
+[[test]]
+name = "windows_version_probe_cli"
+path = "tests/windows_version_probe_cli.rs"
+required-features = ["windows-test-fixture"]
+
+[dependencies]
+cap-fs-ext.workspace = true
+cap-std.workspace = true
+kitrove-adapter-api.workspace = true
+kitrove-adapter-claude = { path = "../adapters/kitrove-adapter-claude" }
+kitrove-adapter-codex = { path = "../adapters/kitrove-adapter-codex" }
+kitrove-adapter-opencode = { path = "../adapters/kitrove-adapter-opencode" }
+kitrove-adapter-pi = { path = "../adapters/kitrove-adapter-pi" }
+kitrove-agent-skills.workspace = true
+kitrove-core.workspace = true
+kitrove-version-probe.workspace = true
+kitrove-mcp.workspace = true
+kitrove-model.workspace = true
+kitrove-state-lifecycle.workspace = true
+rpassword.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+kitrove-testkit.workspace = true
+tempfile.workspace = true
+
+[target.'cfg(windows)'.dev-dependencies]
+kitrove-windows-security = { workspace = true, features = ["test-support"] }
+
+[lints]
+workspace = true

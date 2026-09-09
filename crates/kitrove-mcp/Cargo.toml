@@ -1,0 +1,23 @@
+[package]
+name = "kitrove-mcp"
+description = "Harness-neutral MCP declaration primitives"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+blake3.workspace = true
+jsonc-parser.workspace = true
+kitrove-model.workspace = true
+kitrove-risk.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml_edit.workspace = true
+url.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,21 @@
+[package]
+name = "kitrove-testkit"
+description = "Synthetic harness fixtures and helpers for Kitrove"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+kitrove-model.workspace = true
+kitrove-agent-skills.workspace = true
+kitrove-adapter-api.workspace = true
+kitrove-core.workspace = true
+kitrove-state-lifecycle.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

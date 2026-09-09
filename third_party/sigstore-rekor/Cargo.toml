@@ -1,0 +1,32 @@
+[package]
+edition = "2021"
+rust-version = "1.70"
+name = "sigstore-rekor"
+version = "0.11.0"
+description = "Rekor transparency log client for Sigstore"
+readme = "README.md"
+license = "Apache-2.0"
+repository = "https://github.com/prefix-dev/sigstore-rust"
+
+[features]
+default = ["client", "rustls"]
+client = ["dep:reqwest", "dep:url"]
+native-tls = ["client", "reqwest/native-tls"]
+rustls = ["client", "reqwest/rustls"]
+cache = ["client", "dep:sigstore-cache"]
+
+[dependencies]
+base64 = "0.22"
+hex = "0.4"
+reqwest = { version = "0.13", features = ["json", "form"], default-features = false, optional = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sigstore-cache = { version = "0.11.0", optional = true }
+sigstore-crypto = "0.11.0"
+sigstore-merkle = "0.11.0"
+sigstore-types = "0.11.0"
+thiserror = "2.0"
+url = { version = "2.5", optional = true }
+
+[dev-dependencies]
+tokio = { version = "1.47", features = ["full"] }

@@ -1,0 +1,27 @@
+# Non-normative design example. The public schema is not yet stable.
+schema = 1
+name = "example"
+
+[harnesses]
+claude = true
+codex = true
+pi = true
+opencode = true
+
+[[assets]]
+id = "study-notes"
+kind = "skill"
+source = { path = "assets/study-notes" }
+tags = ["common", "study"]
+
+[[assets]]
+id = "gstack"
+kind = "pack"
+source = { git = "https://github.com/example/gstack", rev = "locked" }
+tags = ["common", "engineering"]
+
+[profiles.personal]
+include_tags = ["common", "study"]
+
+[profiles.work]
+include_tags = ["common", "work"]

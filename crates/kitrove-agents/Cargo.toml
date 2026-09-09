@@ -1,0 +1,22 @@
+[package]
+name = "kitrove-agents"
+description = "Harness-neutral agent definition primitives"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+blake3.workspace = true
+kitrove-frontmatter.workspace = true
+kitrove-model.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+yaml_serde.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,48 @@
+[workspace]
+members = ["cargo:."]
+
+# Config for 'dist'
+[dist]
+# The preferred dist version to use in CI (Cargo.toml SemVer syntax)
+cargo-dist-version = "0.32.0"
+# Keep release validation local during development; ordinary pull requests spend no release-CI
+# minutes. Tag pushes are the only hosted release trigger.
+pr-run-mode = "skip"
+# CI backends to support
+ci = "github"
+# The checked-in workflow adds repository-specific supply-chain hardening. Keep dist from replacing
+# it; `cargo xtask governance` validates the exact trigger, permissions, digests, and action pins.
+allow-dirty = ["ci"]
+# The installers to generate for each app
+installers = ["shell", "powershell"]
+# Target platforms to build apps for (Rust target-triple syntax)
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
+# Build only the application and standalone installer and their dependency closures.
+precise-builds = true
+packages = ["kitrove-cli", "kitrove-installer"]
+# cargo-dist copies this bounded placeholder into each archive. The release job replaces it with
+# target-specific metadata bound to the built executable before checksums or attestations exist.
+include = ["release/kitrove-release.json"]
+# Path that installers should place binaries in
+install-path = "CARGO_HOME"
+# Keep the generated updater disabled: dist 0.32 installers do not bind the separately downloaded
+# updater executable to a checksum. Application upgrades use reviewed versioned artifacts instead.
+install-updater = false
+# Produce detached SHA-256 checksums for every downloadable artifact.
+checksum = "sha256"
+# Public releases receive Sigstore-backed GitHub artifact attestations.
+github-attestations = true
+
+# Exact binary selections live in each product's package metadata. A workspace-level
+# override would copy both executables into both product archives.
+
+# GitHub's macOS 14 hosted image is scheduled for retirement in 2026.
+[dist.github-custom-runners]
+aarch64-apple-darwin = "macos-15"
+
+# Pin every generated third-party action to the exact reviewed commit behind its release tag.
+[dist.github-action-commits]
+"actions/attest" = "1e69f48acb82d1966a394da916b4c1698aa569d6"
+"actions/checkout" = "d23441a48e516b6c34aea4fa41551a30e30af803"
+"actions/download-artifact" = "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
+"actions/upload-artifact" = "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"

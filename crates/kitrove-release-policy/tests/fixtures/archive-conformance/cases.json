@@ -1,0 +1,72 @@
+[
+  {
+    "accepted": true,
+    "archive": "valid_tar_xz/kitrove-cli-aarch64-apple-darwin.tar.xz",
+    "case": "valid_tar_xz",
+    "sha256": "f6f672540962eb54d0285aa4a0d4fb55c2b8de43f5f43a2e5242d44b77ed70b0",
+    "target": "aarch64-apple-darwin"
+  },
+  {
+    "accepted": true,
+    "archive": "valid_zip/kitrove-cli-x86_64-pc-windows-msvc.zip",
+    "case": "valid_zip",
+    "sha256": "55465c34b3d81f3aa18408b6ad50b8fecc2baf0f1767f34df14540e2abc3a9c9",
+    "target": "x86_64-pc-windows-msvc"
+  },
+  {
+    "accepted": false,
+    "archive": "tar_unsafe_mode/kitrove-cli-aarch64-apple-darwin.tar.xz",
+    "case": "tar_unsafe_mode",
+    "sha256": "7ffb3308df759efc899ee9284162d8338818369a0687f3dc91484f7d8c546e9d",
+    "target": "aarch64-apple-darwin"
+  },
+  {
+    "accepted": false,
+    "archive": "tar_traversal/kitrove-cli-aarch64-apple-darwin.tar.xz",
+    "case": "tar_traversal",
+    "sha256": "2a409beafb46a0ebd63af4c6bac16dd82d2c766853af5b72aa1936dbecb302aa",
+    "target": "aarch64-apple-darwin"
+  },
+  {
+    "accepted": false,
+    "archive": "tar_extended_metadata/kitrove-cli-aarch64-apple-darwin.tar.xz",
+    "case": "tar_extended_metadata",
+    "sha256": "861b24d7a24ba97ddb64fb61c9580450245025fd0c1830f68320a17b020f6e0a",
+    "target": "aarch64-apple-darwin"
+  },
+  {
+    "accepted": false,
+    "archive": "tar_nonzero_padding/kitrove-cli-aarch64-apple-darwin.tar.xz",
+    "case": "tar_nonzero_padding",
+    "sha256": "7b3cf943e8a119ff2bbdbb87f70faedf576cb4da985e1160536cf6d34eae7308",
+    "target": "aarch64-apple-darwin"
+  },
+  {
+    "accepted": false,
+    "archive": "tar_concatenated_xz/kitrove-cli-aarch64-apple-darwin.tar.xz",
+    "case": "tar_concatenated_xz",
+    "sha256": "6f66ad22b35665befc58e10905d2612afaa7d4205a59a65fde67966a26926053",
+    "target": "aarch64-apple-darwin"
+  },
+  {
+    "accepted": false,
+    "archive": "zip_extra_entry/kitrove-cli-x86_64-pc-windows-msvc.zip",
+    "case": "zip_extra_entry",
+    "sha256": "880dc22297a8ffbbef73a647efa42ebbb944b5eab6b364b9174b1c145be1b170",
+    "target": "x86_64-pc-windows-msvc"
+  },
+  {
+    "accepted": false,
+    "archive": "zip_traversal/kitrove-cli-x86_64-pc-windows-msvc.zip",
+    "case": "zip_traversal",
+    "sha256": "09258367b86f28ce4aa45b4831358ebdba8dc0788a23495769cc360b56ce8978",
+    "target": "x86_64-pc-windows-msvc"
+  },
+  {
+    "accepted": false,
+    "archive": "zip_corrupt_crc/kitrove-cli-x86_64-pc-windows-msvc.zip",
+    "case": "zip_corrupt_crc",
+    "sha256": "4e63b976479537e53a71139753ef961956e70ac9c1b65e9bd8f861f4c10eda05",
+    "target": "x86_64-pc-windows-msvc"
+  }
+]

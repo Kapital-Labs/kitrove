@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "assets": {
+    "review": {
+      "id": "review",
+      "kind": "skill",
+      "content_hash": "blake3:f96367a31752045a8b1e9e0e2c725b43db1179498ab29619dc2271f358eb8b97",
+      "portable_provenance": "provenance:blake3:29908368631c09f155cba47d7fe7b492a4b0802ea2a182ba2df612722bd208c9",
+      "native_provenance": {},
+      "provenance": {
+        "provenance:blake3:29908368631c09f155cba47d7fe7b492a4b0802ea2a182ba2df612722bd208c9": {
+          "source": {
+            "kind": "git",
+            "repository": "https://example.test/capabilities.git",
+            "subdirectory": "skills/review"
+          },
+          "revision": "git:0123456789abcdef",
+          "exact_source_hash": "blake3:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "origin_scope": null
+        }
+      },
+      "compatibility": {}
+    }
+  },
+  "packs": {
+    "review-pack": {
+      "id": "review-pack",
+      "resolved_source": {
+        "source": {
+          "kind": "git",
+          "repository": "https://example.test/capabilities.git",
+          "subdirectory": "packs/review"
+        },
+        "revision": "git:0123456789abcdef",
+        "content_hash": "blake3:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "content_hash": "blake3:cd54269c6e4780dcad6edd4909cc9f5c4708170da36b1b34143a695873c1e9ee",
+      "members": {
+        "review": "blake3:f96367a31752045a8b1e9e0e2c725b43db1179498ab29619dc2271f358eb8b97"
+      },
+      "compatibility": {}
+    }
+  }
+}

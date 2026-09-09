@@ -1,0 +1,39 @@
+[package]
+name = "kitrove-windows-security"
+description = "Narrow handle-bound Windows security boundary for Kitrove"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+test-support = []
+
+[target.'cfg(windows)'.dependencies]
+kitrove-windows-names.workspace = true
+windows-sys = { workspace = true, features = [
+  "Wdk_Foundation",
+  "Wdk_Storage_FileSystem",
+  "Win32_Foundation",
+  "Win32_Globalization",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_Storage_FileSystem",
+  "Win32_System_IO",
+  "Win32_System_SystemInformation",
+  "Win32_System_Threading",
+] }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"

@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "releases": [
+    {
+      "version": "0.0.0",
+      "rollback_compatible_predecessors": []
+    }
+  ]
+}

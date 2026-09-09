@@ -1,0 +1,27 @@
+[package]
+name = "kitrove-release-policy"
+description = "Shared release artifact policy for Kitrove publication and installation"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+kitrove-windows-names.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tar.workspace = true
+xz4rust.workspace = true
+zip.workspace = true
+zlib-rs.workspace = true
+
+[dev-dependencies]
+lzma-rust2.workspace = true
+
+[lints]
+workspace = true

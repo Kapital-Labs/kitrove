@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "machine": {
+    "id": "laptop",
+    "active_profile": null,
+    "enabled_targets": [],
+    "harness_roots": {}
+  },
+  "bindings": {},
+  "receipts": {
+    "review-claude-user": {
+      "asset_id": "review",
+      "harness": "claude",
+      "destination": "/Users/test/.claude/skills/review",
+      "source_hash": "blake3:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "rendered_hash": "blake3:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "prior_hash": null,
+      "adapter_version": "claude-adapter/1",
+      "environment_revision": "manifest:blake3:0001"
+    }
+  },
+  "trust": {},
+  "scans": []
+}

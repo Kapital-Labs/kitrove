@@ -1,0 +1,38 @@
+schema_version = 1
+required_bindings = []
+
+[assets.review]
+id = "review"
+kind = "skill"
+content_hash = "blake3:f96367a31752045a8b1e9e0e2c725b43db1179498ab29619dc2271f358eb8b97"
+content_class = "agent_active"
+required_bindings = []
+
+[assets.review.portable]
+format = "agent-skills/v1"
+root = "assets/review/portable"
+object_hash = "blake3:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+provenance = "provenance:blake3:29908368631c09f155cba47d7fe7b492a4b0802ea2a182ba2df612722bd208c9"
+
+[assets.review.provenance."provenance:blake3:29908368631c09f155cba47d7fe7b492a4b0802ea2a182ba2df612722bd208c9"]
+revision = "git:0123456789abcdef"
+exact_source_hash = "blake3:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+[assets.review.provenance."provenance:blake3:29908368631c09f155cba47d7fe7b492a4b0802ea2a182ba2df612722bd208c9".source]
+kind = "git"
+repository = "https://example.test/capabilities.git"
+subdirectory = "skills/review"
+
+[packs.review-pack]
+id = "review-pack"
+revision = "git:0123456789abcdef"
+exact_source_hash = "blake3:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+content_hash = "blake3:cd54269c6e4780dcad6edd4909cc9f5c4708170da36b1b34143a695873c1e9ee"
+members = { review = "blake3:f96367a31752045a8b1e9e0e2c725b43db1179498ab29619dc2271f358eb8b97" }
+content_class = "agent_active"
+required_bindings = []
+
+[packs.review-pack.source]
+kind = "git"
+repository = "https://example.test/capabilities.git"
+subdirectory = "packs/review"

@@ -1,0 +1,47 @@
+[package]
+name = "kitrove-version-probe"
+description = "Bounded local executable version verification for KitRove"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+default = []
+windows-test-fixture = [
+  "kitrove-windows-process/test-support",
+  "kitrove-windows-security/test-support",
+]
+
+[[bin]]
+name = "kitrove-version-probe-fixture"
+path = "test-fixtures/windows_fixture.rs"
+required-features = ["windows-test-fixture"]
+
+[[test]]
+name = "windows_probe"
+path = "tests/windows_probe.rs"
+required-features = ["windows-test-fixture"]
+
+[dependencies]
+blake3.workspace = true
+kitrove-adapter-api.workspace = true
+kitrove-model.workspace = true
+semver.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+rustix.workspace = true
+wait-timeout.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+kitrove-windows-process.workspace = true
+kitrove-windows-security.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

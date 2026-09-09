@@ -1,0 +1,13 @@
+# Machine-local example. This file is not synchronized by default.
+machine = "work-macbook"
+profile = "work"
+
+[harnesses]
+claude = true
+codex = true
+pi = false
+opencode = true
+
+[bindings]
+github_token = { env = "GITHUB_TOKEN" }
+company_mcp_token = { command = ["bw", "get", "password", "company-mcp"] }

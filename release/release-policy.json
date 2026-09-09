@@ -1,0 +1,89 @@
+{
+  "schema": 1,
+  "binary_companions": [
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE.md",
+    "LICENSE-MIT",
+    "LICENSE-APACHE",
+    "kitrove-release.json"
+  ],
+  "release_manifest": {
+    "name": "kitrove-release.json",
+    "max_bytes": 16384
+  },
+  "limits": {
+    "max_archive_bytes": 268435456,
+    "max_tar_stream_bytes": 547110912,
+    "max_xz_blocks": 1024,
+    "max_xz_decoder_memory_bytes": 100663296,
+    "max_xz_dictionary_bytes": 67108864,
+    "max_xz_index_bytes": 32768,
+    "max_zip_central_directory_bytes": 16777216,
+    "max_entries": 10000,
+    "max_entry_bytes": 134217728,
+    "max_expanded_bytes": 536870912,
+    "max_path_bytes": 4096,
+    "max_component_bytes": 255
+  },
+  "installer_archives": [
+    {
+      "target": "aarch64-apple-darwin",
+      "archive": "kitrove-installer-aarch64-apple-darwin.tar.xz",
+      "root": "kitrove-installer-aarch64-apple-darwin",
+      "executable": "kitrove-installer",
+      "format": "tar.xz"
+    },
+    {
+      "target": "x86_64-apple-darwin",
+      "archive": "kitrove-installer-x86_64-apple-darwin.tar.xz",
+      "root": "kitrove-installer-x86_64-apple-darwin",
+      "executable": "kitrove-installer",
+      "format": "tar.xz"
+    },
+    {
+      "target": "x86_64-unknown-linux-gnu",
+      "archive": "kitrove-installer-x86_64-unknown-linux-gnu.tar.xz",
+      "root": "kitrove-installer-x86_64-unknown-linux-gnu",
+      "executable": "kitrove-installer",
+      "format": "tar.xz"
+    },
+    {
+      "target": "x86_64-pc-windows-msvc",
+      "archive": "kitrove-installer-x86_64-pc-windows-msvc.zip",
+      "root": null,
+      "executable": "kitrove-installer.exe",
+      "format": "zip"
+    }
+  ],
+  "application_archives": [
+    {
+      "target": "aarch64-apple-darwin",
+      "archive": "kitrove-cli-aarch64-apple-darwin.tar.xz",
+      "root": "kitrove-cli-aarch64-apple-darwin",
+      "executable": "kitrove",
+      "format": "tar.xz"
+    },
+    {
+      "target": "x86_64-apple-darwin",
+      "archive": "kitrove-cli-x86_64-apple-darwin.tar.xz",
+      "root": "kitrove-cli-x86_64-apple-darwin",
+      "executable": "kitrove",
+      "format": "tar.xz"
+    },
+    {
+      "target": "x86_64-unknown-linux-gnu",
+      "archive": "kitrove-cli-x86_64-unknown-linux-gnu.tar.xz",
+      "root": "kitrove-cli-x86_64-unknown-linux-gnu",
+      "executable": "kitrove",
+      "format": "tar.xz"
+    },
+    {
+      "target": "x86_64-pc-windows-msvc",
+      "archive": "kitrove-cli-x86_64-pc-windows-msvc.zip",
+      "root": null,
+      "executable": "kitrove.exe",
+      "format": "zip"
+    }
+  ]
+}

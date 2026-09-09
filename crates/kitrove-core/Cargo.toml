@@ -1,0 +1,69 @@
+[package]
+name = "kitrove-core"
+description = "Planning and reconciliation for Kitrove"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+kitrove-model.workspace = true
+kitrove-adapter-api.workspace = true
+kitrove-agent-skills.workspace = true
+kitrove-agents.workspace = true
+kitrove-instructions.workspace = true
+kitrove-mcp.workspace = true
+kitrove-prompt-commands.workspace = true
+kitrove-risk.workspace = true
+kitrove-state-lifecycle.workspace = true
+kitrove-version-probe.workspace = true
+blake3.workspace = true
+cap-std.workspace = true
+cap-fs-ext.workspace = true
+fs2.workspace = true
+getrandom.workspace = true
+data-encoding.workspace = true
+gix-hash.workspace = true
+gix-object.workspace = true
+gix-pack.workspace = true
+gix-packetline.workspace = true
+gix-zlib.workspace = true
+hmac.workspace = true
+rustls.workspace = true
+russh.workspace = true
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
+sha1.workspace = true
+toml.workspace = true
+tokio.workspace = true
+ureq.workspace = true
+url.workspace = true
+webpki-roots.workspace = true
+zeroize.workspace = true
+
+[target.'cfg(any(target_vendor = "apple", target_os = "linux", target_os = "redox"))'.dependencies]
+rustix.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+calcifer-macos-acl.workspace = true
+unicase.workspace = true
+unicode-normalization.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+kitrove-windows-security.workspace = true
+
+[dev-dependencies]
+futures.workspace = true
+kitrove-adapter-pi = { path = "../adapters/kitrove-adapter-pi" }
+kitrove-testkit.workspace = true
+rand.workspace = true
+tempfile.workspace = true
+
+[target.'cfg(windows)'.dev-dependencies]
+kitrove-windows-security = { workspace = true, features = ["test-support"] }
+
+[lints]
+workspace = true

@@ -1,0 +1,25 @@
+[package]
+name = "kitrove-adapter-claude"
+description = "Claude adapter for Kitrove"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+kitrove-model.workspace = true
+kitrove-adapter-api.workspace = true
+kitrove-agent-skills.workspace = true
+kitrove-agents.workspace = true
+kitrove-mcp.workspace = true
+
+[dev-dependencies]
+kitrove-core.workspace = true
+kitrove-testkit.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true
