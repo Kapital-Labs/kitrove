@@ -38,6 +38,51 @@ permissions:
   contents: read
 
 jobs:
+  required-ci:
+    # A skipped manual summary must never satisfy the protected branch's check.
+    name: ${{ github.event_name == 'workflow_dispatch' && 'Supplemental CI summary' || 'Required CI' }}
+    needs: [changes, governance, pull-request-ci, pull-request-msrv, pull-request-os, ci, msrv, advisory-audit]
+    if: always() && (github.event_name == 'push' || github.event_name == 'pull_request')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require the complete selected validation path
+        env:
+          CI_EVENT: ${{ github.event_name }}
+          CI_NEEDS: ${{ toJSON(needs) }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+
+          jobs = json.loads(os.environ['CI_NEEDS'])
+          expected = dict.fromkeys([
+              'changes', 'governance', 'pull-request-ci', 'pull-request-msrv',
+              'pull-request-os', 'ci', 'msrv', 'advisory-audit',
+          ], 'skipped')
+          if set(jobs) != set(expected) or jobs['changes']['result'] != 'success':
+              raise SystemExit('Classification failed or validation inventory changed')
+          outputs = jobs['changes']['outputs']
+          if outputs.get('source') not in ('true', 'false') or outputs.get('os-sensitive') not in ('true', 'false'):
+              raise SystemExit('Invalid classification outputs')
+          event = os.environ['CI_EVENT']
+          if event not in ('push', 'pull_request'):
+              raise SystemExit('Unsupported validation event')
+          expected['changes'] = 'success'
+          if outputs['source'] == 'false':
+              expected['governance'] = 'success'
+          elif event == 'pull_request':
+              expected['pull-request-ci'] = expected['pull-request-msrv'] = 'success'
+              if outputs['os-sensitive'] == 'true':
+                  expected['pull-request-os'] = 'success'
+          else:
+              expected['ci'] = expected['msrv'] = expected['advisory-audit'] = 'success'
+          if any(jobs[name]['result'] != result for name, result in expected.items()):
+              raise SystemExit('Required validation failed, was cancelled, or was unexpectedly skipped')
+          print('Required validation passed')
+          PY
+
   windows-signing-build:
     name: Windows signing rehearsal (build without credentials)
     if: >-
