@@ -22,10 +22,43 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
-def native(args, payload=None, timeout=30):
-    result = subprocess.run(args, input=payload, stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE, timeout=timeout, check=False)
-    require(result.returncode == 0, 'Native operation failed')
+OPERATIONS = frozenset(('identity import', 'code signing', 'signature verification',
+    'signature inspection', 'notary ZIP creation', 'notarization submission', 'Keychain cleanup'))
+
+
+def error_category(stderr):
+    # Only these constant categories can leave the process. Never return a line,
+    # substring, path, exception message or account value from provider output.
+    lowered = stderr.lower()
+    for marker, category in (
+        (b'user interaction is not allowed', 'interaction-required'),
+        (b'unable to build chain', 'certificate-chain'),
+        (b'errsecinternalcomponent', 'security-internal'),
+        (b'no identity found', 'identity-unavailable'),
+        (b'the specified item could not be found', 'keychain-item-unavailable'),
+        (b'timestamp service is not available', 'timestamp-service'),
+    ):
+        if marker in lowered:
+            return category
+    return 'unclassified-native-failure'
+
+
+def native(args, payload=None, timeout=30, *, operation):
+    require(operation in OPERATIONS, 'Unknown diagnostic operation')
+    print('Starting: ' + operation, flush=True)
+    try:
+        result = subprocess.run(args, input=payload, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, timeout=timeout, check=False)
+    except subprocess.TimeoutExpired:
+        print('Failed: ' + operation + ' [timeout]', flush=True)
+        raise RuntimeError('Native operation timed out') from None
+    except OSError:
+        print('Failed: ' + operation + ' [launch-failure]', flush=True)
+        raise RuntimeError('Native operation could not start') from None
+    if result.returncode != 0:
+        print('Failed: ' + operation + ' [' + error_category(result.stderr) + ']', flush=True)
+        raise RuntimeError('Native operation failed')
+    print('Passed: ' + operation, flush=True)
     return result
 
 
@@ -83,30 +116,37 @@ def rehearse():
         keychain = root / 'signing.keychain-db'
         try:
             native([str(runner / 'import-identity')], json.dumps(dict(path=str(keychain),
-                archive=values.pop('P12'), password=values.pop('P12_PASSWORD'))).encode())
+                archive=values.pop('P12'), password=values.pop('P12_PASSWORD'))).encode(), operation='identity import')
             print('Temporary Keychain imported; ambient selectors restored.', flush=True)
             authenticate(['notarytool', 'store-credentials', 'kitrove-rehearsal',
                 '--apple-id', values['APPLE_ID'], '--team-id', values['TEAM_ID'],
                 '--keychain', str(keychain)], values.pop('NOTARY_PASSWORD'))
             print('Notarization profile stored and validated in temporary Keychain.', flush=True)
             executable = root / 'kitrove-signing-test'
+            print('Starting: fixture staging', flush=True)
             # The fixed harmless fixture was compiled before secrets were exposed.
             executable.write_bytes((runner / 'kitrove-signing-test').read_bytes())
             executable.chmod(0o700)
+            print('Passed: fixture staging', flush=True)
             native(['/usr/bin/codesign', '--force', '--sign', IDENTITY, '--keychain',
-                str(keychain), '--options', 'runtime', '--timestamp', str(executable)], timeout=90)
-            native(['/usr/bin/codesign', '--verify', '--strict', '-R', REQUIREMENT, str(executable)])
-            detail = native(['/usr/bin/codesign', '--display', '--verbose=4', str(executable)]).stderr.decode()
+                str(keychain), '--options', 'runtime', '--timestamp', str(executable)], timeout=90,
+                operation='code signing')
+            native(['/usr/bin/codesign', '--verify', '--strict', '-R', REQUIREMENT, str(executable)],
+                operation='signature verification')
+            detail = native(['/usr/bin/codesign', '--display', '--verbose=4', str(executable)],
+                operation='signature inspection').stderr.decode()
+            print('Starting: timestamp and runtime validation', flush=True)
             require(any(line.startswith('Timestamp=') and len(line) > 10 for line in detail.splitlines()),
                 'Secure timestamp absent')
             require(any(line.startswith('CodeDirectory ') and '(runtime)' in line for line in detail.splitlines()),
                 'Hardened runtime absent')
             print('Test executable signed and exact team, runtime and timestamp verified.', flush=True)
             archive = root / 'notary.zip'
-            native(['/usr/bin/ditto', '-c', '-k', str(executable), str(archive)])
+            native(['/usr/bin/ditto', '-c', '-k', str(executable), str(archive)], operation='notary ZIP creation')
             response = native(['/usr/bin/xcrun', 'notarytool', 'submit', str(archive),
                 '--keychain-profile', 'kitrove-rehearsal', '--keychain', str(keychain),
-                '--wait', '--timeout', '10m', '--output-format', 'json'], timeout=660)
+                '--wait', '--timeout', '10m', '--output-format', 'json'], timeout=660,
+                operation='notarization submission')
             submission = json.loads(response.stdout)
             require(submission.get('status') == 'Accepted' and submission.get('id'), 'Notarization not accepted')
             print('Test executable notarization Accepted. No product code executed or release published.', flush=True)
@@ -114,7 +154,7 @@ def rehearse():
             # The path belongs only to this unique directory. Never delete another
             # Keychain or an ambient store, even after an import failure.
             if keychain.exists():
-                native(['/usr/bin/security', 'delete-keychain', str(keychain)])
+                native(['/usr/bin/security', 'delete-keychain', str(keychain)], operation='Keychain cleanup')
             require(not keychain.exists(), 'Temporary Keychain cleanup failed')
             print('Temporary signing Keychain removed.', flush=True)
 
