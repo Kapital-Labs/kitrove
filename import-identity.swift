@@ -30,7 +30,10 @@ func importIdentity() throws {
     }
     var success = false
     defer {
-        if !success, let keychain { SecKeychainDelete(keychain) }
+        if !success {
+            SecKeychainSetSearchList(originalList)
+            if let keychain { SecKeychainDelete(keychain) }
+        }
     }
     // Creating a legacy Keychain may add it to the search list. Restore both
     // ambient selectors before checking creation or importing any secret key.
@@ -72,6 +75,11 @@ func importIdentity() throws {
     let fingerprint = Insecure.SHA1.hash(data: SecCertificateCopyData(certificate) as Data)
         .map { String(format: "%02X", $0) }.joined()
     try require(fingerprint == "D9A906454D05C808AA070F9BC91F1A29BF0F6CC6")
+    // codesign requires search-list membership even with explicit --keychain.
+    // The orchestrator snapshots the original list before import and restores it
+    // in finally. Keep the default Keychain unchanged and append only this store.
+    let signingList = (originalList as! [SecKeychain]) + [keychain]
+    try require(SecKeychainSetSearchList(signingList as CFArray) == errSecSuccess)
     success = true
     print("Approved identity imported into the isolated Keychain.")
 }

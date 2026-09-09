@@ -4,6 +4,7 @@ import json
 import os
 import pty
 import select
+import shlex
 import signal
 import subprocess
 import tempfile
@@ -23,7 +24,8 @@ def require(condition, message):
 
 
 OPERATIONS = frozenset(('identity import', 'code signing', 'signature verification',
-    'signature inspection', 'notary ZIP creation', 'notarization submission', 'Keychain cleanup'))
+    'signature inspection', 'notary ZIP creation', 'notarization submission', 'Keychain cleanup',
+    'Keychain search-list snapshot', 'Keychain search-list restoration'))
 
 
 def error_category(stderr):
@@ -111,13 +113,18 @@ def rehearse():
     require(all(values.values()) and values['TEAM_ID'] == '98RZ36ES7A', 'Credential setup invalid')
     runner = Path(os.environ['RUNNER_TEMP'])
     require(runner.is_absolute(), 'Absolute runner temporary directory required')
+    snapshot = native(['/usr/bin/security', 'list-keychains', '-d', 'user'],
+        operation='Keychain search-list snapshot').stdout
+    original_keychains = shlex.split(snapshot.decode())
+    require(original_keychains and all(Path(path).is_absolute() for path in original_keychains),
+        'Invalid original Keychain search list')
     with tempfile.TemporaryDirectory(prefix='kitrove-native-check-', dir=runner) as directory:
         root = Path(directory)
         keychain = root / 'signing.keychain-db'
         try:
             native([str(runner / 'import-identity')], json.dumps(dict(path=str(keychain),
                 archive=values.pop('P12'), password=values.pop('P12_PASSWORD'))).encode(), operation='identity import')
-            print('Temporary Keychain imported; ambient selectors restored.', flush=True)
+            print('Temporary Keychain imported and appended to search list; default unchanged.', flush=True)
             authenticate(['notarytool', 'store-credentials', 'kitrove-rehearsal',
                 '--apple-id', values['APPLE_ID'], '--team-id', values['TEAM_ID'],
                 '--keychain', str(keychain)], values.pop('NOTARY_PASSWORD'))
@@ -153,8 +160,12 @@ def rehearse():
         finally:
             # The path belongs only to this unique directory. Never delete another
             # Keychain or an ambient store, even after an import failure.
-            if keychain.exists():
-                native(['/usr/bin/security', 'delete-keychain', str(keychain)], operation='Keychain cleanup')
+            try:
+                native(['/usr/bin/security', 'list-keychains', '-d', 'user', '-s'] + original_keychains,
+                    operation='Keychain search-list restoration')
+            finally:
+                if keychain.exists():
+                    native(['/usr/bin/security', 'delete-keychain', str(keychain)], operation='Keychain cleanup')
             require(not keychain.exists(), 'Temporary Keychain cleanup failed')
             print('Temporary signing Keychain removed.', flush=True)
 
