@@ -1,0 +1,28 @@
+name: Product signing rehearsal
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: product-signing-rehearsal
+  cancel-in-progress: false
+
+jobs:
+  rehearse:
+    if: >-
+      github.repository == 'Kapital-Labs/kitrove' &&
+      github.ref == 'refs/heads/main' &&
+      github.sha == vars.KITROVE_SIGNING_REHEARSAL_SHA
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [aarch64-apple-darwin, x86_64-apple-darwin, x86_64-pc-windows-msvc]
+    uses: ./.github/workflows/signing-rehearsal-target.yml
+    with:
+      target: ${{ matrix.target }}
+    permissions:
+      contents: read
+      id-token: write

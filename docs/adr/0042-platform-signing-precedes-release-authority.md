@@ -128,6 +128,26 @@ requires Unix no-follow handles and remains mandatory in Linux global staging an
 publication jobs; do not add an insecure Windows fallback to that verifier.
 Actual hosted product signing and two-version acceptance remain release gates.
 
+### Approved public product rehearsal
+
+The operator approved a non-publishing rehearsal of the actual CLI and installer
+on Apple Silicon, Intel Mac and Windows. The manual dispatcher accepts only main
+at an explicitly configured `KITROVE_SIGNING_REHEARSAL_SHA`. Each target builds on
+a separate runner with no signing secrets or OIDC. The protected signer checks an
+exact file inventory against a digest passed directly from its own build job,
+including source and target, before using the prebuilt release helpers. No product
+binary runs in either signing helper. Native signature and archive authority checks
+remain the same as production; this is not a second implementation of signing.
+
+Temporarily allowing main in the existing release environment requires retaining
+operator review and disabling administrator bypass. Remove that temporary policy
+and activation SHA after the rehearsal. This does not set the production activation
+variable, create a release tag, attest release provenance or publish a release.
+Workflow artifacts have one-day retention. The Windows helper accepts this exact
+manual context in addition to its existing production tag context. Credential
+cleanup must finish before final evidence upload. Abrupt cancellation still relies
+on destruction of the ephemeral GitHub-hosted runner.
+
 ## Native Windows ZIP origin attributes
 
 Native cargo-dist Windows ZIPs identify their origin as DOS while retaining
