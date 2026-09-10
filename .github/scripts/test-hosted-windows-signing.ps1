@@ -1,6 +1,8 @@
 param([Parameter(Mandatory)][string]$FixtureRoot)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+# Match Prepare's Get-Item path authority, including Windows short-name expansion.
+$FixtureRoot = (Get-Item -LiteralPath $FixtureRoot).FullName
 
 function Assert-True([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw $Message }
