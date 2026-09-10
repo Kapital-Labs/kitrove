@@ -379,6 +379,7 @@ class ReleaseArchiveVerifierTests(unittest.TestCase):
         )
         self.assertEqual(len(cases), len(corpus_generator.EXPECTED_CASES))
         self.assertEqual(len({case["archive"] for case in cases}), len(cases))
+        self.require_secure_archive_open()
         for case in cases:
             with self.subTest(case=case["case"]):
                 archive = root / case["archive"]
@@ -389,6 +390,7 @@ class ReleaseArchiveVerifierTests(unittest.TestCase):
                         verifier.validate_archive(archive, expected_sha256=case["sha256"])
 
     def test_archive_expected_digest_is_checked_on_the_validation_handle(self) -> None:
+        self.require_secure_archive_open()
         root = (
             Path(__file__).resolve().parents[1]
             / "crates/kitrove-release-policy/tests/fixtures/archive-conformance/valid_zip"
@@ -405,9 +407,21 @@ class ReleaseArchiveVerifierTests(unittest.TestCase):
         with self.assertRaises(verifier.ArchiveValidationError):
             verifier.xz_dictionary_size(41)
 
-    def secure_temporary_directory(self) -> tempfile.TemporaryDirectory[str]:
+    def test_unsupported_archive_open_fails_before_filesystem_access(self) -> None:
+        with mock.patch.object(verifier, "secure_archive_open_supported", return_value=False):
+            with mock.patch.object(verifier.os, "open") as opened:
+                with self.assertRaisesRegex(
+                    verifier.ArchiveValidationError, "requires no-follow directory handles"
+                ):
+                    verifier.validate_archive(Path("kitrove-cli-x86_64-pc-windows-msvc.zip"))
+                opened.assert_not_called()
+
+    def require_secure_archive_open(self) -> None:
         if not verifier.secure_archive_open_supported():
             self.skipTest("the release verifier requires Unix no-follow directory handles")
+
+    def secure_temporary_directory(self) -> tempfile.TemporaryDirectory[str]:
+        self.require_secure_archive_open()
         return tempfile.TemporaryDirectory(dir=Path.cwd())
 
     def test_accepts_exact_binary_tar_and_zip(self) -> None:
