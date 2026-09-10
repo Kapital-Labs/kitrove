@@ -1,7 +1,6 @@
 #![forbid(unsafe_code)]
 
-#[path = "support/owned_fixture.rs"]
-mod owned_fixture;
+use kitrove_testkit::owned_fixture;
 mod support;
 
 use std::fs;

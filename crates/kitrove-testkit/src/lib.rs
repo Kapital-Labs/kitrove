@@ -2,6 +2,7 @@
 //! Helpers for building synthetic, credential-free harness fixtures.
 
 mod harness;
+pub mod owned_fixture;
 mod policy_contract;
 mod process_sentinel;
 

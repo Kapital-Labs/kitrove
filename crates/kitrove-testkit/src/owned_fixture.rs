@@ -3,7 +3,8 @@
 use std::io::Write as _;
 use std::path::Path;
 
-pub(crate) fn create(path: &Path, bytes: &[u8]) {
+/// Creates a new fixture file with the current user's ownership and durable contents.
+pub fn create(path: &Path, bytes: &[u8]) {
     #[cfg(unix)]
     let mut file = std::fs::OpenOptions::new()
         .create_new(true)
@@ -22,4 +23,17 @@ pub(crate) fn create(path: &Path, bytes: &[u8]) {
     };
     file.write_all(bytes).unwrap();
     file.sync_all().unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn creates_contents_and_refuses_to_overwrite() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("authority");
+        super::create(&path, b"original");
+        assert_eq!(std::fs::read(&path).unwrap(), b"original");
+        assert!(std::panic::catch_unwind(|| super::create(&path, b"replacement")).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), b"original");
+    }
 }

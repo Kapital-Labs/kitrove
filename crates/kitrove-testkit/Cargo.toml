@@ -17,5 +17,9 @@ kitrove-core.workspace = true
 kitrove-state-lifecycle.workspace = true
 tempfile.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+cap-std.workspace = true
+kitrove-windows-security.workspace = true
+
 [lints]
 workspace = true
