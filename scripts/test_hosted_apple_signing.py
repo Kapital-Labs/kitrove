@@ -164,7 +164,7 @@ class HostedAppleSigningTests(unittest.TestCase):
         self.assertLess(credential_step, verification)
         self.assertLess(verification, attestation)
         self.assertEqual(workflow.count('secrets.KITROVE_GITHUB_NOTARIZATION'), 1)
-        self.assertIn('if [[ "$RUNNER_OS" != "macOS" ]]; then', workflow)
+        self.assertIn('if [[ "$RUNNER_OS" == "Linux" ]]; then', workflow)
 
 
 if __name__ == '__main__':

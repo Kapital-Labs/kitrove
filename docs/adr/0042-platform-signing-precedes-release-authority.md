@@ -107,6 +107,27 @@ Discovery/adoption, portable/native preservation, fidelity, receipts, synchroniz
 and conflict behavior are unchanged. Native signatures supplement, not replace,
 ADR-0040/0041 exact GitHub provenance and rollback authority.
 
+### Approved public hosted Windows provisioning
+
+After public source publication and green main validation, the operator approved a
+dedicated kitrove-github-release identity. Its only federation subject is
+repo:Kapital-Labs/kitrove:environment:release, and its only Azure role is Artifact
+Signing Certificate Profile Signer on kitrove-public. No password or certificate
+credential is stored. GitHub's operator approval and version-tag policy remain.
+
+The disabled workflow may compile xtask and provision the reviewed checksum-pinned
+Microsoft tools before Azure login, then prepare both products with that prebuilt
+tool. Clear the isolated Azure cache before staging or attestation, including after
+failed login/signing. Never execute product binaries while authenticated. Reuse the
+rehearsal tool provisioning rather than maintaining separate package pins.
+Ephemeral GitHub-hosted runners are mandatory; runner destruction covers abrupt
+cancellation. This integration does not authorize activation, signing or publication.
+
+Windows archive verification uses the shared Rust policy. The Python verifier
+requires Unix no-follow handles and remains mandatory in Linux global staging and
+publication jobs; do not add an insecure Windows fallback to that verifier.
+Actual hosted product signing and two-version acceptance remain release gates.
+
 ## Native Windows ZIP origin attributes
 
 Native cargo-dist Windows ZIPs identify their origin as DOS while retaining

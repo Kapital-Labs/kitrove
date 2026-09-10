@@ -296,6 +296,32 @@ jobs:
           TEAM_ID: ${{ secrets.KITROVE_APPLE_TEAM_ID }}
           NOTARY_PASSWORD: ${{ secrets.KITROVE_GITHUB_NOTARIZATION }}
         run: python3 scripts/hosted_apple_signing.py
+      - name: Compile Windows release tool and provision pinned signing tools
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          DIST_TARGET: ${{ matrix.targets[0] }}
+        run: ./.github/scripts/hosted-windows-signing.ps1 -Stage Prepare
+      - name: Authenticate the profile-scoped Windows signing identity
+        id: windows-login
+        if: runner.os == 'Windows'
+        uses: azure/login@8216e11d8cd9b42fe925c852af8e76311ff067ac
+        with:
+          client-id: a6f5951e-1036-4a4c-b62e-0e5401820fb2
+          tenant-id: e9f3481c-93fd-4dfb-a12a-bd388aec4959
+          subscription-id: e8a5a51b-ae3f-43bb-ba42-5630969a4a29
+      - name: Prepare both Windows release archives
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          DIST_TARGET: ${{ matrix.targets[0] }}
+        run: ./.github/scripts/hosted-windows-signing.ps1 -Stage Sign
+      - name: Clear isolated Windows signing authentication
+        if: always() && runner.os == 'Windows' && steps.windows-login.outcome != 'skipped'
+        shell: pwsh
+        env:
+          DIST_TARGET: ${{ matrix.targets[0] }}
+        run: ./.github/scripts/hosted-windows-signing.ps1 -Stage Cleanup
       - id: verified-local
         name: Sign and bind release metadata to the built executable
         shell: bash
@@ -307,13 +333,15 @@ jobs:
             "${{ steps.application-archive.outputs.path }}" \
             "${{ steps.application-archive.outputs.installer_path }}"
           do
-            if [[ "$RUNNER_OS" != "macOS" ]]; then
+            if [[ "$RUNNER_OS" == "Linux" ]]; then
               cargo xtask prepare-platform-release \
                 "$archive" "$DIST_TARGET" "$RELEASE_TAG" \
                 release/application-compatibility.json dist-manifest.json
             fi
             cargo xtask verify-application-release "$archive" "$DIST_TARGET" "$RELEASE_TAG"
-            python3 scripts/verify_release_archives.py "$archive"
+            if [[ "$RUNNER_OS" != "Windows" ]]; then
+              python3 scripts/verify_release_archives.py "$archive"
+            fi
             staged_archive="verified-local-artifacts/$(basename "$archive")"
             cp "$archive" "$staged_archive"
             cp "$archive.sha256" "$staged_archive.sha256"

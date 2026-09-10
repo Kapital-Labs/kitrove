@@ -105,7 +105,8 @@ the detailed Apple and Windows evidence records remain in the private developmen
 repository and are not distributed with this source snapshot.
 These are private `v0.0.0` rehearsals, not public releases or installer execution
 acceptance. Temporary Windows federation, its profile role and activation variable
-were removed. Windows production credential provisioning remains incomplete.
+were removed. That rehearsal did not provision production credentials; the later
+approved scoped identity is documented under hosted Windows integration below.
 
 The operator approved Apple credential custody in the protected `release`
 environment of `Kapital-Labs/kitrove`. The encrypted identity and its password,
@@ -146,6 +147,30 @@ offline Gatekeeper container/bootstrap acceptance; signed PowerShell convenience
 scripts if distributed as signed scripts; public-source approval and exact hosted
 provenance; and real two-version install, upgrade, failed-upgrade recovery and
 rollback acceptance. Do not infer any of these from successful code signing.
+
+## Hosted Windows integration, activation still disabled
+
+The operator approved a dedicated `kitrove-github-release` identity, client ID
+`a6f5951e-1036-4a4c-b62e-0e5401820fb2`. It accepts only GitHub OIDC for
+`repo:Kapital-Labs/kitrove:environment:release` and has the Certificate Profile
+Signer role only on `kitrove-public`. It has no password credentials. The old
+private rehearsal identity remains unprivileged.
+
+The disabled workflow compiles xtask and verifies the pinned Microsoft SDK/client
+before login, prepares both archives with that prebuilt tool, then clears and
+removes its isolated Azure cache before staging and attestation. Cleanup also runs
+after a failed login or signing step and fails the job on cleanup errors. Abrupt
+cancellation relies on ephemeral GitHub runner destruction. Product binaries are
+not executed while authenticated. Ordinary CI runs only synthetic tests.
+
+Shared PowerShell provisioning keeps the existing rehearsal and production package
+checksums identical. Windows uses Rust archive verification; the independent Python
+verification still runs in Linux global staging and publication, because its safe
+filesystem access requires Unix no-follow handles.
+
+This is workflow integration, not successful hosted signing evidence. The tag-only
+environment policy and operator approval remain required. Do not set activation
+variables, push a release tag or publish without separate approval and acceptance.
 
 ## Hosted activation — not complete
 
