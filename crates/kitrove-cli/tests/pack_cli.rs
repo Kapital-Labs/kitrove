@@ -1,5 +1,8 @@
 #![forbid(unsafe_code)]
 
+#[path = "support/owned_fixture.rs"]
+mod owned_fixture;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::Write as _;
@@ -153,16 +156,18 @@ fn create_confirms_and_atomically_groups_shared_source_authority() {
     let environment = root.join("environment");
     fs::create_dir(&environment).unwrap();
     let manifest = manifest();
-    fs::write(
-        environment.join("kitrove.toml"),
-        manifest.to_toml().unwrap(),
-    )
-    .unwrap();
-    fs::write(
-        environment.join("kitrove.lock.json"),
-        derive_lockfile(&manifest).unwrap().to_json().unwrap(),
-    )
-    .unwrap();
+    owned_fixture::create(
+        &environment.join("kitrove.toml"),
+        manifest.to_toml().unwrap().as_bytes(),
+    );
+    owned_fixture::create(
+        &environment.join("kitrove.lock.json"),
+        derive_lockfile(&manifest)
+            .unwrap()
+            .to_json()
+            .unwrap()
+            .as_bytes(),
+    );
 
     let mut child = Command::new(env!("CARGO_BIN_EXE_kitrove"))
         .args([
@@ -364,6 +369,9 @@ fn rollback_restores_verified_filesystem_history_and_preserves_generated_authori
         command
     };
     let backend = FilesystemSyncBackend::open(&remote).unwrap();
+    // Subsequent fixture revisions preserve these files' current-user ownership.
+    owned_fixture::create(&environment.join("kitrove.toml"), b"");
+    owned_fixture::create(&environment.join("kitrove.lock.json"), b"");
     let publish = |manifest: &EnvironmentManifest, marker: char| {
         fs::write(
             environment.join("kitrove.toml"),
@@ -542,12 +550,18 @@ fn discover_and_adopt_verified_distribution_head_atomically() {
         profiles: BTreeMap::new(),
         required_bindings: BTreeSet::new(),
     };
-    fs::write(environment.join("kitrove.toml"), empty.to_toml().unwrap()).unwrap();
-    fs::write(
-        environment.join("kitrove.lock.json"),
-        derive_lockfile(&empty).unwrap().to_json().unwrap(),
-    )
-    .unwrap();
+    owned_fixture::create(
+        &environment.join("kitrove.toml"),
+        empty.to_toml().unwrap().as_bytes(),
+    );
+    owned_fixture::create(
+        &environment.join("kitrove.lock.json"),
+        derive_lockfile(&empty)
+            .unwrap()
+            .to_json()
+            .unwrap()
+            .as_bytes(),
+    );
     let manifest_before = fs::read(environment.join("kitrove.toml")).unwrap();
     let lock_before = fs::read(environment.join("kitrove.lock.json")).unwrap();
     let mut unconfirmed = Command::new(env!("CARGO_BIN_EXE_kitrove"))

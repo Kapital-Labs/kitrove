@@ -562,7 +562,7 @@ fn decode_path_hex(value: &str) -> Result<Vec<u8>, InvalidInstallerOperationReco
         .map(|pair| {
             let high = hex_nibble(pair[0])?;
             let low = hex_nibble(pair[1])?;
-            Some(high << 4 | low)
+            Some((high << 4) | low)
         })
         .collect::<Option<Vec<_>>>()
         .ok_or(InvalidInstallerOperationRecord::INVALID)

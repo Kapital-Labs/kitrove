@@ -355,6 +355,17 @@ fn prepare_operation(
         record_leaf.mode,
         record_bytes.len() as u64,
     )?;
+    // Retain identity without write access: Linux cannot execute an inode while
+    // any writable descriptor remains open, including after an atomic exchange.
+    use cap_fs_ext::Reopen as _;
+
+    let executable = leaves.executable.as_mut().expect("executable is retained");
+    let reader = executable
+        .file
+        .reopen(OpenOptions::new().read(true))
+        .map_err(|_| InstallerStageError::WriteFailed)?;
+    executable.file = reader;
+    revalidate_executable(operation, executable, input)?;
     Ok(record)
 }
 
@@ -1334,6 +1345,18 @@ mod tests {
 
     use super::*;
     use crate::test_support::{private_tempdir, staging_input as input};
+
+    #[test]
+    fn prepared_executable_retains_only_read_access() {
+        use cap_fs_ext::IsFileReadWrite as _;
+
+        let root = private_tempdir();
+        let prepared = stage(root.path(), &input(b"authenticated executable")).unwrap();
+        assert_eq!(
+            prepared._retained.executable.is_file_read_write().unwrap(),
+            (true, false)
+        );
+    }
 
     #[test]
     fn stages_exact_bytes_and_a_strict_durable_prepared_record() {

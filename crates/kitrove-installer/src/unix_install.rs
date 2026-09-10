@@ -287,7 +287,8 @@ fn publish_native_executable(
     staged: &StagedApplication,
     executable_name: &str,
 ) -> Result<(), InstallerStageError> {
-    use cap_fs_ext::{MetadataExt as _, OsMetadataExt as _};
+    use cap_fs_ext::OsMetadataExt as _;
+    use cap_std::fs::PermissionsExt as _;
     use std::os::fd::AsRawFd as _;
 
     let temporary = rustix::fs::openat(
