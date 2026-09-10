@@ -42,6 +42,7 @@ aarch64-apple-darwin = "macos-15"
 
 # Pin every generated third-party action to the exact reviewed commit behind its release tag.
 [dist.github-action-commits]
+"azure/login" = "8216e11d8cd9b42fe925c852af8e76311ff067ac"
 "actions/attest" = "1e69f48acb82d1966a394da916b4c1698aa569d6"
 "actions/checkout" = "d23441a48e516b6c34aea4fa41551a30e30af803"
 "actions/download-artifact" = "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"

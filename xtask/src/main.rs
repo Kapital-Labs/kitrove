@@ -16,14 +16,15 @@ const REVIEWED_SIGSTORE_REKOR_TREE_BLAKE3: &str =
 const REVIEWED_SIGSTORE_TSA_TREE_BLAKE3: &str =
     "c48b716039e6942cf81eba8cf3558d7fe6d08facf5353ca5de99b03072cfc8db";
 const REVIEWED_RELEASE_WORKFLOW_BLAKE3: &str =
-    "9c0336026d3fa747e1f58f19b49f3e6f42602e8c9a8ba652efe1887aaf8b49db";
+    "776639ad93e36019694f4e459928aa35a4fb1e19a6f0df7feb0003f45aec05a8";
 const REVIEWED_DIST_CONFIG_BLAKE3: &str =
-    "f8abff8da26c1cf018af5379c6dc49282879dcd72d3655d1d183b9ee050bb216";
+    "6eeceed79e47b1673212b39a69064af206c28099868b1cfa6678f0d1ecb2b00d";
 const REVIEWED_RELEASE_POLICY_BLAKE3: &str =
     "80e65cadb0b1c57dca2a791e0fe145571b22254e7c56c0b195d03b8841b670cd";
 const REVIEWED_APPLICATION_COMPATIBILITY_BLAKE3: &str =
     "9e27d66b38ee4555c61480132e7fd3cc28ce472af7c34fdb92cb559a2528824a";
-const RELEASE_ACTION_PINS: [(&str, &str); 4] = [
+const RELEASE_ACTION_PINS: [(&str, &str); 5] = [
+    ("azure/login", "8216e11d8cd9b42fe925c852af8e76311ff067ac"),
     ("actions/attest", "1e69f48acb82d1966a394da916b4c1698aa569d6"),
     (
         "actions/checkout",
@@ -1485,31 +1486,7 @@ mod tests {
 
     #[test]
     fn release_configuration_uses_active_toml_values() {
-        let valid = r#"
-[dist]
-cargo-dist-version = "0.32.0"
-pr-run-mode = "skip"
-ci = "github"
-installers = ["shell", "powershell"]
-targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
-precise-builds = true
-packages = ["kitrove-cli", "kitrove-installer"]
-include = ["release/kitrove-release.json"]
-install-path = "CARGO_HOME"
-install-updater = false
-checksum = "sha256"
-github-attestations = true
-allow-dirty = ["ci"]
-
-[dist.github-custom-runners]
-aarch64-apple-darwin = "macos-15"
-
-[dist.github-action-commits]
-"actions/attest" = "1e69f48acb82d1966a394da916b4c1698aa569d6"
-"actions/checkout" = "d23441a48e516b6c34aea4fa41551a30e30af803"
-"actions/download-artifact" = "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
-"actions/upload-artifact" = "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
-"#;
+        let valid = include_str!("../../dist-workspace.toml");
         check_dist_configuration(valid).expect("exact active settings are accepted");
 
         for invalid in [
