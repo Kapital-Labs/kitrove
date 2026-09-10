@@ -1,7 +1,6 @@
 #![forbid(unsafe_code)]
 
-#[path = "support/owned_fixture.rs"]
-mod owned_fixture;
+use kitrove_testkit::owned_fixture;
 mod support;
 
 use std::fs;
@@ -836,11 +835,10 @@ fn cross_machine_reverse_edit_round_trips_through_explicit_update_adoption() {
         empty_snapshot.manifest_toml(),
     )
     .unwrap();
-    fs::write(
-        machine_b.environment.join("kitrove.lock.json"),
-        empty_snapshot.lock_json(),
-    )
-    .unwrap();
+    owned_fixture::create(
+        &machine_b.environment.join("kitrove.lock.json"),
+        empty_snapshot.lock_json().as_bytes(),
+    );
     let source_container = machine_a._tempdir.path().join("outside-source");
     fs::create_dir_all(&source_container).unwrap();
     let source_container = fs::canonicalize(source_container).unwrap();
@@ -3037,7 +3035,7 @@ fn scan_and_adopt_manage_a_project_instruction_region_through_the_cli() {
 fn managed_instruction_update_rebases_receipt_and_preserves_human_text() {
     let fixture = Fixture::new();
     let document = fixture.working.join("AGENTS.md");
-    fs::write(
+    owned_fixture::create(
         &document,
         concat!(
             "Human-owned preface.\n\n",
@@ -3045,9 +3043,9 @@ fn managed_instruction_update_rebases_receipt_and_preserves_human_text() {
             "Review carefully.\n",
             "<!-- kitrove:instruction review end -->\n",
             "\nHuman-owned suffix.\n",
-        ),
-    )
-    .unwrap();
+        )
+        .as_bytes(),
+    );
     let selection = ["--harness", "codex", "--scope", "project", "--project-root"];
     let initial_scan = fixture
         .command()

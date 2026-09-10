@@ -516,8 +516,8 @@ fn commit_preserves_without_trust_then_uses_atomic_portable_transaction() {
     let manifest = empty_manifest();
     let manifest_text = manifest.to_toml().unwrap();
     let lock_text = derive_lockfile(&manifest).unwrap().to_json().unwrap();
-    fs::write(root.join("kitrove.toml"), &manifest_text).unwrap();
-    fs::write(root.join("kitrove.lock.json"), &lock_text).unwrap();
+    kitrove_testkit::owned_fixture::create(&root.join("kitrove.toml"), manifest_text.as_bytes());
+    kitrove_testkit::owned_fixture::create(&root.join("kitrove.lock.json"), lock_text.as_bytes());
     let observed = observation(b"export default {};\n");
     let plan = plan_native_extension_adoption(&observed, Some(asset_id()), &manifest).unwrap();
     let native = &plan.asset().native_variants[&HarnessId::Pi];

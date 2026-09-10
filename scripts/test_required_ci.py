@@ -88,6 +88,20 @@ class RequiredCiTests(unittest.TestCase):
                   if line.strip().startswith('open-pull-requests-limit:')]
         self.assertEqual(limits, ['open-pull-requests-limit: 0'] * 2)
 
+    def test_windows_pr_validation_includes_canonical_runtime_tests(self):
+        job = WORKFLOW.read_text().split('  pull-request-os:\n', 1)[1].split('  ci:\n', 1)[0]
+        self.assertIn("timeout-minutes: ${{ matrix.os == 'windows-latest' && 30 || 20 }}", job)
+        self.assertIn('rustup toolchain install stable --profile minimal --component clippy,rustfmt', job)
+        self.assertIn(
+            "      - name: Run canonical Windows validation\n"
+            "        if: runner.os == 'Windows'\n"
+            "        run: cargo ci\n", job)
+        self.assertIn(
+            "      - name: Check every workspace target on this operating system\n"
+            "        if: runner.os != 'Windows'\n"
+            "        run: cargo check --locked --workspace --all-targets\n", job)
+        self.assertNotIn('cargo test --locked -p kitrove-installer\n', job)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -10,7 +10,7 @@ use std::process::{Command, ExitCode};
 mod release_archive;
 
 const REVIEWED_CARGO_LOCK_BLAKE3: &str =
-    "7333ae2ee43a577234785bd8afdc36fb0d1a51784f382da2bdff7e1e1c749b92";
+    "08948d2a4c04af5f8f88f1eab24a4e0ba80fa70fb9f3c7500ace163634ccdcbb";
 const REVIEWED_SIGSTORE_REKOR_TREE_BLAKE3: &str =
     "898ca8f9c61bd79c3ef16bcc22650249eb4f32872540d281660f07b1c828c355";
 const REVIEWED_SIGSTORE_TSA_TREE_BLAKE3: &str =
@@ -107,7 +107,13 @@ fn run_ci(root: &Path) -> Result<(), String> {
     run_cargo(
         root,
         "tests",
-        &["test", "--locked", "--workspace", "--all-features"],
+        &[
+            "test",
+            "--locked",
+            "--workspace",
+            "--all-features",
+            "--no-fail-fast",
+        ],
     )?;
     run_release_archive_tests(root)?;
 

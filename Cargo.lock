@@ -1902,11 +1902,13 @@ dependencies = [
 name = "kitrove-testkit"
 version = "0.0.0"
 dependencies = [
+ "cap-std",
  "kitrove-adapter-api",
  "kitrove-agent-skills",
  "kitrove-core",
  "kitrove-model",
  "kitrove-state-lifecycle",
+ "kitrove-windows-security",
  "tempfile",
 ]
 

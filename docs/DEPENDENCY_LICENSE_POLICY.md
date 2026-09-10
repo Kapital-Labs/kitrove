@@ -78,6 +78,13 @@ reviewed update before different trust material can become authority.
 
 ## Enforcement
 
+Shared ownership fixtures add Windows-only edges from the non-published testkit
+to existing `cap-std` and `kitrove-windows-security` dependencies. These reuse the
+workspace configuration without enabling new features. The complete lockfile
+delta adds only those two edges; no package identity, source, version, checksum,
+license expression or transitive package changes. The helper uses the existing
+safe ownership API for synthetic tests and adds no production dependency.
+
 Installer provenance boundary tests add a dev-only edge to the already reviewed
 exact-pinned `zip` 6.0.0 dependency, using the workspace's disabled default features.
 The complete lockfile delta adds only that edge; no package identity, version,
