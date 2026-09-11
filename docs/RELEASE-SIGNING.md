@@ -172,6 +172,24 @@ This is workflow integration, not successful hosted signing evidence. The tag-on
 environment policy and operator approval remain required. Do not set activation
 variables, push a release tag or publish without separate approval and acceptance.
 
+## Protected actual-product rehearsal
+
+`signing-rehearsal.yml` is a manual, non-publishing workflow for both products on
+Apple Silicon, Intel Mac and Windows. It reuses the production signing helpers and
+actual cargo-dist build manifest. Per-target builds have no signing credentials or
+OIDC; protected signer jobs verify a digest-bound handoff before authentication.
+Product binaries are never executed by the signer. Final evidence is uploaded only
+after cleanup and archive verification, with one-day retention.
+
+Before dispatch, select a reviewed, green main commit, set only
+`KITROVE_SIGNING_REHEARSAL_SHA` to that exact SHA, and temporarily permit main in the
+`release` environment without changing its reviewer or bypass protections. Dispatch
+from main and approve its protected signing jobs. Remove the temporary main policy
+and activation SHA afterward, including on failure. Do not enable
+`KITROVE_HOSTED_SIGNING_READY`. This workflow cannot publish or attest a release;
+success is native signing/archive evidence, not public provenance, installer
+execution, offline Gatekeeper or two-version upgrade acceptance.
+
 ## Hosted activation — not complete
 
 The release workflow uses signing-required preparation. Its cheap initial gate also

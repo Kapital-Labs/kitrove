@@ -59,6 +59,25 @@ Assert-Fails { Invoke-HostedWindowsSigning 'Cleanup' } 'Unrelated cache path was
 Assert-True (Test-Path -LiteralPath $FixtureRoot) 'Unrelated directory was removed'
 Assert-True ($script:clearCalls -eq 2) 'Unrelated cache reached Azure'
 
+# A branch is accepted only for the exact manually approved rehearsal workflow.
+$env:GITHUB_REF = 'refs/heads/main'
+$env:GITHUB_EVENT_NAME = 'workflow_dispatch'
+$env:GITHUB_WORKFLOW_REF = 'Kapital-Labs/kitrove/.github/workflows/signing-rehearsal.yml@refs/heads/main'
+$env:GITHUB_SHA = 'a' * 40
+$env:KITROVE_SIGNING_REHEARSAL_SHA = $env:GITHUB_SHA
+$env:RELEASE_TAG = 'v0.0.0'
+$env:AZURE_CONFIG_DIR = Join-Path $FixtureRoot 'kitrove-release-azure'
+$script:clearCode = 0
+Invoke-HostedWindowsSigning 'Cleanup'
+Assert-True ($script:clearCalls -eq 3) 'Approved rehearsal was rejected'
+foreach ($name in @('GITHUB_EVENT_NAME', 'GITHUB_WORKFLOW_REF', 'GITHUB_SHA', 'KITROVE_SIGNING_REHEARSAL_SHA', 'RELEASE_TAG')) {
+    $prior = [Environment]::GetEnvironmentVariable($name)
+    [Environment]::SetEnvironmentVariable($name, 'wrong')
+    Assert-Fails { Invoke-HostedWindowsSigning 'Cleanup' } "Rehearsal accepted incorrect $name"
+    [Environment]::SetEnvironmentVariable($name, $prior)
+}
+Assert-True ($script:clearCalls -eq 3) 'Invalid rehearsal reached Azure'
+
 . "$PSScriptRoot/windows-signing-tools.ps1"
 $toolDir = $FixtureRoot
 $script:expanded = 0
