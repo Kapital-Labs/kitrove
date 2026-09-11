@@ -7,6 +7,11 @@ on:
         required: true
         type: string
 
+    outputs:
+      inventory:
+        description: SHA-256 of the exact build inventory
+        value: ${{ jobs.build.outputs.inventory }}
+
 permissions:
   contents: read
 
@@ -44,70 +49,5 @@ jobs:
         with:
           name: signing-input-${{ inputs.target }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: signing-input/*
-          if-no-files-found: error
-          retention-days: 1
-
-  sign:
-    needs: build
-    if: >-
-      github.event_name == 'workflow_dispatch' &&
-      github.repository == 'Kapital-Labs/kitrove' &&
-      github.ref == 'refs/heads/main' &&
-      github.sha == vars.KITROVE_SIGNING_REHEARSAL_SHA
-    runs-on: ${{ inputs.target == 'aarch64-apple-darwin' && 'macos-15' || inputs.target == 'x86_64-apple-darwin' && 'macos-15-intel' || 'windows-2025' }}
-    timeout-minutes: 60
-    environment: release
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          persist-credentials: false
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
-        with:
-          name: signing-input-${{ inputs.target }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: signing-input
-      - name: Verify and place the exact prebuilt handoff before credentials
-        shell: bash
-        env:
-          EXPECTED_INVENTORY: ${{ needs.build.outputs.inventory }}
-        run: python3 scripts/signing_rehearsal.py provision
-      - name: Provision pinned Windows tools without rebuilding
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: ./.github/scripts/hosted-windows-signing.ps1 -Stage Provision
-      - name: Sign and notarize both Apple products
-        if: runner.os == 'macOS'
-        env:
-          P12: ${{ secrets.KITROVE_APPLE_P12_BASE64 }}
-          P12_PASSWORD: ${{ secrets.KITROVE_APPLE_P12_PASSWORD }}
-          APPLE_ID: ${{ secrets.KITROVE_APPLE_ID }}
-          TEAM_ID: ${{ secrets.KITROVE_APPLE_TEAM_ID }}
-          NOTARY_PASSWORD: ${{ secrets.KITROVE_GITHUB_NOTARIZATION }}
-        run: python3 scripts/hosted_apple_signing.py
-      - name: Authenticate the profile-scoped Windows identity
-        id: windows-login
-        if: runner.os == 'Windows'
-        uses: azure/login@8216e11d8cd9b42fe925c852af8e76311ff067ac
-        with:
-          client-id: a6f5951e-1036-4a4c-b62e-0e5401820fb2
-          tenant-id: e9f3481c-93fd-4dfb-a12a-bd388aec4959
-          subscription-id: e8a5a51b-ae3f-43bb-ba42-5630969a4a29
-      - name: Sign both Windows products
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: ./.github/scripts/hosted-windows-signing.ps1 -Stage Sign
-      - name: Remove Windows authentication even after failure
-        if: always() && runner.os == 'Windows' && steps.windows-login.outcome != 'skipped'
-        shell: pwsh
-        run: ./.github/scripts/hosted-windows-signing.ps1 -Stage Cleanup
-      - name: Verify final archive authority after credential cleanup
-        shell: bash
-        run: python3 scripts/signing_rehearsal.py verify
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: signing-evidence-${{ inputs.target }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: signing-evidence/*
           if-no-files-found: error
           retention-days: 1
