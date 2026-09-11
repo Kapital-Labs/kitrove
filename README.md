@@ -1,27 +1,27 @@
 # Kitrove
 
-Kitrove is a CLI for moving agent capabilities between Claude Code, Codex, Pi,
-OpenCode, and your other computers. It reads capabilities from your existing setup,
-preserves their native files, and adapts them for supported destinations.
+Use Kitrove to move agent capabilities between Claude Code, Codex, Pi, and OpenCode,
+and to sync them across your computers. The CLI reads your existing setup and
+preserves native files when adapting capabilities for supported destinations.
 
 Credentials, authentication settings, and machine-specific trust stay local.
 
 ## What you can do
 
-- **Discover** skills and other supported capabilities in your agent tools without
+- Discover skills and other supported capabilities in your agent tools without
   changing their files.
-- **Adopt and update** capabilities in a portable collection while preserving the
+- Adopt and update capabilities in a portable collection while preserving the
   original content.
-- **Preview and apply** changes to supported tools. Kitrove reports what transfers,
+- Preview and apply changes to supported tools. Kitrove reports what transfers,
   what would lose meaning, and what it cannot apply.
-- **Group capabilities into packs** that you can apply, update, remove, or restore
+- Group capabilities into packs that you can apply, update, remove, or restore
   from verified pack history.
-- **Synchronize between computers** through a filesystem location or an explicitly
-  configured HTTPS or SSH Git remote.
+- Sync between computers through a filesystem location or an HTTPS or SSH Git
+  remote you configure.
 
 For example, you can adopt a skill from Claude Code, preview how it maps to Codex,
-and apply it there. If a feature has no equivalent at the destination, Kitrove
-reports that limitation rather than silently dropping it.
+and apply it there. Kitrove reports any feature that has no equivalent at the
+destination, so you can see what would be lost.
 
 ## Try it from source
 
@@ -40,7 +40,7 @@ Inspect your existing setup without initializing or changing it:
 ./target/release/kitrove scan --json
 ```
 
-Then create an empty Kitrove environment:
+Create an empty Kitrove environment:
 
 ```sh
 ./target/release/kitrove init --machine-id my-machine
@@ -61,9 +61,9 @@ MCP declarations, and native Pi extensions. Extensions require explicit local tr
 and supported-version evidence. Kitrove does not execute them or change Pi's trust
 settings.
 
-Kitrove is not a package manager, credential synchronizer, agent runtime, or
-chat-history synchronizer. It can report missing prerequisites but does not install
-them. It does not automatically resolve conflicts or overwrite unmanaged files.
+Kitrove reports missing prerequisites without installing them. It does not resolve
+conflicts for you or overwrite unmanaged files. Package management, credential and
+chat-history synchronization, and agent execution are outside its scope.
 
 For installation and release-verification requirements, see the
 [installer guide](docs/INSTALLER.md) and [release documentation](docs/RELEASES.md).
