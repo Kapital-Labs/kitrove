@@ -114,7 +114,8 @@ class SigningRehearsalTests(unittest.TestCase):
     def test_workflow_limits_authority_and_reuses_reviewed_helpers(self):
         driver = (ROOT / '.github/workflows/signing-rehearsal.yml').read_text()
         workflow = (ROOT / '.github/workflows/signing-rehearsal-target.yml').read_text()
-        build, sign = workflow.split('  build:\n', 1)[1].split('  sign:\n', 1)
+        build = workflow.split('  build:\n', 1)[1]
+        callers, sign = driver.split('  sign:\n', 1)
         self.assertIn('workflow_dispatch:', driver)
         self.assertNotIn('pull_request:', driver + workflow)
         self.assertNotIn('contents: write', driver + workflow)
@@ -122,11 +123,26 @@ class SigningRehearsalTests(unittest.TestCase):
         self.assertNotIn('KITROVE_HOSTED_SIGNING_READY', driver + workflow)
         self.assertNotIn('secrets.', build)
         self.assertNotIn('id-token:', build)
+        self.assertNotIn('secrets.', workflow + callers)
+        self.assertNotIn('secrets: inherit', driver + workflow)
+        self.assertNotIn('id-token:', callers)
+        self.assertIn('value: ${{ jobs.build.outputs.inventory }}', workflow)
         self.assertIn('environment: release', sign)
-        self.assertIn('EXPECTED_INVENTORY: ${{ needs.build.outputs.inventory }}', sign)
+        self.assertIn('EXPECTED_INVENTORY: ${{ needs[matrix.build].outputs.inventory }}', sign)
+        self.assertIn('needs: [build-apple-silicon, build-intel, build-windows]', sign)
+        for name, target in (
+                ('build-apple-silicon', 'aarch64-apple-darwin'),
+                ('build-intel', 'x86_64-apple-darwin'),
+                ('build-windows', 'x86_64-pc-windows-msvc')):
+            self.assertIn(f'  {name}:\n    uses: ./.github/workflows/signing-rehearsal-target.yml\n'
+                          f'    with:\n      target: {target}\n    permissions:\n      contents: read', callers)
+            self.assertIn(f'- target: {target}\n            build: {name}', sign)
+        for secret in ('KITROVE_APPLE_P12_BASE64', 'KITROVE_APPLE_P12_PASSWORD',
+                       'KITROVE_APPLE_ID', 'KITROVE_APPLE_TEAM_ID', 'KITROVE_GITHUB_NOTARIZATION'):
+            self.assertEqual(sign.count('${{ secrets.' + secret + ' }}'), 1)
         for section in (driver, build, sign):
             self.assertIn('github.sha == vars.KITROVE_SIGNING_REHEARSAL_SHA', section)
-        self.assertEqual(workflow.count('retention-days: 1'), 2)
+        self.assertEqual((driver + workflow).count('retention-days: 1'), 2)
         positions = [sign.index(value) for value in (
             'signing_rehearsal.py provision', '-Stage Provision', 'hosted_apple_signing.py',
             'id: windows-login', '-Stage Sign', '-Stage Cleanup', 'signing_rehearsal.py verify',

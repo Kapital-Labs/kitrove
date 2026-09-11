@@ -152,7 +152,7 @@ rollback acceptance. Do not infer any of these from successful code signing.
 
 The operator approved a dedicated `kitrove-github-release` identity, client ID
 `a6f5951e-1036-4a4c-b62e-0e5401820fb2`. It accepts only GitHub OIDC for
-`repo:Kapital-Labs/kitrove:environment:release` and has the Certificate Profile
+`repo:Kapital-Labs@320223113/kitrove@1360443188:environment:release` and has the Certificate Profile
 Signer role only on `kitrove-public`. It has no password credentials. The old
 private rehearsal identity remains unprivileged.
 
@@ -178,6 +178,12 @@ variables, push a release tag or publish without separate approval and acceptanc
 Apple Silicon, Intel Mac and Windows. It reuses the production signing helpers and
 actual cargo-dist build manifest. Per-target builds have no signing credentials or
 OIDC; protected signer jobs verify a digest-bound handoff before authentication.
+The manual workflow owns the signer jobs and reads its protected environment
+secrets there. Only credential-free builds use the reusable workflow. Each build
+returns its inventory digest through a named output; the signing matrix selects
+the matching build output for its target. All three builds must succeed before
+signing approval. Azure trust includes the immutable organization and repository
+IDs from GitHub's subject claim, not only their names.
 Product binaries are never executed by the signer. Final evidence is uploaded only
 after cleanup and archive verification, with one-day retention.
 

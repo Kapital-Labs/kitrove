@@ -87,7 +87,7 @@ bounded handle-derived read with current-user file ownership and DACL authority.
 probe, user/project CLI plan/apply, confirmation revalidation, and Rust 1.85 evidence include the
 complete CLI dependency graph.
 
-## Phase 6 — Public alpha
+## Phase 6: Public alpha
 
 Fresh public repository; license; reproducible, signed macOS/Linux/Windows packages; install,
 application-upgrade, and rollback workflows; docs; examples; and security disclosure. Tag-only
@@ -101,9 +101,9 @@ implemented. Windows terminal-history acceptance passed at `c97f2ea`; the comman
 untouched-preparation recovery checkpoint at `bf3267f` passed full local validation and
 focused native Windows run `34139864182`, including all 183 fresh-process invocations
 and the command workflows. Final cross-platform release rehearsal,
-authenticated bootstrap, the refreshed public-source approval and platform
-signing/notarization remain open. The maintainer selected `Kapital-Labs/kitrove`,
-and its empty public repository was created with separate approval. Local release
+authenticated bootstrap and actual hosted product signing acceptance remain open.
+The maintainer approved source publication to `Kapital-Labs/kitrove`; the public
+repository now contains the product source. Local release
 verification now pins its repository and organization IDs. Installer-specific offline
 authentication shares the application verifier while retaining a separate opaque
 result. Read-only commands now select exactly one authenticated application or
@@ -115,18 +115,37 @@ do not mean Phase 6 or public production support is complete.
 Signing checkpoint (2026-09-09): local Apple Silicon CLI/installer notarization and
 scoped native Windows Authenticode, publisher, timestamp and archive verification
 have passed. The Windows rehearsal's temporary federation and signing role are
-removed. See `docs/RELEASE-SIGNING.md` for evidence and the outstanding Intel Mac,
-key-custody, offline bootstrap/container, production provisioning, public-source,
-provenance and two-version acceptance gates. None of those is waived by signing
-success, and no release activation or public publication has occurred.
+removed. See `docs/RELEASE-SIGNING.md` for evidence and the remaining Intel Mac,
+offline bootstrap/container, public release provenance and two-version acceptance
+requirements. Signing success does not waive those requirements. No release is
+published and production signing activation remains disabled.
 Subsequent credential checkpoint: the operator approved Apple credential custody;
-isolated hosted check `34365796564` passed. Only its minimal workflow was published,
-not Kitrove product source or private history. Temporary test access is removed.
+isolated hosted check `34365796564` passed. That check covered the minimal credential
+workflow; it did not establish product signing acceptance. Product source publication
+has since completed without publishing private development history.
 Explicit signing Keychain selection is implemented for both Apple native tools;
 the subsequent tiny-fixture rehearsal `34378308650` passed signing/notarization and
 cleanup. The temporary Keychain lifecycle now wraps existing CLI/installer archive
-preparation in the disabled workflow. Real hosted product archive acceptance and
-Windows production provisioning remain open; no product source or release is public.
+preparation in the disabled production workflow. Windows provisioning is complete:
+the dedicated public GitHub identity has only certificate-profile signing access.
+PR #4 added a protected, non-publishing product rehearsal; post-merge CI passed on
+all supported platforms at `5481b2c`. Actual hosted product signing evidence remains
+pending. The rehearsal does not enable production releases.
+
+The remaining release work is:
+
+1. Complete the protected CLI and installer signing rehearsal on both Mac
+   architectures and Windows, including credential cleanup and final archive checks.
+2. Establish and test trusted first acquisition of the installer. Resolve Mac
+   container packaging before promising offline first-launch verification.
+3. Demonstrate first installation, two-version upgrade, failed or interrupted upgrade
+   recovery, and rollback on macOS, Linux and Windows with the real release artifacts.
+4. Validate all release archives, checksums and exact GitHub provenance. Review the
+   download instructions and security-reporting process, then obtain approval for
+   production activation and a release-candidate publication.
+5. Run a bounded public alpha against the supported capability and tool combinations
+   before declaring stable production support.
+
 ADR-0037's identity-bearing, mutation-lock-only, globally bounded quarantine cleanup is implemented
 for Unix transaction coordinators at implementation head `40b1a6f` and for Windows at implementation
 head `b6b0492`. Windows uses complete 128-bit native identity plus handle-relative, no-replace move

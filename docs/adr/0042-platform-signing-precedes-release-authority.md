@@ -111,7 +111,7 @@ ADR-0040/0041 exact GitHub provenance and rollback authority.
 
 After public source publication and green main validation, the operator approved a
 dedicated kitrove-github-release identity. Its only federation subject is
-repo:Kapital-Labs/kitrove:environment:release, and its only Azure role is Artifact
+`repo:Kapital-Labs@320223113/kitrove@1360443188:environment:release`, and its only Azure role is Artifact
 Signing Certificate Profile Signer on kitrove-public. No password or certificate
 credential is stored. GitHub's operator approval and version-tag policy remain.
 
@@ -138,6 +138,13 @@ exact file inventory against a digest passed directly from its own build job,
 including source and target, before using the prebuilt release helpers. No product
 binary runs in either signing helper. Native signature and archive authority checks
 remain the same as production; this is not a second implementation of signing.
+
+Credential-bearing jobs belong to the manual workflow, where they reference the
+protected release environment's secrets. Reuse only the credential-free build
+workflow. Named per-target outputs bind each signer to its build inventory, and
+all builds must pass before signing. Do not copy environment secrets into repository
+secrets or inherit all caller secrets to make delivery work. Azure federation must
+match GitHub's immutable owner/repository IDs and the exact release environment.
 
 Temporarily allowing main in the existing release environment requires retaining
 operator review and disabling administrator bypass. Remove that temporary policy
