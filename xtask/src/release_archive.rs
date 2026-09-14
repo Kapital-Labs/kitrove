@@ -324,7 +324,11 @@ fn read_bounded_file(
     label: &str,
     writable: bool,
 ) -> Result<RetainedFile, String> {
-    let parent_path = path.parent().unwrap_or_else(|| Path::new(".")).to_owned();
+    let parent_path = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."))
+        .to_owned();
     let leaf = path
         .file_name()
         .ok_or_else(|| format!("{label} {} has no filename", path.display()))?
@@ -733,6 +737,22 @@ fn replace_generated_file_with_hook(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bare_filename_retains_current_directory_and_safety_checks() {
+        let mut fixture = tempfile::NamedTempFile::new_in(".").unwrap();
+        fixture.write_all(b"fixture").unwrap();
+        fixture.flush().unwrap();
+        let leaf = Path::new(fixture.path().file_name().unwrap());
+        assert!(read_bounded_file(leaf, 6, "fixture", false).is_err());
+        let mut retained = read_bounded_file(leaf, 7, "fixture", false).unwrap();
+        assert_eq!(retained.bytes, b"fixture");
+        retained.revalidate().unwrap();
+        fixture.as_file_mut().seek(SeekFrom::Start(0)).unwrap();
+        fixture.write_all(b"changed").unwrap();
+        fixture.flush().unwrap();
+        assert!(retained.revalidate().is_err());
+    }
 
     const TAR_FIXTURE: &[u8] = include_bytes!(
         "../../crates/kitrove-release-policy/tests/fixtures/archive-conformance/valid_tar_xz/kitrove-cli-aarch64-apple-darwin.tar.xz"
