@@ -155,6 +155,17 @@ manual context in addition to its existing production tag context. Credential
 cleanup must finish before final evidence upload. Abrupt cancellation still relies
 on destruction of the ephemeral GitHub-hosted runner.
 
+### Hosted acceptance checkpoint, 2026-09-16
+
+Protected actual-product run `35118722213` passed all build and signer jobs at
+`1267b8438276d70fd3f083cfa9e4a8576a31178b`. Both CLI and installer passed on
+Apple Silicon, Intel Mac and Windows, including cleanup and final archive checks.
+The temporary main policy and exact-SHA variable were removed. This supersedes
+the earlier pending hosted-product checkpoint, without changing the decision or
+authorizing production activation. Public source publication is also complete.
+Public provenance, trusted bootstrap, offline Mac first launch and real two-version
+lifecycle acceptance remain required; see `docs/RELEASE-ACCEPTANCE.md`.
+
 ## Native Windows ZIP origin attributes
 
 Native cargo-dist Windows ZIPs identify their origin as DOS while retaining

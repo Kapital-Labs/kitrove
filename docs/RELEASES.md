@@ -34,8 +34,11 @@ Every third-party GitHub Action is pinned to a full reviewed commit. Public-repo
 GitHub's Sigstore-backed artifact attestations for platform archives, installers, the source archive,
 and global checksum controls. These attestations prove which workflow produced an artifact; they are
 not Apple notarization or Windows Authenticode signing. Native signing preparation is now
-implemented separately; hosted provisioning and real platform acceptance remain required
-before Phase 6 is complete. See [platform signing](RELEASE-SIGNING.md).
+implemented separately. Hosted signing and archive verification passed for both
+products on both Mac architectures and Windows in rehearsal `35118722213`.
+Public release provenance and real installer lifecycle acceptance remain required
+before Phase 6 is complete. See [platform signing](RELEASE-SIGNING.md) and the
+[remaining acceptance gates](RELEASE-ACCEPTANCE.md).
 
 ## Prepare a release
 
@@ -56,7 +59,7 @@ before Phase 6 is complete. See [platform signing](RELEASE-SIGNING.md).
    generated installers bind the final archive. The global build also hardens cargo-dist's
    PowerShell installer with the verified final Windows archive digest and mandatory verification
    before extraction. The tag workflow requires signed preparation and fails closed until
-   separately approved hosted provisioning is activated. Unsigned local development packaging
+   separately approved production activation is enabled. Unsigned local development packaging
    may use `prepare-application-release`; that is not releasable output.
 5. Commit the release metadata, create the exact `v<version>` tag, and push that tag only after the
    release commit is reviewed.

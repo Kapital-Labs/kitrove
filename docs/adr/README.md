@@ -55,6 +55,7 @@ ADRs document foundational decisions and their consequences. Accepted ADRs are a
 | [0039](0039-windows-saved-project-trust-is-handle-bound-read-only-authority.md) | Windows saved project trust is handle-bound read-only authority | Accepted with native Windows evidence | NS-02, NS-04, NS-05, NS-07, NS-09, NS-10 |
 | [0040](0040-application-upgrades-require-a-verified-rollback-kit.md) | Application upgrades require a verified rollback kit | Accepted for Phase 6 implementation | NS-03, NS-05, NS-06 |
 | [0041](0041-installer-artifacts-are-not-application-authority.md) | Installer artifacts are not application replacement authority | Accepted for Phase 6 implementation; publication gated | NS-07, NS-09 |
-| [0042](0042-platform-signing-precedes-release-authority.md) | Native signing precedes final release digest authority | Accepted for local Phase 6 implementation; hosted activation gated | NS-07, NS-09 |
+| [0042](0042-platform-signing-precedes-release-authority.md) | Native signing precedes final release digest authority | Accepted; hosted product rehearsal passed, production activation gated | NS-07, NS-09 |
+| [0043](0043-stapled-mac-installer-container.md) | Stapled Mac installer container supplements release archives | Accepted direction; implementation and native acceptance pending | NS-07, NS-08, NS-09 |
 
 Use [`0000-template.md`](0000-template.md) for new records.

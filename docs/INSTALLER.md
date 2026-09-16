@@ -6,6 +6,12 @@ is not yet available. This guide describes the implemented first-install and rep
 interfaces, not a claim of complete release acceptance. Use [RELEASES.md](RELEASES.md) for
 the currently accepted release-verification procedure.
 
+The actual installer archives passed hosted signing and final archive checks on
+both Mac architectures and Windows in rehearsal `35118722213`. That workflow did
+not execute the installer or issue production release attestations. It therefore
+does not close first-download trust or install/upgrade/rollback acceptance. See
+the [release acceptance plan](RELEASE-ACCEPTANCE.md) for those gates.
+
 The installer runs as the current ordinary user. It does not download releases,
 discover a latest version, elevate privileges or repair unsafe permissions. The
 destination directory must already exist and be controlled by the current user.

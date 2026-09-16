@@ -1,6 +1,6 @@
 # Product Specification
 
-**Status:** Accepted for private design review  
+**Status:** Accepted product direction; implementation and release acceptance are tracked in the roadmap
 **Working name:** Kitrove
 
 ## Product statement
