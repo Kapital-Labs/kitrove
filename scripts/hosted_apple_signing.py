@@ -29,6 +29,7 @@ def error_category(stderr):
     # substring, path, exception message or account value from provider output.
     lowered = stderr.lower()
     for marker, category in (
+        (b'cannot open cargo-dist manifest directory:', 'manifest-directory'),
         (b'user interaction is not allowed', 'interaction-required'),
         (b'unable to build chain', 'certificate-chain'),
         (b'errsecinternalcomponent', 'security-internal'),

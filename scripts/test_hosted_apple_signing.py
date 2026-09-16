@@ -105,6 +105,7 @@ class HostedAppleSigningTests(unittest.TestCase):
 
     def test_error_categories_never_echo_provider_bytes(self):
         for marker, category in ((b'errSecInternalComponent', 'security-internal'),
+                                 (b'cannot open cargo-dist manifest directory:', 'manifest-directory'),
                                  (b'unable to build chain', 'certificate-chain'),
                                  (b'unknown', 'unclassified-native-failure')):
             output = io.StringIO()
