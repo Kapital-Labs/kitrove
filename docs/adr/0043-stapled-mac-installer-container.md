@@ -1,6 +1,6 @@
 # ADR-0043: A stapled Mac installer container supplements release archives
 
-Status: Accepted; local preparation implemented, signed/native consumer acceptance pending
+Status: Accepted; local signed preparation passed, native consumer acceptance pending
 
 ## Context
 
@@ -78,9 +78,12 @@ recursively clean an uncertain mount: retain its separately allocated mountpoint
 and report it. Incomplete output is retained on errors, not published or retried.
 
 The native unsigned round-trip test is operator-only and excluded from ordinary CI.
-Synthetic tests cover stage failures, substitutions and cleanup uncertainty. No
-signed DMG or clean-machine offline launch has yet been accepted. Production
-artifact catalogs, checksums, attestations and hosted integration are unchanged.
+Synthetic tests cover stage failures, substitutions and cleanup uncertainty.
+Local signed preparation passed for both Mac payload targets on 2026-09-16; see the
+[native rehearsal record](../review/installer-dmg-native-rehearsal.md). No installer
+or CLI was launched. Clean-machine online/offline consumer acceptance remains open.
+Production artifact catalogs, checksums, attestations and hosted integration are
+unchanged.
 
 ## Consumer trust
 

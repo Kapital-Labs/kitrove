@@ -57,8 +57,11 @@ through existing archive validation. It has been exercised with both preserved M
 installer archives from rehearsal `35118722213`, without executing either binary.
 The separate `prepare-installer-dmg` command now implements native image creation,
 signing/notarization/stapling and mounted-payload verification. Its local unsigned
-native image test passed without executing the payload. Actual signed DMG acceptance,
-publication/provenance integration and clean-machine tests remain open.
+native image test passed without executing the payload. Local signed preparation
+also passed for both Mac payload targets; the
+[native rehearsal record](review/installer-dmg-native-rehearsal.md) lists exact
+digests and limits of that evidence. Publication/provenance integration and
+clean-machine online/offline execution tests remain open.
 A notarized archive
 of standalone executables does not prove offline first-launch acceptance. A stapled
 container design must specify its contents, authentication, quarantine behavior,
