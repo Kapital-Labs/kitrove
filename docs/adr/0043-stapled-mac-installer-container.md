@@ -40,6 +40,23 @@ teach the application archive parser to treat a disk image as an application.
 The current nine-archive release inventory remains authoritative until that
 integration is implemented and reviewed.
 
+## Payload staging checkpoint
+
+`cargo xtask stage-installer-dmg <installer-archive> <target> <tag> <dist-manifest>`
+performs the preparation boundary without native tools. It accepts only the two
+Mac installer archive names on macOS, validates the bounded archive, installer
+manifest, adjacent checksum and cargo-dist authority, and revalidates all inputs
+before and after staging. Its fresh private temporary directory contains exactly
+`kitrove-installer`, the original installer archive, and its canonical checksum.
+The executable has mode 0700 and the other leaves 0600. No existing output is reused.
+Success retains that directory and reports its path for subsequent operator work.
+Failure drops only the newly owned temporary payload. Source files remain unchanged.
+
+This is structural build-input validation, not signature authentication. Unsigned
+development archives can pass it; later image preparation must freshly validate
+native signatures before using the payload. This command creates no disk image,
+does not mount or launch content, and changes no production release inventory.
+
 ## Consumer trust
 
 An independently trusted verifier authenticates the exact image, repository,

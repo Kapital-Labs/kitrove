@@ -52,6 +52,11 @@ Before advertising the binary path, prove:
 
 The maintainer selected a signed, notarized, stapled DMG on 2026-09-16;
 [ADR-0043](adr/0043-stapled-mac-installer-container.md) records the direction.
+The `stage-installer-dmg` operator command now prepares the exact private payload
+through existing archive validation. It has been exercised with both preserved Mac
+installer archives from rehearsal `35118722213`, without executing either binary.
+Image creation, signing/stapling, publication integration and clean-machine tests
+are not implemented by that command and remain open.
 A notarized archive
 of standalone executables does not prove offline first-launch acceptance. A stapled
 container design must specify its contents, authentication, quarantine behavior,

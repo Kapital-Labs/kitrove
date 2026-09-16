@@ -28,6 +28,9 @@ use artifact_spec::ReleaseArchiveSpec;
 #[path = "release_signing.rs"]
 mod signing;
 
+#[path = "release_installer_dmg.rs"]
+pub(super) mod installer_dmg;
+
 #[cfg(test)]
 #[path = "release_installer_archive_tests.rs"]
 mod installer_tests;

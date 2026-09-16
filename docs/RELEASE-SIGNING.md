@@ -5,6 +5,22 @@ archive verification passed on Apple Silicon, Intel Mac and Windows on 2026-09-1
 Production activation and publication remain gated.
 See ADR-0042. No signing service runs during ordinary CI.
 
+## Mac DMG preparation
+
+The approved DMG direction is in ADR-0043. Its first preparation command is:
+
+```text
+cargo xtask stage-installer-dmg <installer-archive> <target> <tag> <dist-manifest>
+```
+
+Run on macOS with the exact prepared installer archive, adjacent checksum and
+actual cargo-dist build manifest. It leaves the inputs unchanged and returns a
+fresh private directory containing the installer executable, original archive and
+canonical checksum. It does not create a DMG, validate a native signature, contact
+Apple, execute the installer or publish anything. Its output is not releasable.
+Image creation/signing/stapling, release-inventory integration and clean-machine
+acceptance remain outstanding. Do not distribute the staging directory.
+
 ## Ordering and boundaries
 
 Use pinned cargo-dist 0.32.0 to build local artifacts and retain its actual JSON
