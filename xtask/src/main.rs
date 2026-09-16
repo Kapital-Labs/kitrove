@@ -53,6 +53,9 @@ fn main() -> ExitCode {
         "prepare-platform-release" => {
             release_archive::prepare_platform_signed(env::args_os().skip(2).collect())
         }
+        "stage-installer-dmg" => {
+            release_archive::installer_dmg::stage(env::args_os().skip(2).collect())
+        }
         "verify-application-release" => release_archive::verify(env::args_os().skip(2).collect()),
         "verify-application-release-bundle" => {
             release_archive::verify_bundle(env::args_os().skip(2).collect())
@@ -1457,6 +1460,9 @@ fn require_token(content: &str, token: &str, location: &str) -> Result<(), Strin
 }
 
 fn print_help() {
+    println!(
+        "DMG preparation:\n  stage-installer-dmg <installer-archive> <target> <tag> <dist-manifest>\n    Stage a private payload only; does not sign, create a DMG, or publish.\n"
+    );
     println!(
         "Kitrove repository automation\n\nUsage:\n  cargo xtask <COMMAND>\n\nCommands:\n  ci                                    Run every required local and CI validation\n  governance                            Validate North Stars, invariants, ADRs, and context files\n  licenses                              Validate and print the locked dependency license inventory\n  repository                            Validate repository structure and private-repo hygiene\n  prepare-platform-release <archive> <target> <tag> <compatibility-file> <dist-manifest>\n  prepare-application-release           Bind metadata and refresh cargo-dist checksum authority\n  verify-application-release            Verify one archive's metadata and checksum\n  verify-application-release-bundle     Verify archive, sidecar, and cargo-dist authority\n  harden-powershell-installer           Add mandatory archive digest verification to PowerShell\n  help                                  Print this help\n\nContributor shortcut:\n  cargo ci"
     );

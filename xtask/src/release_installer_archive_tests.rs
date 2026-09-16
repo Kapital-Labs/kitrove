@@ -2,7 +2,7 @@ use super::tests::{dist_manifest, prepare_fixture, prepare_fixture_with_signer};
 use super::*;
 use kitrove_release_policy::{INSTALLER_ARCHIVES, extract_installer_release};
 
-fn installer_fixture(spec: kitrove_release_policy::InstallerArchiveSpec) -> Vec<u8> {
+pub(super) fn installer_fixture(spec: kitrove_release_policy::InstallerArchiveSpec) -> Vec<u8> {
     let files = BINARY_COMPANIONS
         .into_iter()
         .map(|name| (name.to_owned(), b"placeholder".to_vec()))
