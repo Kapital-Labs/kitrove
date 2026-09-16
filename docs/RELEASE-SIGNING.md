@@ -1,7 +1,8 @@
 # Platform release signing
 
-Status: local Apple Silicon notarization and scoped native Windows signing passed;
-production hosted activation remains gated.
+Status: hosted CLI and installer signing, Apple notarization, cleanup and final
+archive verification passed on Apple Silicon, Intel Mac and Windows on 2026-09-16.
+Production activation and publication remain gated.
 See ADR-0042. No signing service runs during ordinary CI.
 
 ## Ordering and boundaries
@@ -97,6 +98,20 @@ SmartScreen reputation or warning-free launch.
 
 ## Completed rehearsals and remaining acceptance
 
+The actual-product hosted rehearsal
+[`35118722213`](https://github.com/Kapital-Labs/kitrove/actions/runs/35118722213)
+passed on source `1267b8438276d70fd3f083cfa9e4a8576a31178b` for both products on
+all three signing targets. Its final evidence includes the signed archives,
+checksums and cargo-dist manifest, uploaded after credential cleanup. The operator
+preserved all three evidence artifacts and verified all six archive checksums.
+Temporary main-branch permission and exact-SHA activation were removed afterward.
+Production activation remains absent. This is native signing/archive evidence,
+not public release provenance, installer execution or offline first-launch evidence.
+
+The earlier checkpoints below describe how the signing integration was established;
+they do not replace this actual-product result. Remaining work is tracked in
+[release acceptance](RELEASE-ACCEPTANCE.md).
+
 Both Apple Silicon products were locally signed and notarized on 2026-09-08.
 Both Windows products passed native signing, exact publisher, timestamp and final
 archive checks in
@@ -139,12 +154,11 @@ The wrapper restores the exact prior search list and attempts store deletion eve
 if restoration fails. Both failures stop release preparation. Abrupt runner
 cancellation relies on ephemeral runner destruction; this is not a self-hosted
 workflow. Signed archive verification, staging and attestations follow cleanup.
-The actual two-product hosted handoff and both Mac architectures still require
-native release acceptance. Test fixtures are not product release evidence.
+The actual two-product hosted handoff passed on both Mac architectures in run
+`35118722213`. Test fixtures alone are not product release evidence.
 
-Still required: Intel Mac signing evidence; real hosted archive acceptance;
-offline Gatekeeper container/bootstrap acceptance; signed PowerShell convenience
-scripts if distributed as signed scripts; public-source approval and exact hosted
+Still required: offline Gatekeeper container/bootstrap acceptance; signed PowerShell
+convenience scripts if distributed as signed scripts; exact public release
 provenance; and real two-version install, upgrade, failed-upgrade recovery and
 rollback acceptance. Do not infer any of these from successful code signing.
 
@@ -168,7 +182,7 @@ checksums identical. Windows uses Rust archive verification; the independent Pyt
 verification still runs in Linux global staging and publication, because its safe
 filesystem access requires Unix no-follow handles.
 
-This is workflow integration, not successful hosted signing evidence. The tag-only
+Actual Windows product signing passed in run `35118722213`. The tag-only
 environment policy and operator approval remain required. Do not set activation
 variables, push a release tag or publish without separate approval and acceptance.
 
@@ -203,11 +217,9 @@ requires repository variable `KITROVE_HOSTED_SIGNING_READY=true` before expensiv
 validation/builds. **Do not set it yet.** It is an activation acknowledgement, not
 signing evidence or an unsigned bypass.
 
-First separately approve and implement ephemeral hosted credential/tool provisioning,
-restrict signing to the protected `release` environment and reviewed source, clean
-up provisioned material even on failure, and demonstrate a native release rehearsal.
-For Azure prefer GitHub OIDC scoped to the exact repository/environment and a
-least-privilege certificate-profile signer role. Hosted access to an Apple key needs
-a separate explicit decision, now recorded above; Apple provisioning is integrated
-but production activation and actual archive acceptance remain gated. Do not use a developer workstation as an unattended
-public-repository runner. The public-source and publication approval gates remain.
+Hosted credential/tool provisioning and the protected native product rehearsal are
+complete. Retain the protected environment, exact source checks, cleanup and
+profile-scoped Azure OIDC permissions. Do not use a developer workstation as an
+unattended public-repository runner. Trusted bootstrap, installer lifecycle and
+public provenance acceptance remain open. Source publication is complete;
+production activation and release publication still require separate approval.

@@ -27,8 +27,8 @@ adopt, inspect, apply, update, remove, conflict, and fidelity-reporting workflow
 Standing instructions, prompt commands, and inert subagents have complete local lifecycles. ADR-0032
 completes the phase with remote HTTPS declarations, local authentication bindings, and structured
 shared-document ownership. Phase 3 is accepted at implementation head `4d5d343`. OpenCode V2
-projection remains fail-closed until Phase 5 obtains trustworthy harness-version evidence; that
-version acquisition does not reopen the completed portable lifecycle.
+projection was deferred at that checkpoint until trustworthy harness-version evidence;
+Phase 5 below closes that gate without reopening the completed portable lifecycle.
 
 ## Phase 4 — Packs and native preservation
 
@@ -92,8 +92,8 @@ complete CLI dependency graph.
 Fresh public repository; license; reproducible, signed macOS/Linux/Windows packages; install,
 application-upgrade, and rollback workflows; docs; examples; and security disclosure. Tag-only
 four-platform archive, checksum, installer, and public-attestation generation is implemented without
-pull-request release jobs. Native hosted build evidence, platform code signing/notarization, and the
-remaining operational workflows are still required.
+pull-request release jobs. Native hosted build and product signing evidence is complete for both
+Mac architectures and Windows. End-to-end release and installer acceptance remains required.
 ADR-0040 now defines application installation and upgrade as an external, version-pinned transaction
 with offline rollback material. Archive intake, guarded replacement, crash recovery,
 terminal retention/history and explicit offline upgrade/rollback command routing are
@@ -101,7 +101,7 @@ implemented. Windows terminal-history acceptance passed at `c97f2ea`; the comman
 untouched-preparation recovery checkpoint at `bf3267f` passed full local validation and
 focused native Windows run `34139864182`, including all 183 fresh-process invocations
 and the command workflows. Final cross-platform release rehearsal,
-authenticated bootstrap and actual hosted product signing acceptance remain open.
+authenticated bootstrap and real-artifact installer acceptance remain open.
 The maintainer approved source publication to `Kapital-Labs/kitrove`; the public
 repository now contains the product source. Local release
 verification now pins its repository and organization IDs. Installer-specific offline
@@ -115,9 +115,9 @@ do not mean Phase 6 or public production support is complete.
 Signing checkpoint (2026-09-09): local Apple Silicon CLI/installer notarization and
 scoped native Windows Authenticode, publisher, timestamp and archive verification
 have passed. The Windows rehearsal's temporary federation and signing role are
-removed. See `docs/RELEASE-SIGNING.md` for evidence and the remaining Intel Mac,
-offline bootstrap/container, public release provenance and two-version acceptance
-requirements. Signing success does not waive those requirements. No release is
+removed. The September 16 checkpoint below supersedes the earlier pending Intel Mac
+and hosted archive evidence. Offline bootstrap/container, public release provenance
+and two-version acceptance remain required. No release is
 published and production signing activation remains disabled.
 Subsequent credential checkpoint: the operator approved Apple credential custody;
 isolated hosted check `34365796564` passed. That check covered the minimal credential
@@ -129,22 +129,34 @@ cleanup. The temporary Keychain lifecycle now wraps existing CLI/installer archi
 preparation in the disabled production workflow. Windows provisioning is complete:
 the dedicated public GitHub identity has only certificate-profile signing access.
 PR #4 added a protected, non-publishing product rehearsal; post-merge CI passed on
-all supported platforms at `5481b2c`. Actual hosted product signing evidence remains
-pending. The rehearsal does not enable production releases.
+all supported platforms at `5481b2c`.
+
+Hosted product checkpoint (2026-09-16): rehearsal
+[`35118722213`](https://github.com/Kapital-Labs/kitrove/actions/runs/35118722213)
+passed for the actual CLI and installer on Apple Silicon, Intel Mac and Windows at
+`1267b8438276d70fd3f083cfa9e4a8576a31178b`. It includes signing, Apple notarization,
+credential cleanup and final archive verification. Main CI and the advisory audit
+passed on that revision. Evidence was preserved and its archive checksums verified;
+temporary rehearsal activation was removed. This closes the hosted product signing
+gate, not public provenance, installer execution or production release acceptance.
 
 The remaining release work is:
 
-1. Complete the protected CLI and installer signing rehearsal on both Mac
-   architectures and Windows, including credential cleanup and final archive checks.
-2. Establish and test trusted first acquisition of the installer. Resolve Mac
-   container packaging before promising offline first-launch verification.
-3. Demonstrate first installation, two-version upgrade, failed or interrupted upgrade
+1. Establish and test trusted first acquisition of the installer. Implement the
+   approved stapled Mac DMG direction in ADR-0043 and prove the real offline
+   first-launch path before promising that support.
+2. Demonstrate first installation, two-version upgrade, failed or interrupted upgrade
    recovery, and rollback on macOS, Linux and Windows with the real release artifacts.
-4. Validate all release archives, checksums and exact GitHub provenance. Review the
+3. Validate all release archives, checksums and exact GitHub provenance. Review the
    download instructions and security-reporting process, then obtain approval for
    production activation and a release-candidate publication.
-5. Run a bounded public alpha against the supported capability and tool combinations
+4. Run a bounded public alpha against the supported capability and tool combinations
    before declaring stable production support.
+
+Execution order, evidence requirements and approval boundaries are tracked in
+[release acceptance](RELEASE-ACCEPTANCE.md). Two-version acceptance requires an
+explicitly approved release-candidate pair; a nonpublishing rehearsal cannot satisfy
+the production verifier's tag/workflow/provenance policy.
 
 ADR-0037's identity-bearing, mutation-lock-only, globally bounded quarantine cleanup is implemented
 for Unix transaction coordinators at implementation head `40b1a6f` and for Windows at implementation
