@@ -55,8 +55,10 @@ The maintainer selected a signed, notarized, stapled DMG on 2026-09-16;
 The `stage-installer-dmg` operator command now prepares the exact private payload
 through existing archive validation. It has been exercised with both preserved Mac
 installer archives from rehearsal `35118722213`, without executing either binary.
-Image creation, signing/stapling, publication integration and clean-machine tests
-are not implemented by that command and remain open.
+The separate `prepare-installer-dmg` command now implements native image creation,
+signing/notarization/stapling and mounted-payload verification. Its local unsigned
+native image test passed without executing the payload. Actual signed DMG acceptance,
+publication/provenance integration and clean-machine tests remain open.
 A notarized archive
 of standalone executables does not prove offline first-launch acceptance. A stapled
 container design must specify its contents, authentication, quarantine behavior,

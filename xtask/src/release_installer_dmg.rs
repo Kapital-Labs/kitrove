@@ -1,4 +1,4 @@
-//! Operator-only DMG payload staging; no signing, mounting, or execution authority.
+//! Operator-only DMG preparation; product binaries are never executed.
 use std::ffi::OsString;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
@@ -16,6 +16,40 @@ use super::{
 /// A retained private payload, not a DMG or an authenticated public download.
 struct Payload {
     directory: TempDir,
+    files: Vec<super::RetainedFile>,
+    image_name: String,
+    target: &'static str,
+}
+
+#[path = "release_installer_dmg_image.rs"]
+mod image;
+
+pub(crate) fn prepare_image(arguments: Vec<OsString>) -> Result<(), String> {
+    let payload = prepare(arguments, std::env::consts::OS)?;
+    image::prepare(payload)
+}
+
+impl Payload {
+    fn revalidate(&mut self) -> Result<(), String> {
+        let names = inventory(self.directory.path())?;
+        if names != self.files.iter().map(|file| file.leaf.clone()).collect() {
+            return Err("DMG payload inventory changed".into());
+        }
+        for file in &mut self.files {
+            file.revalidate()?;
+        }
+        Ok(())
+    }
+}
+
+fn inventory(path: &Path) -> Result<std::collections::BTreeSet<OsString>, String> {
+    // Three payload leaves are allowed; a fourth is already enough to refuse.
+    fs::read_dir(path)
+        .map_err(|_| "cannot inspect DMG payload inventory".to_owned())?
+        .take(4)
+        .map(|entry| entry.map(|entry| entry.file_name()))
+        .collect::<Result<_, _>>()
+        .map_err(|_| "cannot inspect DMG payload inventory".to_owned())
 }
 
 pub(crate) fn stage(arguments: Vec<OsString>) -> Result<(), String> {
@@ -76,16 +110,7 @@ fn prepare(arguments: Vec<OsString>, host: &str) -> Result<Payload, String> {
 
     // No caller-selected output can overwrite a prior artifact. Dropping an
     // incomplete payload removes only this newly owned temporary directory.
-    let mut builder = tempfile::Builder::new();
-    builder.prefix("kitrove-dmg-payload-");
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt as _;
-        builder.permissions(fs::Permissions::from_mode(0o700));
-    }
-    let directory = builder
-        .tempdir()
-        .map_err(|_| "cannot create private installer DMG payload".to_owned())?;
+    let directory = private_directory("kitrove-dmg-payload-")?;
     let canonical_checksum = render_checksum(&archive_path, &archive.bytes)?;
     let leaves = [
         (
@@ -107,6 +132,7 @@ fn prepare(arguments: Vec<OsString>, host: &str) -> Result<Payload, String> {
     for (name, bytes, executable) in &leaves {
         write_leaf(&directory.path().join(name), bytes, *executable)?;
     }
+    let mut files = Vec::new();
     for (name, bytes, _) in &leaves {
         let mut retained = read_bounded_file(
             &directory.path().join(name),
@@ -118,6 +144,7 @@ fn prepare(arguments: Vec<OsString>, host: &str) -> Result<Payload, String> {
             return Err("installer DMG payload changed".into());
         }
         retained.revalidate()?;
+        files.push(retained);
     }
     archive.revalidate()?;
     checksum.revalidate()?;
@@ -125,7 +152,25 @@ fn prepare(arguments: Vec<OsString>, host: &str) -> Result<Payload, String> {
     fs::File::open(directory.path())
         .and_then(|file| file.sync_all())
         .map_err(|_| "cannot synchronize installer DMG payload directory".to_owned())?;
-    Ok(Payload { directory })
+    Ok(Payload {
+        directory,
+        files,
+        image_name: format!("kitrove-installer-{target}.dmg"),
+        target: spec.target(),
+    })
+}
+
+fn private_directory(prefix: &str) -> Result<TempDir, String> {
+    let mut builder = tempfile::Builder::new();
+    builder.prefix(prefix);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        builder.permissions(fs::Permissions::from_mode(0o700));
+    }
+    builder
+        .tempdir()
+        .map_err(|_| "cannot create private installer DMG directory".to_owned())
 }
 
 fn write_leaf(path: &Path, bytes: &[u8], executable: bool) -> Result<(), String> {
