@@ -1,4 +1,6 @@
 use super::*;
+#[cfg(unix)]
+use kitrove_release_policy::installer_archive_for_target;
 
 fn arguments(target: &str) -> Vec<OsString> {
     vec![

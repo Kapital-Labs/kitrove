@@ -17,7 +17,7 @@ fn every_native_stage_failure_stops_before_checksum_authority() {
     ] {
         let mut payload = payload();
         let output = private_directory("image-test-").unwrap();
-        let image = output.path().join(&payload.image_name);
+        let image = output.path().join(payload.container.image_name());
         let mut visited = Vec::new();
         let result = build_with(&mut payload, &image, |step, _, image| {
             visited.push(step);
@@ -41,7 +41,7 @@ fn final_checksum_binds_post_stapling_bytes_and_late_image_changes_are_refused()
     for tamper in [false, true] {
         let mut payload = payload();
         let output = private_directory("image-test-").unwrap();
-        let image = output.path().join(&payload.image_name);
+        let image = output.path().join(payload.container.image_name());
         let result = build_with(&mut payload, &image, |step, _, image| {
             match step {
                 Step::Create => write_leaf(image, b"unsigned", false)?,
@@ -89,7 +89,7 @@ fn changed_payload_is_refused_before_any_native_tool() {
     let mut payload = payload();
     fs::write(payload.directory.path().join("unexpected"), b"extra").unwrap();
     let output = private_directory("image-test-").unwrap();
-    let image = output.path().join(&payload.image_name);
+    let image = output.path().join(payload.container.image_name());
     assert!(
         build_with(&mut payload, &image, |_, _, _| panic!(
             "must not invoke native tools"
@@ -122,7 +122,7 @@ fn uncertain_detach_preserves_mountpoint_and_original_failure() {
 fn native_unsigned_image_round_trip_preserves_exact_payload() {
     let mut payload = payload();
     let output = private_directory("image-native-test-").unwrap();
-    let image = output.path().join(&payload.image_name);
+    let image = output.path().join(payload.container.image_name());
     native_step(Step::Create, &mut payload, &image).unwrap();
     native_step(Step::VerifyImage, &mut payload, &image).unwrap();
     native_step(Step::VerifyPayload, &mut payload, &image).unwrap();

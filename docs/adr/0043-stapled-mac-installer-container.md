@@ -85,6 +85,17 @@ or CLI was launched. Clean-machine online/offline consumer acceptance remains op
 Production artifact catalogs, checksums, attestations and hosted integration are
 unchanged.
 
+## Shared catalog checkpoint
+
+`InstallerContainerSpec` reserves the two exact Mac image names and their embedded
+installer archive selections in a type separate from application/installer archives.
+Local preparation consumes this shared catalog. The canonical JSON policy contains
+the same mappings; Rust correspondence tests and the publication tool's strict
+policy validation bind them. The existing 256 MiB image bound is unchanged.
+These reservations do not extend the active nine-archive publication inventory.
+Native workflow preparation, checksum inventory and attestations must be integrated
+together before containers may enter the published release set.
+
 ## Consumer trust
 
 An independently trusted verifier authenticates the exact image, repository,

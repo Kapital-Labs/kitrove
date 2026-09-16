@@ -349,6 +349,32 @@ class ReleaseArchiveVerifierTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 verifier.parse_application_archive_policy(json.dumps(policy))
 
+    def test_reserved_container_policy_is_exact_and_does_not_activate_publication(self) -> None:
+        source = (Path(__file__).resolve().parents[1] / "release/release-policy.json").read_text()
+        policy = json.loads(source)
+        for entry in policy["installer_containers"]:
+            self.assertNotIn(entry["image"], verifier.EXPECTED_RELEASE_FILES)
+            self.assertNotIn(entry["image"], verifier.EXPECTED_BINARY_ARCHIVES)
+        for mutation in (
+            {"target": "x86_64-unknown-linux-gnu"}, {"target": []},
+            {"image": "kitrove-cli-aarch64-apple-darwin.dmg"},
+            {"image": "../kitrove-installer-aarch64-apple-darwin.dmg"},
+            {"installer_archive": "kitrove-cli-aarch64-apple-darwin.tar.xz"},
+            {"installer_archive": "kitrove-installer-x86_64-apple-darwin.tar.xz"},
+            {"extra": True},
+        ):
+            changed = json.loads(source)
+            changed["installer_containers"][0].update(mutation)
+            with self.subTest(mutation=mutation), self.assertRaises(RuntimeError):
+                verifier.parse_application_archive_policy(json.dumps(changed))
+        entries = policy["installer_containers"]
+        for invalid in (None, {}, [], entries[:1], entries * 2, [entries[0], entries[0]], [None, entries[1]]):
+            with self.subTest(invalid=invalid), self.assertRaises(RuntimeError):
+                verifier.parse_application_archive_policy(json.dumps(policy | {"installer_containers": invalid}))
+        del policy["installer_containers"]
+        with self.assertRaises(RuntimeError):
+            verifier.parse_application_archive_policy(json.dumps(policy))
+
     def test_generated_installers_cannot_cross_product_families(self) -> None:
         with self.secure_temporary_directory() as temporary:
             root = Path(temporary)

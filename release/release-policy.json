@@ -26,6 +26,18 @@
     "max_path_bytes": 4096,
     "max_component_bytes": 255
   },
+  "installer_containers": [
+    {
+      "target": "aarch64-apple-darwin",
+      "image": "kitrove-installer-aarch64-apple-darwin.dmg",
+      "installer_archive": "kitrove-installer-aarch64-apple-darwin.tar.xz"
+    },
+    {
+      "target": "x86_64-apple-darwin",
+      "image": "kitrove-installer-x86_64-apple-darwin.dmg",
+      "installer_archive": "kitrove-installer-x86_64-apple-darwin.tar.xz"
+    }
+  ],
   "installer_archives": [
     {
       "target": "aarch64-apple-darwin",
