@@ -63,7 +63,7 @@ fn payload_writer_never_overwrites_an_occupied_leaf() {
 }
 
 #[cfg(unix)]
-fn fixture(target: &str) -> (TempDir, Vec<OsString>) {
+pub(super) fn fixture(target: &str) -> (TempDir, Vec<OsString>) {
     use super::super::{
         installer_tests::installer_fixture,
         tests::{dist_manifest, prepare_fixture},

@@ -56,6 +56,9 @@ fn main() -> ExitCode {
         "stage-installer-dmg" => {
             release_archive::installer_dmg::stage(env::args_os().skip(2).collect())
         }
+        "prepare-installer-dmg" => {
+            release_archive::installer_dmg::prepare_image(env::args_os().skip(2).collect())
+        }
         "verify-application-release" => release_archive::verify(env::args_os().skip(2).collect()),
         "verify-application-release-bundle" => {
             release_archive::verify_bundle(env::args_os().skip(2).collect())
@@ -1460,6 +1463,9 @@ fn require_token(content: &str, token: &str, location: &str) -> Result<(), Strin
 }
 
 fn print_help() {
+    println!(
+        "  prepare-installer-dmg <installer-archive> <target> <tag> <dist-manifest>\n    Create, sign, notarize and staple a Mac installer image; never publish.\n"
+    );
     println!(
         "DMG preparation:\n  stage-installer-dmg <installer-archive> <target> <tag> <dist-manifest>\n    Stage a private payload only; does not sign, create a DMG, or publish.\n"
     );

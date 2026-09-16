@@ -128,19 +128,7 @@ impl Signer {
                     "Apple code signing",
                 )?;
                 let mut signed = capture_signed_file(file)?;
-                run(
-                    Command::new("/usr/bin/codesign")
-                        .args(["--verify", "--strict", "-R", APPLE_REQUIREMENT])
-                        .arg(file),
-                    "Apple signature and team verification",
-                )?;
-                let detail = run(
-                    Command::new("/usr/bin/codesign")
-                        .args(["--display", "--verbose=4"])
-                        .arg(file),
-                    "Apple signature inspection",
-                )?;
-                verify_apple_detail(&detail.stderr)?;
+                verify_apple_signature(file, true)?;
                 // Only this fixed executable is placed in the notary ZIP. The same
                 // snapshot remains held through verification, upload and publication.
                 let upload = directory.join("notary.zip");
@@ -151,19 +139,7 @@ impl Signer {
                         .arg(&upload),
                     "notarization ZIP creation",
                 )?;
-                let response = run(
-                    select_keychain(
-                        Command::new("/usr/bin/xcrun")
-                            .args(["notarytool", "submit"])
-                            .arg(&upload)
-                            .arg("--keychain-profile")
-                            .arg(profile)
-                            .args(["--wait", "--timeout", "20m", "--output-format", "json"]),
-                        keychain.as_deref(),
-                    ),
-                    "Apple notarization (a timeout may leave a pending Apple submission)",
-                )?;
-                verify_notary_response(&response.stdout)?;
+                notarize(&upload, profile, keychain.as_deref())?;
                 signed.revalidate()?;
                 Ok(signed.bytes)
             }
@@ -233,7 +209,7 @@ fn capture_signed_file(file: &Path) -> Result<super::RetainedFile, String> {
 
 // Native tool failures intentionally omit argv, stdout and stderr: provider errors
 // can include account configuration. Operators may diagnose separately locally.
-fn run(command: &mut Command, label: &str) -> Result<Output, String> {
+pub(super) fn run(command: &mut Command, label: &str) -> Result<Output, String> {
     let output = command
         .output()
         .map_err(|_| format!("cannot start {label}"))?;
@@ -244,17 +220,97 @@ fn run(command: &mut Command, label: &str) -> Result<Output, String> {
 }
 
 fn verify_apple_detail(detail: &[u8]) -> Result<(), String> {
+    verify_apple_timestamp(detail)?;
     let detail = String::from_utf8_lossy(detail);
     if !detail
         .lines()
-        .any(|line| line.starts_with("Timestamp=") && line.len() > 10)
-        || !detail
-            .lines()
-            .any(|line| line.starts_with("CodeDirectory ") && line.contains("(runtime)"))
+        .any(|line| line.starts_with("CodeDirectory ") && line.contains("(runtime)"))
     {
         return Err("Apple signature lacks hardened runtime or secure timestamp".to_owned());
     }
     Ok(())
+}
+
+fn verify_apple_timestamp(detail: &[u8]) -> Result<(), String> {
+    if !String::from_utf8_lossy(detail)
+        .lines()
+        .any(|line| line.starts_with("Timestamp=") && line.len() > 10)
+    {
+        return Err("Apple signature lacks secure timestamp".into());
+    }
+    Ok(())
+}
+
+pub(super) fn verify_apple_signature(file: &Path, executable: bool) -> Result<(), String> {
+    run(
+        Command::new("/usr/bin/codesign")
+            .args(["--verify", "--strict", "-R", APPLE_REQUIREMENT])
+            .arg(file),
+        "Apple signature and team verification",
+    )?;
+    let detail = run(
+        Command::new("/usr/bin/codesign")
+            .args(["--display", "--verbose=4"])
+            .arg(file),
+        "Apple signature inspection",
+    )?;
+    if executable {
+        verify_apple_detail(&detail.stderr)
+    } else {
+        verify_apple_timestamp(&detail.stderr)
+    }
+}
+
+fn notarize(file: &Path, profile: &OsString, keychain: Option<&Path>) -> Result<(), String> {
+    let response = run(
+        select_keychain(
+            Command::new("/usr/bin/xcrun")
+                .args(["notarytool", "submit"])
+                .arg(file)
+                .arg("--keychain-profile")
+                .arg(profile)
+                .args(["--wait", "--timeout", "20m", "--output-format", "json"]),
+            keychain,
+        ),
+        "Apple notarization (a timeout may leave a pending Apple submission)",
+    )?;
+    verify_notary_response(&response.stdout)
+}
+
+/// Container signing is separate from executable signing: no runtime flag, and
+/// the ticket is stapled before final checksum authority is captured by the caller.
+pub(super) fn sign_apple_container(file: &Path, target: &str) -> Result<(), String> {
+    let Signer::Apple { profile, keychain } = Signer::configured(target)? else {
+        return Err("DMG signing requires macOS".into());
+    };
+    run(
+        select_keychain(
+            Command::new("/usr/bin/codesign").args(["--sign", APPLE_IDENTITY, "--timestamp"]),
+            keychain.as_deref(),
+        )
+        .arg(file),
+        "Apple container signing",
+    )?;
+    let mut signed = super::read_bounded_archive(file, false)?;
+    verify_apple_signature(file, false)?;
+    notarize(file, &profile, keychain.as_deref())?;
+    signed.revalidate()?;
+    // Stapling intentionally changes the image, so capture final bytes only afterward.
+    run(
+        Command::new("/usr/bin/xcrun")
+            .args(["stapler", "staple"])
+            .arg(file),
+        "Apple ticket stapling",
+    )?;
+    let mut stapled = super::read_bounded_archive(file, false)?;
+    run(
+        Command::new("/usr/bin/xcrun")
+            .args(["stapler", "validate"])
+            .arg(file),
+        "Apple ticket validation",
+    )?;
+    verify_apple_signature(file, false)?;
+    stapled.revalidate()
 }
 
 fn verify_notary_response(response: &[u8]) -> Result<(), String> {

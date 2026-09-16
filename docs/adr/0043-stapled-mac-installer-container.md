@@ -1,6 +1,6 @@
 # ADR-0043: A stapled Mac installer container supplements release archives
 
-Status: Accepted direction; implementation and native acceptance pending
+Status: Accepted; local preparation implemented, signed/native consumer acceptance pending
 
 ## Context
 
@@ -56,6 +56,31 @@ This is structural build-input validation, not signature authentication. Unsigne
 development archives can pass it; later image preparation must freshly validate
 native signatures before using the payload. This command creates no disk image,
 does not mount or launch content, and changes no production release inventory.
+
+## Native preparation checkpoint
+
+The separate `prepare-installer-dmg` command reuses fresh payload preparation and
+the shared Apple signature/team/timestamp and notarization helpers. It builds only
+`kitrove-installer-aarch64-apple-darwin.dmg` or
+`kitrove-installer-x86_64-apple-darwin.dmg` in a new private output directory.
+Native hdiutil creates a compressed read-only UDZO/HFS+ image from the closed
+payload. The preexisting installer signature must satisfy the executable runtime
+and timestamp policy; the container requires the same team and timestamp, not an
+executable runtime flag. Accepted image notarization, stapling, ticket validation,
+container signature verification and image integrity verification precede checksum
+creation. The existing 256 MiB archive bound also limits the resulting DMG.
+
+Mount with read-only, no-browse and no-autoopen options, compare all three leaves
+through bounded no-follow reads to retained payload bytes, and detach before
+checksum creation. Revalidate final image identity/bytes around verification.
+Unknown inventory, links, changed content and failures stop preparation. Never
+recursively clean an uncertain mount: retain its separately allocated mountpoint
+and report it. Incomplete output is retained on errors, not published or retried.
+
+The native unsigned round-trip test is operator-only and excluded from ordinary CI.
+Synthetic tests cover stage failures, substitutions and cleanup uncertainty. No
+signed DMG or clean-machine offline launch has yet been accepted. Production
+artifact catalogs, checksums, attestations and hosted integration are unchanged.
 
 ## Consumer trust
 

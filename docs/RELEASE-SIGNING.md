@@ -18,8 +18,32 @@ actual cargo-dist build manifest. It leaves the inputs unchanged and returns a
 fresh private directory containing the installer executable, original archive and
 canonical checksum. It does not create a DMG, validate a native signature, contact
 Apple, execute the installer or publish anything. Its output is not releasable.
-Image creation/signing/stapling, release-inventory integration and clean-machine
-acceptance remain outstanding. Do not distribute the staging directory.
+Do not distribute the staging directory.
+
+The separate operator command creates a new payload internally and prepares an image:
+
+```text
+cargo xtask prepare-installer-dmg <installer-archive> <target> <tag> <dist-manifest>
+```
+
+It requires the existing Apple signing identity and `KITROVE_NOTARY_PROFILE`, plus
+`KITROVE_SIGNING_KEYCHAIN` when using the hosted temporary store. It verifies the
+installer's native signature before creating a compressed read-only HFS+ image,
+signs and notarizes the image, staples and validates its ticket, checks native image
+integrity, and mounts read-only to compare the exact three-file payload. It detaches
+before producing the image checksum. Neither the installer nor the CLI is executed.
+Do not run this command in an ordinary CI job or without signing authorization.
+
+Outputs are a private new directory containing `kitrove-installer-TARGET.dmg` and
+its adjacent SHA-256 file. A failure retains incomplete output for diagnosis; a
+checksum file alone never proves command success or release authority. An uncertain
+attach/detach also retains the mountpoint and reports its path; do not recursively
+delete it while a filesystem may still be mounted. Input archives are unchanged.
+
+Local unsigned native image creation/mount verification has passed. Actual signed
+DMG acceptance, release-inventory/provenance integration, trusted first acquisition
+and clean-machine offline-first-launch acceptance remain open. Production release
+jobs do not invoke this new command yet.
 
 ## Ordering and boundaries
 
