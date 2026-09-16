@@ -21,7 +21,7 @@ D4 adds exact direct pins for:
 
 ```toml
 ureq = { version = "=3.4.0", default-features = false, features = ["rustls"] }
-rustls = { version = "=0.23.32", default-features = false, features = ["ring", "logging", "std", "tls12"] }
+rustls = { version = "=0.23.45", default-features = false, features = ["ring", "logging", "std", "tls12"] }
 webpki-roots = "=1.0.9"
 url = "=2.5.8"
 gix-hash = { version = "=0.26.2", default-features = false, features = ["sha1"] }
@@ -150,6 +150,14 @@ D4 implementation is not accepted until:
 ### 2026-08-28 clarification: cancellation boundary
 
 For D4, “cancellation” means the transport stops a stalled exchange when the refusing exchange or complete-operation deadline expires. The unchanged synchronous `SyncBackend` contract has no caller-supplied cancellation token, and D4 does not add a Git-only cancellation API. Tests must prove that a stalled HTTPS peer is terminated within the configured deadline and that no later request or protocol work begins after that terminal result. A general caller-driven cancellation contract, if needed, is deferred to a separate cross-backend design decision.
+
+### 2026-09-16 security maintenance
+
+Upgrade rustls alone from 0.23.32 to 0.23.45 to resolve RUSTSEC-2026-0285.
+Registry identity and package checksum are Cargo-verified; the license remains
+Apache-2.0 OR ISC OR MIT and upstream MSRV is 1.71. Retain the exact feature set,
+Ring provider, pinned roots, and all transport limits. Refresh the reviewed lock
+digest only after reviewing this single-package change. No advisory is ignored.
 
 ## Consequences
 

@@ -94,7 +94,7 @@ rustix = { version = "1.1.4", features = ["fs", "process"] }
 rand = "=0.10.2"
 rpassword = "=7.5.4"
 russh = { version = "=0.62.0", default-features = false, features = ["ring"] }
-rustls = { version = "=0.23.32", default-features = false, features = ["ring", "logging", "std", "tls12"] }
+rustls = { version = "=0.23.45", default-features = false, features = ["ring", "logging", "std", "tls12"] }
 tokio = { version = "=1.53.1", default-features = false, features = ["io-util", "net", "rt", "sync", "time"] }
 ureq = { version = "=3.4.0", default-features = false, features = ["rustls"] }
 url = "=2.5.8"

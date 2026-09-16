@@ -10,7 +10,7 @@ use std::process::{Command, ExitCode};
 mod release_archive;
 
 const REVIEWED_CARGO_LOCK_BLAKE3: &str =
-    "08948d2a4c04af5f8f88f1eab24a4e0ba80fa70fb9f3c7500ace163634ccdcbb";
+    "67c1b5135574103e870d060ce2c2ed1d0e22f08840f8739d159b6d8731634488";
 const REVIEWED_SIGSTORE_REKOR_TREE_BLAKE3: &str =
     "898ca8f9c61bd79c3ef16bcc22650249eb4f32872540d281660f07b1c828c355";
 const REVIEWED_SIGSTORE_TSA_TREE_BLAKE3: &str =
@@ -1258,7 +1258,7 @@ fn check_git_dependency_boundary(root: &Path) -> Result<(), String> {
     let manifest = read(root, "Cargo.toml")?;
     for token in [
         "ureq = { version = \"=3.4.0\", default-features = false, features = [\"rustls\"] }",
-        "rustls = { version = \"=0.23.32\", default-features = false, features = [\"ring\", \"logging\", \"std\", \"tls12\"] }",
+        "rustls = { version = \"=0.23.45\", default-features = false, features = [\"ring\", \"logging\", \"std\", \"tls12\"] }",
         "webpki-roots = \"=1.0.9\"",
         "url = \"=2.5.8\"",
         "gix-hash = { version = \"=0.26.2\", default-features = false, features = [\"sha1\"] }",
