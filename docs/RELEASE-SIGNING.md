@@ -40,10 +40,13 @@ checksum file alone never proves command success or release authority. An uncert
 attach/detach also retains the mountpoint and reports its path; do not recursively
 delete it while a filesystem may still be mounted. Input archives are unchanged.
 
-Local unsigned native image creation/mount verification has passed. Actual signed
-DMG acceptance, release-inventory/provenance integration, trusted first acquisition
-and clean-machine offline-first-launch acceptance remain open. Production release
-jobs do not invoke this new command yet.
+Local signed DMG preparation passed for both Mac payload targets on 2026-09-16:
+notarization, stapling, signature/image checks, read-only payload comparison and
+detach completed before final checksum creation. See the
+[rehearsal record](review/installer-dmg-native-rehearsal.md). Neither binary ran.
+Release-inventory/provenance integration, trusted first acquisition and clean-machine
+online/offline-first-launch acceptance remain open. Production release jobs do not
+invoke this new command yet.
 
 ## Ordering and boundaries
 
