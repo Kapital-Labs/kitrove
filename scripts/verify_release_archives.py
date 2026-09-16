@@ -64,7 +64,7 @@ def parse_application_archive_policy(
         if (
             not isinstance(policy, dict)
             or set(policy) != {
-                "schema", "application_archives", "installer_archives",
+                "schema", "application_archives", "installer_archives", "installer_containers",
                 "binary_companions", "release_manifest", "limits"
             }
             or type(policy["schema"]) is not int
@@ -143,6 +143,26 @@ def parse_application_archive_policy(
                 archive = entry["archive"]
                 result[archive] = (entry["root"] or "", entry["executable"])
                 targets[archive] = target
+        # Reserved container policy does not activate publication. Until native
+        # preparation, checksum and attestation integration lands together, the
+        # exact publication inventory below remains archives only.
+        containers = policy["installer_containers"]
+        mac_targets = {target for target in RELEASE_TARGETS if target.endswith("-apple-darwin")}
+        if not isinstance(containers, list) or len(containers) != len(mac_targets):
+            raise ValueError("release policy requires two Mac installer containers")
+        seen_containers: set[str] = set()
+        for entry in containers:
+            if not isinstance(entry, dict) or set(entry) != {"target", "image", "installer_archive"}:
+                raise ValueError("invalid installer container policy")
+            target = entry["target"]
+            if not isinstance(target, str) or target not in mac_targets or target in seen_containers:
+                raise ValueError("unknown or duplicate installer container target")
+            seen_containers.add(target)
+            archive = f"kitrove-installer-{target}.tar.xz"
+            if entry["image"] != f"kitrove-installer-{target}.dmg" or entry["installer_archive"] != archive:
+                raise ValueError("installer container crosses its target or product boundary")
+            if targets.get(archive) != target:
+                raise ValueError("installer container has no matching installer archive")
         return (
             result,
             targets,

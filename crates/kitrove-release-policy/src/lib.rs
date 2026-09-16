@@ -4,6 +4,7 @@ use std::fmt;
 
 mod entry_policy;
 mod installer_archive;
+mod installer_container;
 mod installer_manifest;
 mod intake;
 mod release_manifest;
@@ -17,6 +18,9 @@ pub use entry_policy::{
 pub use installer_archive::{
     INSTALLER_ARCHIVES, InspectedInstallerRelease, InstallerArchiveSpec, extract_installer_release,
     installer_archive_for_target,
+};
+pub use installer_container::{
+    INSTALLER_CONTAINERS, InstallerContainerSpec, installer_container_for_target,
 };
 pub use installer_manifest::{
     ParsedInstallerManifest, parse_installer_manifest, render_installer_manifest,

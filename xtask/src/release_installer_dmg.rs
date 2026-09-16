@@ -4,7 +4,9 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use kitrove_release_policy::{extract_installer_release, installer_archive_for_target};
+use kitrove_release_policy::{
+    InstallerContainerSpec, extract_installer_release, installer_container_for_target,
+};
 use tempfile::TempDir;
 
 use super::{
@@ -17,8 +19,7 @@ use super::{
 struct Payload {
     directory: TempDir,
     files: Vec<super::RetainedFile>,
-    image_name: String,
-    target: &'static str,
+    container: InstallerContainerSpec,
 }
 
 #[path = "release_installer_dmg_image.rs"]
@@ -65,16 +66,13 @@ pub(crate) fn stage(arguments: Vec<OsString>) -> Result<(), String> {
 fn prepare(arguments: Vec<OsString>, host: &str) -> Result<Payload, String> {
     let [archive, target, tag, manifest] = exact_arguments::<4>(arguments)?;
     let target = utf8_argument(&target, "target")?;
-    if host != "macos"
-        || !matches!(
-            target.as_str(),
-            "aarch64-apple-darwin" | "x86_64-apple-darwin"
-        )
-    {
+    if host != "macos" {
         return Err("installer DMG staging requires a reviewed Mac target on macOS".into());
     }
+    let container = installer_container_for_target(&target)
+        .map_err(|_| "installer DMG staging requires a reviewed Mac target on macOS".to_owned())?;
     let version = parse_release_tag(&tag)?;
-    let spec = installer_archive_for_target(&target).map_err(|error| error.to_string())?;
+    let spec = container.installer_archive();
     let archive_path = PathBuf::from(archive);
     if archive_path.file_name().and_then(|name| name.to_str()) != Some(spec.archive_name()) {
         return Err("installer DMG staging requires the exact installer archive name".into());
@@ -155,8 +153,7 @@ fn prepare(arguments: Vec<OsString>, host: &str) -> Result<Payload, String> {
     Ok(Payload {
         directory,
         files,
-        image_name: format!("kitrove-installer-{target}.dmg"),
-        target: spec.target(),
+        container,
     })
 }
 

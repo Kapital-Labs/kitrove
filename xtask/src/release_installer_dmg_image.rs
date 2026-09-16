@@ -8,7 +8,7 @@ use super::{Payload, private_directory, read_bounded_file, render_checksum, writ
 
 pub(super) fn prepare(mut payload: Payload) -> Result<(), String> {
     let output = private_directory("kitrove-dmg-image-")?;
-    let image = output.path().join(&payload.image_name);
+    let image = output.path().join(payload.container.image_name());
     let result = build(&mut payload, &image);
     // Even an uncertain native-tool failure retains its output for diagnosis.
     // Never advertise a checksum until all verification and detach steps pass.
@@ -60,7 +60,7 @@ fn native_step(step: Step, payload: &mut Payload, image: &Path) -> Result<(), St
             "installer disk image creation",
         )
         .map(|_| ()),
-        Step::Sign => signing::sign_apple_container(image, payload.target),
+        Step::Sign => signing::sign_apple_container(image, payload.container.target()),
         Step::VerifyImage => signing::run(
             Command::new("/usr/bin/hdiutil").arg("verify").arg(image),
             "disk image integrity verification",
