@@ -289,6 +289,7 @@ jobs:
       - name: Prepare both Apple release archives in an isolated Keychain
         if: runner.os == 'macOS'
         env:
+          KITROVE_PREPARE_DMG: '1'
           DIST_TARGET: ${{ matrix.targets[0] }}
           P12: ${{ secrets.KITROVE_APPLE_P12_BASE64 }}
           P12_PASSWORD: ${{ secrets.KITROVE_APPLE_P12_PASSWORD }}
@@ -357,6 +358,15 @@ jobs:
           done
           echo "staged_path=verified-local-artifacts/$(basename "${{ steps.application-archive.outputs.path }}")" >> "$GITHUB_OUTPUT"
           echo "installer_staged_path=verified-local-artifacts/$(basename "${{ steps.application-archive.outputs.installer_path }}")" >> "$GITHUB_OUTPUT"
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            image="kitrove-installer-$DIST_TARGET.dmg"
+            cp "$RUNNER_TEMP/kitrove-installer-dmg/$image" "verified-local-artifacts/$image"
+            cp "$RUNNER_TEMP/kitrove-installer-dmg/$image.sha256" "verified-local-artifacts/$image.sha256"
+            cargo xtask verify-installer-dmg \
+              "verified-local-artifacts/$(basename "${{ steps.application-archive.outputs.installer_path }}")" \
+              "$DIST_TARGET" "$RELEASE_TAG" "$BUILD_MANIFEST_NAME" "verified-local-artifacts/$image"
+            echo "container_staged_path=verified-local-artifacts/$image" >> "$GITHUB_OUTPUT"
+          fi
       - name: Attest the exact application archive
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
@@ -365,6 +375,11 @@ jobs:
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
           subject-path: ${{ steps.verified-local.outputs.installer_staged_path }}
+      - name: Attest the exact stapled installer container
+        if: runner.os == 'macOS'
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+        with:
+          subject-path: ${{ steps.verified-local.outputs.container_staged_path }}
       - name: "Upload artifacts"
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
@@ -406,6 +421,10 @@ jobs:
         run: |
           dist build --tag="$RELEASE_TAG" --output-format=json "--artifacts=global" > dist-manifest.json
           echo "dist ran successfully"
+
+          python3 scripts/verify_release_archives.py \
+            --complete-checksums target/distrib/sha256-with-containers.sum target/distrib
+          mv target/distrib/sha256-with-containers.sum target/distrib/sha256.sum
 
           for package in kitrove-cli kitrove-installer; do
             cargo xtask harden-powershell-installer \

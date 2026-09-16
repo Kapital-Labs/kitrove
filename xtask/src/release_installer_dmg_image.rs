@@ -1,18 +1,17 @@
 //! Native image construction; no product execution or release publication.
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use super::super::signing;
 use super::{Payload, private_directory, read_bounded_file, render_checksum, write_leaf};
 
-pub(super) fn prepare(mut payload: Payload) -> Result<(), String> {
-    let output = private_directory("kitrove-dmg-image-")?;
-    let image = output.path().join(payload.container.image_name());
+pub(super) fn prepare(mut payload: Payload, output: Option<PathBuf>) -> Result<(), String> {
+    let directory = new_output_directory(output)?;
+    let image = directory.join(payload.container.image_name());
     let result = build(&mut payload, &image);
     // Even an uncertain native-tool failure retains its output for diagnosis.
     // Never advertise a checksum until all verification and detach steps pass.
-    let directory = output.keep();
     match result {
         Ok(()) => {
             println!(
@@ -26,6 +25,52 @@ pub(super) fn prepare(mut payload: Payload) -> Result<(), String> {
             directory.display()
         )),
     }
+}
+
+fn new_output_directory(output: Option<PathBuf>) -> Result<PathBuf, String> {
+    let Some(path) = output else {
+        return Ok(private_directory("kitrove-dmg-image-")?.keep());
+    };
+    let parent = path.parent().ok_or("DMG output parent missing")?;
+    if !path.is_absolute()
+        || path.file_name().is_none()
+        || fs::canonicalize(parent).map_err(|_| "cannot resolve DMG output parent")? != parent
+    {
+        return Err("DMG output requires an absolute path with a canonical existing parent".into());
+    }
+    let mut builder = fs::DirBuilder::new();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt as _;
+        builder.mode(0o700);
+    }
+    builder
+        .create(&path)
+        .map_err(|_| "cannot create fresh DMG output directory")?;
+    Ok(path)
+}
+
+/// Reverify staged image bytes without signing credentials or product execution.
+pub(super) fn verify(payload: &mut Payload, image: &Path) -> Result<(), String> {
+    if image.file_name().and_then(|name| name.to_str()) != Some(payload.container.image_name()) {
+        return Err("DMG verification requires the exact container name".into());
+    }
+    let mut retained = super::super::read_bounded_archive(image, false)?;
+    let mut checksum = read_bounded_file(
+        &super::super::checksum_path(image),
+        4096,
+        "DMG checksum",
+        false,
+    )?;
+    super::validate_checksum_bytes(image, &retained.bytes, &checksum.bytes)?;
+    native_step(Step::VerifyInstaller, payload, image)?;
+    signing::verify_apple_container(image)?;
+    for step in [Step::VerifyImage, Step::VerifyPayload] {
+        native_step(step, payload, image)?;
+        retained.revalidate()?;
+    }
+    checksum.revalidate()?;
+    payload.revalidate()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

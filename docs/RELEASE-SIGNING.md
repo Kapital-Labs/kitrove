@@ -23,7 +23,7 @@ Do not distribute the staging directory.
 The separate operator command creates a new payload internally and prepares an image:
 
 ```text
-cargo xtask prepare-installer-dmg <installer-archive> <target> <tag> <dist-manifest>
+cargo xtask prepare-installer-dmg <installer-archive> <target> <tag> <dist-manifest> [new-output-directory]
 ```
 
 It requires the existing Apple signing identity and `KITROVE_NOTARY_PROFILE`, plus
@@ -35,7 +35,9 @@ before producing the image checksum. Neither the installer nor the CLI is execut
 Do not run this command in an ordinary CI job or without signing authorization.
 
 Outputs are a private new directory containing `kitrove-installer-TARGET.dmg` and
-its adjacent SHA-256 file. A failure retains incomplete output for diagnosis; a
+its adjacent SHA-256 file. An explicit output must be a new absolute path under
+an existing canonical parent; occupied paths and redirected parents are refused.
+A failure retains incomplete output for diagnosis; a
 checksum file alone never proves command success or release authority. An uncertain
 attach/detach also retains the mountpoint and reports its path; do not recursively
 delete it while a filesystem may still be mounted. Input archives are unchanged.
@@ -44,9 +46,23 @@ Local signed DMG preparation passed for both Mac payload targets on 2026-09-16:
 notarization, stapling, signature/image checks, read-only payload comparison and
 detach completed before final checksum creation. See the
 [rehearsal record](review/installer-dmg-native-rehearsal.md). Neither binary ran.
-Release-inventory/provenance integration, trusted first acquisition and clean-machine
-online/offline-first-launch acceptance remain open. Production release jobs do not
-invoke this new command yet.
+The disabled production workflow now requests containers explicitly, within the
+existing Apple credential lifetime. After cleanup, `verify-installer-dmg` rechecks
+the exact staged image, sidecar, signatures, ticket and mounted payload against
+the staged installer archive and build manifest. It needs no signing credentials:
+
+```text
+cargo xtask verify-installer-dmg <installer-archive> <target> <tag> <dist-manifest> <image>
+```
+
+The exact publication set now includes nine archives and two DMGs, each with an
+adjacent checksum. Each Mac image receives its own single-subject attestation;
+the attested combined checksum includes all eleven artifacts. Linux staging treats
+DMGs as bounded opaque files whose native checks occurred on macOS, not as archives
+or independently authenticated signatures. It checks the complete staged digest set.
+Trusted first acquisition and clean-machine online/offline-first-launch acceptance
+remain open. This wiring requires a separately approved hosted rehearsal before
+activation or publication; ordinary CI never invokes real signing.
 
 ## Ordering and boundaries
 

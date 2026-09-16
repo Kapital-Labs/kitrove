@@ -166,9 +166,11 @@ def write_release_directory(root: Path) -> None:
         {"README.md": b"source"},
         root_name="kitrove-cli-1.2.3",
     )
+    for name in verifier.EXPECTED_INSTALLER_CONTAINERS:
+        (root / name).write_bytes(b"synthetic opaque container; not native signing evidence")
     digests = {
         name: hashlib.sha256((root / name).read_bytes()).hexdigest()
-        for name in verifier.EXPECTED_RELEASE_ARCHIVES
+        for name in verifier.EXPECTED_RELEASE_ARTIFACTS
     }
     for name, digest in digests.items():
         (root / f"{name}.sha256").write_text(
@@ -182,7 +184,7 @@ def write_release_directory(root: Path) -> None:
     checksum_files = {f"{name}.sha256" for name in digests} | {"sha256.sum"}
     for name in (
         verifier.EXPECTED_RELEASE_FILES
-        - verifier.EXPECTED_RELEASE_ARCHIVES
+        - verifier.EXPECTED_RELEASE_ARTIFACTS
         - checksum_files
     ):
         package = name.rsplit("-installer.", 1)[0]
@@ -237,6 +239,62 @@ def write_release_directory(root: Path) -> None:
 
 
 class ReleaseArchiveVerifierTests(unittest.TestCase):
+    def test_container_checksums_extend_only_valid_archive_authority(self):
+        with self.secure_temporary_directory() as temporary:
+            root = Path(temporary)
+            write_release_directory(root)
+            original = verifier.parse_checksum_document(root / 'sha256.sum')
+            archives = {name: digest for name, digest in original.items() if name in verifier.EXPECTED_RELEASE_ARCHIVES}
+            (root / 'sha256.sum').write_text(''.join(f'{digest} *{name}\n' for name, digest in archives.items()))
+            output = root.parent / (root.name + '-checksums')
+            try:
+                verifier.complete_release_checksums(root, output)
+                self.assertEqual(verifier.parse_checksum_document(output), original)
+                before = output.read_bytes()
+                with self.assertRaises(OSError):
+                    verifier.complete_release_checksums(root, output)
+                self.assertEqual(output.read_bytes(), before)
+                (root / 'sha256.sum').write_text('0' * 64 + ' *source.tar.gz\n')
+                output.unlink()
+                with self.assertRaises(verifier.ArchiveValidationError):
+                    verifier.complete_release_checksums(root, output)
+                self.assertFalse(output.exists())
+            finally:
+                output.unlink(missing_ok=True)
+
+    def test_container_bytes_are_not_archive_or_native_signature_evidence(self):
+        with self.secure_temporary_directory() as temporary:
+            root = Path(temporary)
+            name = next(iter(verifier.EXPECTED_INSTALLER_CONTAINERS))
+            image = root / name
+            image.write_bytes(b'opaque synthetic bytes')
+            self.assertEqual(verifier.container_digest(image), hashlib.sha256(image.read_bytes()).hexdigest())
+            with self.assertRaises(verifier.ArchiveValidationError):
+                verifier.validate_archive(image)
+            image.write_bytes(b'')
+            with self.assertRaises(verifier.ArchiveValidationError):
+                verifier.container_digest(image)
+            image.unlink()
+            image.symlink_to(root / 'absent')
+            with self.assertRaises(verifier.ArchiveValidationError):
+                verifier.container_digest(image)
+
+    def test_container_staging_rejects_missing_or_changed_images(self):
+        for missing in (True, False):
+            with self.secure_temporary_directory() as temporary:
+                root = Path(temporary)
+                source = root / 'source'
+                source.mkdir()
+                write_release_directory(source)
+                name = next(iter(verifier.EXPECTED_INSTALLER_CONTAINERS))
+                if missing:
+                    (source / name).unlink()
+                else:
+                    (source / name).write_bytes(b'substitution')
+                with self.assertRaises(verifier.ArchiveValidationError):
+                    artifacts = verifier.discover_archives([source])
+                    verifier.stage_release_directory(source, root / 'staged', artifacts, '1.2.3')
+
     @unittest.skipUnless(os.name == 'posix', 'release publication runs under Bash on Linux')
     def test_release_publication_preserves_arguments_and_stops_on_failure(self) -> None:
         workflow = (Path(__file__).resolve().parent.parent / '.github/workflows/release.yml').read_text()
@@ -349,11 +407,11 @@ class ReleaseArchiveVerifierTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 verifier.parse_application_archive_policy(json.dumps(policy))
 
-    def test_reserved_container_policy_is_exact_and_does_not_activate_publication(self) -> None:
+    def test_container_policy_is_exact_and_remains_separate_from_archives(self) -> None:
         source = (Path(__file__).resolve().parents[1] / "release/release-policy.json").read_text()
         policy = json.loads(source)
         for entry in policy["installer_containers"]:
-            self.assertNotIn(entry["image"], verifier.EXPECTED_RELEASE_FILES)
+            self.assertIn(entry["image"], verifier.EXPECTED_RELEASE_FILES)
             self.assertNotIn(entry["image"], verifier.EXPECTED_BINARY_ARCHIVES)
         for mutation in (
             {"target": "x86_64-unknown-linux-gnu"}, {"target": []},
@@ -903,7 +961,7 @@ class ReleaseArchiveVerifierTests(unittest.TestCase):
                 (root / name).write_bytes(b"placeholder")
             self.assertEqual(
                 {path.name for path in verifier.discover_archives([root])},
-                verifier.EXPECTED_RELEASE_ARCHIVES,
+                verifier.EXPECTED_RELEASE_ARTIFACTS,
             )
 
             (root / "kitrove-cli-unknown-target.tar.xz").write_bytes(b"unknown")

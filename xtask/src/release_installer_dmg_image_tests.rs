@@ -7,6 +7,52 @@ fn payload() -> super::super::Payload {
 }
 
 #[test]
+fn explicit_output_is_private_fresh_and_refuses_redirects() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let root = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(root.path()).unwrap();
+    let output = root.join("new-output");
+    assert_eq!(new_output_directory(Some(output.clone())).unwrap(), output);
+    assert_eq!(
+        fs::metadata(&output).unwrap().permissions().mode() & 0o777,
+        0o700
+    );
+    fs::write(output.join("preserve"), b"prior").unwrap();
+    assert!(new_output_directory(Some(output.clone())).is_err());
+    assert_eq!(fs::read(output.join("preserve")).unwrap(), b"prior");
+    let redirected = root.join("redirected");
+    std::os::unix::fs::symlink(&output, &redirected).unwrap();
+    assert!(new_output_directory(Some(redirected.clone())).is_err());
+    assert!(new_output_directory(Some(redirected.join("child"))).is_err());
+    assert!(!output.join("child").exists());
+    assert!(new_output_directory(Some(PathBuf::from("relative-output"))).is_err());
+}
+
+#[test]
+fn verification_refuses_wrong_name_and_checksum_before_native_tools() {
+    let mut payload = payload();
+    let output = tempfile::tempdir().unwrap();
+    assert!(
+        verify(&mut payload, &output.path().join("wrong.dmg"))
+            .unwrap_err()
+            .contains("exact container name")
+    );
+    let image = output.path().join(payload.container.image_name());
+    write_leaf(&image, b"synthetic image", false).unwrap();
+    write_leaf(
+        &super::super::super::checksum_path(&image),
+        b"invalid",
+        false,
+    )
+    .unwrap();
+    assert!(
+        verify(&mut payload, &image)
+            .unwrap_err()
+            .contains("does not bind the archive bytes")
+    );
+}
+
+#[test]
 fn every_native_stage_failure_stops_before_checksum_authority() {
     for failure in [
         Step::VerifyInstaller,

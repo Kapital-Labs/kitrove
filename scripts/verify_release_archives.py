@@ -57,7 +57,7 @@ def reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict[str, obj
 def parse_application_archive_policy(
     source: str,
 ) -> tuple[
-    dict[str, tuple[str, str]], dict[str, str], frozenset[str], dict[str, int], str, int
+    dict[str, tuple[str, str]], dict[str, str], frozenset[str], dict[str, int], str, int, dict[str, str]
 ]:
     try:
         policy = json.loads(source, object_pairs_hook=reject_duplicate_json_keys)
@@ -143,14 +143,13 @@ def parse_application_archive_policy(
                 archive = entry["archive"]
                 result[archive] = (entry["root"] or "", entry["executable"])
                 targets[archive] = target
-        # Reserved container policy does not activate publication. Until native
-        # preparation, checksum and attestation integration lands together, the
-        # exact publication inventory below remains archives only.
+        # Containers remain a separate family; never pass them to archive decoders.
         containers = policy["installer_containers"]
         mac_targets = {target for target in RELEASE_TARGETS if target.endswith("-apple-darwin")}
         if not isinstance(containers, list) or len(containers) != len(mac_targets):
             raise ValueError("release policy requires two Mac installer containers")
         seen_containers: set[str] = set()
+        container_targets: dict[str, str] = {}
         for entry in containers:
             if not isinstance(entry, dict) or set(entry) != {"target", "image", "installer_archive"}:
                 raise ValueError("invalid installer container policy")
@@ -163,6 +162,7 @@ def parse_application_archive_policy(
                 raise ValueError("installer container crosses its target or product boundary")
             if targets.get(archive) != target:
                 raise ValueError("installer container has no matching installer archive")
+            container_targets[entry["image"]] = target
         return (
             result,
             targets,
@@ -170,6 +170,7 @@ def parse_application_archive_policy(
             limits,
             release_manifest["name"],
             release_manifest["max_bytes"],
+            container_targets,
         )
     except (json.JSONDecodeError, TypeError, ValueError) as error:
         raise RuntimeError(f"invalid canonical release policy: {error}") from error
@@ -177,7 +178,7 @@ def parse_application_archive_policy(
 
 def load_application_archive_policy(
 ) -> tuple[
-    dict[str, tuple[str, str]], dict[str, str], frozenset[str], dict[str, int], str, int
+    dict[str, tuple[str, str]], dict[str, str], frozenset[str], dict[str, int], str, int, dict[str, str]
 ]:
     policy_path = Path(__file__).resolve().parent.parent / "release" / "release-policy.json"
     try:
@@ -193,6 +194,7 @@ def load_application_archive_policy(
     RELEASE_LIMITS,
     RELEASE_MANIFEST_NAME,
     MAX_RELEASE_MANIFEST_BYTES,
+    EXPECTED_INSTALLER_CONTAINERS,
 ) = load_application_archive_policy()
 MAX_ARCHIVE_BYTES = RELEASE_LIMITS["max_archive_bytes"]
 MAX_TAR_STREAM_BYTES = RELEASE_LIMITS["max_tar_stream_bytes"]
@@ -208,14 +210,15 @@ MAX_EXPANDED_BYTES = RELEASE_LIMITS["max_expanded_bytes"]
 MAX_PATH_BYTES = RELEASE_LIMITS["max_path_bytes"]
 MAX_COMPONENT_BYTES = RELEASE_LIMITS["max_component_bytes"]
 EXPECTED_RELEASE_ARCHIVES = frozenset(EXPECTED_BINARY_ARCHIVES) | {"source.tar.gz"}
+EXPECTED_RELEASE_ARTIFACTS = EXPECTED_RELEASE_ARCHIVES | EXPECTED_INSTALLER_CONTAINERS.keys()
 GENERATED_INSTALLERS = frozenset(
     f"{package}-installer.{extension}"
     for package, _ in RELEASE_FAMILIES.values()
     for extension in ("sh", "ps1")
 )
 EXPECTED_RELEASE_FILES = (
-    EXPECTED_RELEASE_ARCHIVES
-    | {f"{name}.sha256" for name in EXPECTED_RELEASE_ARCHIVES}
+    EXPECTED_RELEASE_ARTIFACTS
+    | {f"{name}.sha256" for name in EXPECTED_RELEASE_ARTIFACTS}
     | GENERATED_INSTALLERS | {"sha256.sum"}
 )
 SOURCE_ROOT = re.compile(
@@ -1114,9 +1117,53 @@ def copy_release_control(source: Path, destination: Path) -> None:
             raise ArchiveValidationError(f"release artifact changed while staging: {source.name!r}")
 
 
+def container_digest(path: Path, destination: Path | None = None) -> str:
+    """Bound/copy opaque native-verified containers; this is not signature verification."""
+    if path.name not in EXPECTED_INSTALLER_CONTAINERS:
+        raise ArchiveValidationError("unknown installer container")
+    return release_file_digest(path, destination)
+
+
+def release_file_digest(path: Path, destination: Path | None = None) -> str:
+    """Hash/copy one bounded retained file; callers enforce product and inventory."""
+    with open_archive_nofollow(path) as (file, initial):
+        if not 0 < initial.st_size <= MAX_ARCHIVE_BYTES:
+            raise ArchiveValidationError("unsupported release artifact size")
+        digest = (copy_open_file(file, initial, destination, mode=0o644, max_bytes=MAX_ARCHIVE_BYTES)
+                  if destination is not None else digest_open_file(file, initial.st_size))
+        if stable_file_identity(initial) != stable_file_identity(os.fstat(file.fileno())):
+            raise ArchiveValidationError("release artifact changed while reading")
+        return digest
+
+
+def complete_release_checksums(source: Path, destination: Path) -> None:
+    """Validate cargo-dist's checksum authority before adding the two native containers."""
+    artifacts = discover_archives([source])
+    digests: dict[str, str] = {}
+    for path in artifacts:
+        digests[path.name] = release_file_digest(path)
+        if parse_checksum_document(source / f"{path.name}.sha256") != {path.name: digests[path.name]}:
+            raise ArchiveValidationError("adjacent release checksum mismatch")
+    original = parse_checksum_document(source / "sha256.sum")
+    archive_digests = {name: digest for name, digest in digests.items() if name in EXPECTED_RELEASE_ARCHIVES}
+    if original not in (archive_digests, digests):
+        raise ArchiveValidationError("cargo-dist checksum authority is not the exact expected set")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW
+    with os.fdopen(os.open(destination, flags, 0o644), "w", encoding="ascii") as output:
+        output.write("".join(f"{digest} *{name}\n" for name, digest in sorted(digests.items())))
+        output.flush()
+        os.fsync(output.fileno())
+
+
 def parse_checksum_document(path: Path) -> dict[str, str]:
     try:
-        source = path.read_text(encoding="ascii")
+        with open_archive_nofollow(path) as (file, initial):
+            if not 0 < initial.st_size <= MAX_RELEASE_CONTROL_BYTES:
+                raise ArchiveValidationError("unsupported checksum document size")
+            raw = file.read(MAX_RELEASE_CONTROL_BYTES + 1)
+            if len(raw) != initial.st_size or stable_file_identity(initial) != stable_file_identity(os.fstat(file.fileno())):
+                raise ArchiveValidationError("checksum document changed while reading")
+            source = raw.decode("ascii")
     except (OSError, UnicodeError) as error:
         raise ArchiveValidationError(f"checksum document is unreadable: {path.name!r}") from error
     # cargo-dist 0.32 emits one canonical blank line after its checksum records.
@@ -1272,7 +1319,7 @@ def stage_release_directory(
         ) from error
     digests: dict[str, str] = {}
     for archive in archives:
-        digest = validate_archive(
+        digest = container_digest(archive, destination / archive.name) if archive.name in EXPECTED_INSTALLER_CONTAINERS else validate_archive(
             archive,
             destination / archive.name,
             expected_release_version=(
@@ -1282,7 +1329,7 @@ def stage_release_directory(
         if digest is None:
             raise ArchiveValidationError("staged archive did not produce a content digest")
         digests[archive.name] = digest
-    for name in sorted(EXPECTED_RELEASE_FILES - EXPECTED_RELEASE_ARCHIVES):
+    for name in sorted(EXPECTED_RELEASE_FILES - EXPECTED_RELEASE_ARTIFACTS):
         copy_release_control(source / name, destination / name)
     validate_staged_checksums(destination, digests)
     validate_staged_installers(destination, digests)
@@ -1329,7 +1376,7 @@ def discover_archives(inputs: Iterable[Path]) -> list[Path]:
                     raise ArchiveValidationError(
                         f"unrecognized release artifact: {child.name!r}"
                     )
-                if child.name in EXPECTED_RELEASE_ARCHIVES:
+                if child.name in EXPECTED_RELEASE_ARTIFACTS:
                     observed.add(child.name)
                     archives.add(child)
             missing_files = EXPECTED_RELEASE_FILES - observed_files
@@ -1337,7 +1384,7 @@ def discover_archives(inputs: Iterable[Path]) -> list[Path]:
                 raise ArchiveValidationError(
                     f"release directory is missing expected artifacts: {sorted(missing_files)!r}"
                 )
-            missing = EXPECTED_RELEASE_ARCHIVES - observed
+            missing = EXPECTED_RELEASE_ARTIFACTS - observed
             if missing:
                 raise ArchiveValidationError(
                     f"release directory is missing expected archives: {sorted(missing)!r}"
@@ -1361,8 +1408,15 @@ def main(argv: list[str] | None = None) -> int:
         help="canonical v-prefixed release version required for publication staging",
     )
     parser.add_argument("paths", nargs="+", type=Path, help="archive files or containing directories")
+    parser.add_argument("--complete-checksums", type=Path,
+                        help="write a new combined checksum file including native containers")
     arguments = parser.parse_args(argv)
     try:
+        if arguments.complete_checksums is not None:
+            if arguments.stage is not None or arguments.release_tag is not None or len(arguments.paths) != 1 or not arguments.paths[0].is_dir():
+                raise ArchiveValidationError("checksum completion requires one release directory and no staging options")
+            complete_release_checksums(arguments.paths[0], arguments.complete_checksums)
+            return 0
         archives = discover_archives(arguments.paths)
         if arguments.stage is not None:
             if len(arguments.paths) != 1 or not arguments.paths[0].is_dir():
@@ -1385,9 +1439,12 @@ def main(argv: list[str] | None = None) -> int:
             raise ArchiveValidationError("--release-tag is only valid with --stage")
         else:
             for path in archives:
-                validate_archive(path)
-                print(f"verified release archive: {path.name}")
-    except ArchiveValidationError as error:
+                if path.name in EXPECTED_INSTALLER_CONTAINERS:
+                    container_digest(path)
+                else:
+                    validate_archive(path)
+                print(f"validated release artifact bytes: {path.name}")
+    except (ArchiveValidationError, OSError) as error:
         print(f"release archive verification failed: {error}", file=sys.stderr)
         return 1
     if arguments.stage is None:

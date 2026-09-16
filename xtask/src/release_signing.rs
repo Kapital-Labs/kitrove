@@ -303,14 +303,18 @@ pub(super) fn sign_apple_container(file: &Path, target: &str) -> Result<(), Stri
         "Apple ticket stapling",
     )?;
     let mut stapled = super::read_bounded_archive(file, false)?;
+    verify_apple_container(file)?;
+    stapled.revalidate()
+}
+
+pub(super) fn verify_apple_container(file: &Path) -> Result<(), String> {
     run(
         Command::new("/usr/bin/xcrun")
             .args(["stapler", "validate"])
             .arg(file),
         "Apple ticket validation",
     )?;
-    verify_apple_signature(file, false)?;
-    stapled.revalidate()
+    verify_apple_signature(file, false)
 }
 
 fn verify_notary_response(response: &[u8]) -> Result<(), String> {

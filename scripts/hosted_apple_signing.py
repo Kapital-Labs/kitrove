@@ -21,7 +21,7 @@ def require(condition, message):
 
 OPERATIONS = frozenset(('identity import', 'Keychain cleanup',
     'Keychain search-list snapshot', 'Keychain search-list restoration',
-    'application archive preparation', 'installer archive preparation'))
+    'application archive preparation', 'installer archive preparation', 'installer container preparation'))
 
 
 def error_category(stderr):
@@ -142,6 +142,8 @@ def signing_environment():
 
 
 def prepare_release():
+    container_mode = os.environ.get('KITROVE_PREPARE_DMG', '')
+    require(container_mode in ('', '1'), 'Invalid container preparation mode')
     target = os.environ.get('DIST_TARGET', '')
     require(target in ('aarch64-apple-darwin', 'x86_64-apple-darwin'), 'Unsupported Apple target')
     tag = os.environ.get('RELEASE_TAG', '')
@@ -158,6 +160,11 @@ def prepare_release():
             native([str(tool), 'prepare-platform-release', archive, target, tag,
                 'release/application-compatibility.json', 'dist-manifest.json'],
                 operation=operation, env=child_env, timeout=1500)
+        if container_mode == '1':
+            native([str(tool), 'prepare-installer-dmg',
+                f'target/distrib/kitrove-installer-{target}.tar.xz', target, tag,
+                'dist-manifest.json', str(runner.resolve() / 'kitrove-installer-dmg')],
+                operation='installer container preparation', env=child_env, timeout=1500)
 
 
 if __name__ == '__main__':
