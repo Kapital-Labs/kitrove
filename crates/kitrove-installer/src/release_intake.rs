@@ -53,6 +53,29 @@ pub(crate) enum BundleArtifactKind {
 }
 
 impl LocalReleaseRequest<'_> {
+    pub(crate) fn verify_container(&self) -> Result<String, ReleaseIntakeError> {
+        let target = crate::compiled_release_target()
+            .map_err(|_| ReleaseIntakeError::UnsupportedPlatform)?;
+        let spec = kitrove_release_policy::installer_container_for_target(target)
+            .map_err(|_| ReleaseIntakeError::UnsupportedPlatform)?;
+        self.with_inputs(
+            spec.image_name(),
+            APPLICATION_ATTESTATION_BUNDLE_MAX_BYTES,
+            |image, bundle| {
+                let verified = kitrove_release_provenance::verify_installer_container_attestation(
+                    spec, image.to_vec(), self.expected, bundle,
+                )
+                .map_err(|_| ReleaseIntakeError::VerificationFailed)?;
+                Ok(format!(
+                    "Authenticated installer image provenance: {} {} {}\nNative signature, payload and launch verification are still required; nothing mounted or executed.",
+                    verified.spec().image_name(),
+                    verified.release_identity().tag(),
+                    verified.release_identity().source_commit(),
+                ))
+            },
+        )
+    }
+
     pub(crate) fn authenticate(&self) -> Result<AuthenticatedRecoveryMaterial, ReleaseIntakeError> {
         self.authenticate_with(verify_material)
     }

@@ -10,7 +10,7 @@ use crate::installation_state::{
 
 #[path = "command_release.rs"]
 mod release;
-use crate::release_intake::{BundleArtifactKind, LocalReleaseRequest};
+use crate::release_intake::BundleArtifactKind;
 use release::ReleaseInput;
 
 #[path = "command_replacement.rs"]
@@ -27,6 +27,11 @@ Read-only bundle commands: select-application-bundle, select-installer-bundle
   Require only --archive, --bundle (downloaded JSONL collection), --tag, --commit,
   and --sha256. Emit one authenticated bundle to stdout; no destination or state options.
   Run only with an independently trusted or reviewed-source-built installer.
+
+Read-only Mac image command: verify-installer-container
+  Uses the same five release options, with --archive pointing to the exact DMG
+  and --bundle to one Sigstore bundle (not JSONL). Verifies provenance only;
+  never mounts, installs or executes. Native signature/payload checks remain required.
 
 Every installation/replacement/history command requires:
   --archive PATH --bundle PATH --tag vVERSION --commit FULL_COMMIT
@@ -72,6 +77,7 @@ enum Parsed {
     Help,
     Version,
     BundleSelection(BundleArtifactKind, ReleaseInput),
+    VerifyContainer(ReleaseInput),
     Request(Box<Request>),
 }
 
@@ -92,7 +98,9 @@ fn parse(arguments: impl IntoIterator<Item = OsString>) -> Result<Parsed, String
         Some("retire-install") => (Action::Retire, None),
         Some("history-status") => (Action::Status, None),
         Some("history-sync") => (Action::Sync, None),
-        Some("select-application-bundle" | "select-installer-bundle") => (Action::Status, None),
+        Some(
+            "select-application-bundle" | "select-installer-bundle" | "verify-installer-container",
+        ) => (Action::Status, None),
         Some(command) => {
             let (action, direction) = replacement::command(command).ok_or("invalid command")?;
             (action, Some(direction))
@@ -142,15 +150,18 @@ fn parse(arguments: impl IntoIterator<Item = OsString>) -> Result<Parsed, String
             return Err("duplicate installer option".into());
         }
     }
-    if let Some(kind) = bundle_kind {
+    if bundle_kind.is_some() || command == "verify-installer-container" {
         if no_roots || !roots.is_empty() {
-            return Err("bundle selection does not accept state selection".into());
+            return Err("read-only verification does not accept state selection".into());
         }
         let release = ReleaseInput::parse(&mut values, "")?;
         if !values.is_empty() {
-            return Err("bundle selection accepts only exact release inputs".into());
+            return Err("read-only verification accepts only exact release inputs".into());
         }
-        return Ok(Parsed::BundleSelection(kind, release));
+        return Ok(match bundle_kind {
+            Some(kind) => Parsed::BundleSelection(kind, release),
+            None => Parsed::VerifyContainer(release),
+        });
     }
     if action == Action::Status {
         if no_roots || !roots.is_empty() {
@@ -200,14 +211,16 @@ pub(crate) fn run(arguments: impl IntoIterator<Item = OsString>) -> Result<Strin
         Parsed::Help => return Ok(HELP.into()),
         Parsed::Version => return Ok(format!("kitrove-installer {}", env!("CARGO_PKG_VERSION"))),
         Parsed::BundleSelection(kind, release) => {
-            return LocalReleaseRequest {
-                archive: &release.archive,
-                bundle: &release.bundle,
-                expected: &release.pin.expected,
-                archive_sha256: release.pin.digest,
-            }
-            .select_bundle(kind)
-            .map_err(|error| error.to_string());
+            return release
+                .local_request()
+                .select_bundle(kind)
+                .map_err(|error| error.to_string());
+        }
+        Parsed::VerifyContainer(release) => {
+            return release
+                .local_request()
+                .verify_container()
+                .map_err(|error| error.to_string());
         }
         Parsed::Request(request) => request,
     };

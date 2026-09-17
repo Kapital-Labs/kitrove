@@ -86,6 +86,41 @@ fn bundle_commands_are_read_only_and_do_not_accept_synthetic_provenance() {
 }
 
 #[test]
+fn container_intake_is_read_only_and_never_accepts_synthetic_provenance() {
+    let fixture = Fixture::new();
+    let target = crate::compiled_release_target().unwrap();
+    let spec = kitrove_release_policy::installer_container_for_target(target);
+    let image = fixture.root.path().join(
+        spec.as_ref()
+            .map_or("kitrove-installer-aarch64-apple-darwin.dmg", |spec| {
+                spec.image_name()
+            }),
+    );
+    fs::write(&image, b"synthetic image").unwrap();
+    fs::set_permissions(&image, fs::Permissions::from_mode(0o644)).unwrap();
+    let digest = Sha256::digest(b"synthetic image").into();
+    let request = LocalReleaseRequest {
+        archive: &image,
+        bundle: &fixture.bundle,
+        expected: &fixture.expected,
+        archive_sha256: digest,
+    };
+    let before = kitrove_testkit::FilesystemSnapshot::capture(fixture.root.path()).unwrap();
+    assert_eq!(
+        request.verify_container(),
+        Err(if spec.is_ok() {
+            ReleaseIntakeError::VerificationFailed
+        } else {
+            ReleaseIntakeError::UnsupportedPlatform
+        })
+    );
+    assert_eq!(
+        kitrove_testkit::FilesystemSnapshot::capture(fixture.root.path()).unwrap(),
+        before
+    );
+}
+
+#[test]
 fn selection_handoff_revalidates_inputs_before_returning_bytes() {
     let fixture = Fixture::new();
     let name = fixture.archive.file_name().unwrap().to_str().unwrap();

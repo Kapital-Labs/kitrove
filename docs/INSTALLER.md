@@ -85,6 +85,27 @@ merely to ask it whether it is trustworthy.
 
 ## Commands
 
+### Read-only Mac container provenance
+
+An independently trusted or reviewed-source-built Mac installer supports
+`verify-installer-container --archive <exact-image.dmg> --bundle <single-bundle.json>
+--tag <vVERSION> --commit <FULL_COMMIT> --sha256 <IMAGE_SHA256>`.
+The historical `--archive` option selects the image here, not an application archive.
+The basename must match the Mac architecture of the trusted verifier.
+
+This command checks bounded, retained local files and the fixed production release
+provenance policy, then reports the verified image name, tag and commit. It rejects
+destination, state, history and prior-release options. It makes no filesystem changes,
+does not repair permissions, and never mounts or executes the image. Non-Mac hosts
+reject it before opening inputs. A single Sigstore bundle is required, not a JSONL
+collection; container bundle selection remains follow-up work.
+
+Success is provenance evidence only. Native signature/ticket checks, read-only mount
+and exact payload validation, embedded installer authentication, safe staging and
+clean-machine launch acceptance remain separate gates. Do not use a downloaded
+installer to establish trust in its own first execution. The manual signing rehearsal
+is not production-tag provenance and cannot satisfy this command's release policy.
+
 - `preflight-install` authenticates the release and checks selected state, absent
   destination and idle installer state without creating files. It holds state guards
   only during inspection; it is not a reservation or proof of future install success.
