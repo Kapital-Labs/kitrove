@@ -13,7 +13,7 @@ import hosted_apple_signing as signing
 
 
 class HostedAppleSigningTests(unittest.TestCase):
-    def scenario(self, failure=None, overrides=None):
+    def scenario(self, failure=None, overrides=None, container=False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
             for name in ('kitrove-release-xtask', 'kitrove-apple-import'):
@@ -23,6 +23,8 @@ class HostedAppleSigningTests(unittest.TestCase):
                 RUNNER_TEMP=str(root), RUNNER_ENVIRONMENT='github-hosted',
                 DIST_TARGET='aarch64-apple-darwin', RELEASE_TAG='v0.0.0')
             environment.update(overrides or {})
+            if container:
+                environment['KITROVE_PREPARE_DMG'] = '1'
             original = [str(root / 'login keys.keychain-db'), str(root / 'System.keychain')]
             calls = []
 
@@ -51,6 +53,13 @@ class HostedAppleSigningTests(unittest.TestCase):
                         self.assertNotIn(secret, env)
                 if operation == 'Keychain search-list restoration':
                     self.assertEqual(args[-2:], original)
+                if operation == 'installer container preparation':
+                    self.assertEqual(args, [str(root / 'kitrove-release-xtask'), 'prepare-installer-dmg',
+                        'target/distrib/kitrove-installer-aarch64-apple-darwin.tar.xz',
+                        'aarch64-apple-darwin', 'v0.0.0', 'dist-manifest.json',
+                        str(root / 'kitrove-installer-dmg')])
+                    self.assertTrue(Path(env['KITROVE_SIGNING_KEYCHAIN']).is_file())
+                    self.assertNotIn('NOTARY_PASSWORD', env)
                 if operation == 'Keychain cleanup':
                     self.assertEqual(Path(args[-1]).parent.parent, root)
                     Path(args[-1]).unlink()
@@ -84,6 +93,16 @@ class HostedAppleSigningTests(unittest.TestCase):
         calls = self.scenario()
         self.assertEqual(calls.count('identity import'), 1)
         self.assertEqual(calls[2:4], ['application archive preparation', 'installer archive preparation'])
+
+    def test_container_is_explicit_and_shares_cleanup_on_success_or_failure(self):
+        self.assertNotIn('installer container preparation', self.scenario())
+        calls = self.scenario(container=True)
+        self.assertEqual(calls[4], 'installer container preparation')
+        self.assertEqual(calls.count('identity import'), 1)
+        self.scenario('installer container preparation', container=True)
+        calls = self.scenario('installer archive preparation', container=True)
+        self.assertNotIn('installer container preparation', calls)
+        self.assertEqual(self.scenario(overrides={'KITROVE_PREPARE_DMG': 'invalid'}), [])
 
     def test_failures_stop_preparation_and_always_attempt_cleanup(self):
         for operation in ('identity import', 'authentication', 'application archive preparation',
@@ -164,6 +183,11 @@ class HostedAppleSigningTests(unittest.TestCase):
         self.assertLess(compile_step, credential_step)
         self.assertLess(credential_step, verification)
         self.assertLess(verification, attestation)
+        container_verify = workflow.index('cargo xtask verify-installer-dmg')
+        container_attest = workflow.index('      - name: Attest the exact stapled installer container')
+        self.assertLess(verification, container_verify)
+        self.assertLess(container_verify, container_attest)
+        self.assertEqual(workflow.count("KITROVE_PREPARE_DMG: '1'"), 1)
         self.assertEqual(workflow.count('secrets.KITROVE_GITHUB_NOTARIZATION'), 1)
         self.assertIn('if [[ "$RUNNER_OS" == "Linux" ]]; then', workflow)
 

@@ -25,9 +25,19 @@ struct Payload {
 #[path = "release_installer_dmg_image.rs"]
 mod image;
 
-pub(crate) fn prepare_image(arguments: Vec<OsString>) -> Result<(), String> {
+pub(crate) fn prepare_image(mut arguments: Vec<OsString>) -> Result<(), String> {
+    let output = (arguments.len() == 5).then(|| PathBuf::from(arguments.pop().unwrap()));
     let payload = prepare(arguments, std::env::consts::OS)?;
-    image::prepare(payload)
+    image::prepare(payload, output)
+}
+
+pub(crate) fn verify_image(mut arguments: Vec<OsString>) -> Result<(), String> {
+    if arguments.len() != 5 {
+        return Err("expected 5 arguments for installer DMG verification".into());
+    }
+    let image_path = PathBuf::from(arguments.pop().unwrap());
+    let mut payload = prepare(arguments, std::env::consts::OS)?;
+    image::verify(&mut payload, &image_path)
 }
 
 impl Payload {

@@ -16,7 +16,7 @@ const REVIEWED_SIGSTORE_REKOR_TREE_BLAKE3: &str =
 const REVIEWED_SIGSTORE_TSA_TREE_BLAKE3: &str =
     "c48b716039e6942cf81eba8cf3558d7fe6d08facf5353ca5de99b03072cfc8db";
 const REVIEWED_RELEASE_WORKFLOW_BLAKE3: &str =
-    "776639ad93e36019694f4e459928aa35a4fb1e19a6f0df7feb0003f45aec05a8";
+    "de38c527f12310d0e9e62f7f55dfdaedc5e12b9390a4121cdbc82432d32e72d0";
 const REVIEWED_DIST_CONFIG_BLAKE3: &str =
     "6eeceed79e47b1673212b39a69064af206c28099868b1cfa6678f0d1ecb2b00d";
 const REVIEWED_RELEASE_POLICY_BLAKE3: &str =
@@ -58,6 +58,9 @@ fn main() -> ExitCode {
         }
         "prepare-installer-dmg" => {
             release_archive::installer_dmg::prepare_image(env::args_os().skip(2).collect())
+        }
+        "verify-installer-dmg" => {
+            release_archive::installer_dmg::verify_image(env::args_os().skip(2).collect())
         }
         "verify-application-release" => release_archive::verify(env::args_os().skip(2).collect()),
         "verify-application-release-bundle" => {
@@ -356,6 +359,9 @@ fn check_release_configuration(root: &Path) -> Result<(), String> {
         "xcrun swiftc scripts/hosted_apple_import.swift",
         "NOTARY_PASSWORD: ${{ secrets.KITROVE_GITHUB_NOTARIZATION }}",
         "cargo xtask verify-application-release",
+        "cargo xtask verify-installer-dmg",
+        "subject-path: ${{ steps.verified-local.outputs.container_staged_path }}",
+        "KITROVE_PREPARE_DMG: '1'",
         "release/application-compatibility.json",
         "verified-artifacts/*",
         "aa343b2ff78ec2981f17a65140250c5ad6062c74072163f68c5c2686d94763a7",
@@ -375,16 +381,7 @@ fn check_release_configuration(root: &Path) -> Result<(), String> {
         return Err("release workflow must expose GH_TOKEN only to the host job".to_owned());
     }
     check_release_attestation_permissions(&workflow)?;
-    if workflow
-        .matches("python3 scripts/verify_release_archives.py")
-        .count()
-        != 4
-    {
-        return Err(
-            "release workflow must verify archives before scratch upload and publication"
-                .to_owned(),
-        );
-    }
+    check_release_verifier_calls(&workflow)?;
     let host_job = bounded_workflow_job(&workflow, "host", "announce")?;
     for token in ["\"contents\": \"write\"", "GH_TOKEN:"] {
         require_token(host_job, token, "release workflow host job")?;
@@ -399,6 +396,26 @@ fn check_release_configuration(root: &Path) -> Result<(), String> {
         return Err(format!(
             "release workflow differs from the exact security-reviewed workflow (observed {observed_workflow_digest})"
         ));
+    }
+    Ok(())
+}
+
+fn check_release_verifier_calls(workflow: &str) -> Result<(), String> {
+    if workflow
+        .matches("python3 scripts/verify_release_archives.py")
+        .count()
+        != 5
+        || workflow
+            .matches(
+                "--complete-checksums target/distrib/sha256-with-containers.sum target/distrib",
+            )
+            .count()
+            != 1
+    {
+        return Err(
+            "release workflow requires four verification calls and one container checksum completion"
+                .to_owned(),
+        );
     }
     Ok(())
 }
@@ -1464,7 +1481,7 @@ fn require_token(content: &str, token: &str, location: &str) -> Result<(), Strin
 
 fn print_help() {
     println!(
-        "  prepare-installer-dmg <installer-archive> <target> <tag> <dist-manifest>\n    Create, sign, notarize and staple a Mac installer image; never publish.\n"
+        "  prepare-installer-dmg <installer-archive> <target> <tag> <dist-manifest> [new-output-directory]\n    Create, sign, notarize and staple a Mac installer image; never publish.\n  verify-installer-dmg <installer-archive> <target> <tag> <dist-manifest> <image>\n    Reverify native image and exact payload without signing or execution.\n"
     );
     println!(
         "DMG preparation:\n  stage-installer-dmg <installer-archive> <target> <tag> <dist-manifest>\n    Stage a private payload only; does not sign, create a DMG, or publish.\n"
@@ -1484,8 +1501,8 @@ mod tests {
         REVIEWED_SIGSTORE_REKOR_TREE_BLAKE3, REVIEWED_SIGSTORE_TSA_TREE_BLAKE3,
         cfg_test_path_modules, check_dist_configuration, check_dist_package_configuration,
         check_production_source, check_release_actions, check_release_attestation_permissions,
-        check_reviewed_third_party_tree, effective_dist_manifests, license_expression_allowed,
-        private_context_present, release_trigger_is_tag_push_only,
+        check_release_verifier_calls, check_reviewed_third_party_tree, effective_dist_manifests,
+        license_expression_allowed, private_context_present, release_trigger_is_tag_push_only,
     };
 
     #[test]
@@ -1720,6 +1737,32 @@ x86_64-pc-windows-msvc = ["kitrove"]
             changed.is_empty(),
             "unreviewed release behavior:\n{}",
             changed.join("\n")
+        );
+    }
+
+    #[test]
+    fn release_verifier_guard_distinguishes_checksum_completion() {
+        let workflow = include_str!("../../.github/workflows/release.yml");
+        check_release_verifier_calls(workflow).unwrap();
+        assert!(
+            check_release_verifier_calls(
+                &workflow.replace("--complete-checksums", "--not-completion")
+            )
+            .is_err()
+        );
+        assert!(
+            check_release_verifier_calls(&workflow.replacen(
+                "python3 scripts/verify_release_archives.py",
+                "omitted",
+                1
+            ))
+            .is_err()
+        );
+        assert!(
+            check_release_verifier_calls(&format!(
+                "{workflow}\npython3 scripts/verify_release_archives.py"
+            ))
+            .is_err()
         );
     }
 

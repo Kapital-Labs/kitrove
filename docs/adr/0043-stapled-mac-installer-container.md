@@ -37,8 +37,8 @@ Before release integration, specify and test exact image names, payload inventor
 size bounds, no-overwrite publication and retained output identity. Extend the
 shared release inventory, checksum controls and attestation jobs together. Do not
 teach the application archive parser to treat a disk image as an application.
-The current nine-archive release inventory remains authoritative until that
-integration is implemented and reviewed.
+The publication integration checkpoint below extends the inventory without
+enabling production activation.
 
 ## Payload staging checkpoint
 
@@ -82,8 +82,8 @@ Synthetic tests cover stage failures, substitutions and cleanup uncertainty.
 Local signed preparation passed for both Mac payload targets on 2026-09-16; see the
 [native rehearsal record](../review/installer-dmg-native-rehearsal.md). No installer
 or CLI was launched. Clean-machine online/offline consumer acceptance remains open.
-Production artifact catalogs, checksums, attestations and hosted integration are
-unchanged.
+This native preparation evidence does not by itself validate the later hosted
+publication integration.
 
 ## Shared catalog checkpoint
 
@@ -92,9 +92,33 @@ installer archive selections in a type separate from application/installer archi
 Local preparation consumes this shared catalog. The canonical JSON policy contains
 the same mappings; Rust correspondence tests and the publication tool's strict
 policy validation bind them. The existing 256 MiB image bound is unchanged.
-These reservations do not extend the active nine-archive publication inventory.
-Native workflow preparation, checksum inventory and attestations must be integrated
-together before containers may enter the published release set.
+The initial catalog checkpoint did not extend the publication inventory. The
+following integration connects native workflow preparation, checksum inventory and
+attestations together.
+
+## Publication integration checkpoint
+
+The disabled tag workflow explicitly enables DMG preparation in the existing Apple
+credential lifetime after both archives are prepared. Local/manual archive-only
+rehearsals retain their old default. A named output directory must be fresh, private
+and under an existing canonical absolute parent; no existing artifact is overwritten.
+After credential cleanup, reverify the copied image and checksum against the exact
+staged installer archive/build manifest, including signatures, ticket, image integrity,
+read-only payload comparison and detach. Attest that one image only afterward.
+
+The closed publication set is nine archives plus the two named Mac DMGs and their
+checksum controls. Linux copies containers as bounded opaque bytes, not through TAR
+or ZIP parsers and not as proof of a native signature. Complete cargo-dist's combined
+checksum only after its original nine-archive (or already complete eleven-artifact)
+map and every adjacent digest match the exact file set. Write a new checksum file
+without overwrite; the workflow replaces only its generated build checksum control.
+Private global and host staging recheck the exact eleven-artifact digest set before
+publication. Attest the final combined checksum as well as each individual image.
+
+Native-tool reverification passed locally for both preserved images without signing
+credentials or product execution. Synthetic workflow and inventory tests are not
+hosted signing acceptance or production-tag provenance. A hosted rehearsal still
+needs separate approval. Production activation and release publication remain gated.
 
 ## Consumer trust
 

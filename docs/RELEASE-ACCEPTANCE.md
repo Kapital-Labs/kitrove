@@ -60,8 +60,10 @@ signing/notarization/stapling and mounted-payload verification. Its local unsign
 native image test passed without executing the payload. Local signed preparation
 also passed for both Mac payload targets; the
 [native rehearsal record](review/installer-dmg-native-rehearsal.md) lists exact
-digests and limits of that evidence. Publication/provenance integration and
-clean-machine online/offline execution tests remain open.
+digests and limits of that evidence. The disabled production workflow now includes
+DMG preparation, credential-free native reverification, individual attestations and
+the expanded exact checksum/publication set. Hosted integration rehearsal, consumer
+provenance authentication and clean-machine online/offline execution remain open.
 A notarized archive
 of standalone executables does not prove offline first-launch acceptance. A stapled
 container design must specify its contents, authentication, quarantine behavior,
