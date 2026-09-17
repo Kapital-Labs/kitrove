@@ -66,6 +66,25 @@ activation or publication; ordinary CI never invokes real signing.
 
 ## Ordering and boundaries
 
+### Bounded Mac container rehearsal
+
+The manually dispatched product-signing rehearsal accepts `scope=archives` (the
+existing default) or `scope=mac-dmg`. The latter builds only Apple Silicon and Intel
+Mac, signs both products and prepares each stapled DMG through production helpers.
+It does not schedule a Windows build or signer. Both selected builds must succeed;
+cancellation or build failure prevents signing. Exact-SHA activation and protected
+environment approval remain mandatory.
+
+After credential cleanup, copy each image and sidecar into evidence and reverify
+that exact copy against the retained installer archive and build manifest. Evidence
+records the scope and digests and is uploaded only after verification succeeds,
+with one-day retention. No product executes, no attestation is generated, and no
+release is published. This tests the hosted Mac credential/packaging handoff, not
+production-tag provenance, complete global publication or clean-machine launch.
+Dispatch, temporary activation and environment-policy changes need separate approval.
+
+### Archive preparation
+
 Use pinned cargo-dist 0.32.0 to build local artifacts and retain its actual JSON
 build manifest. For each application and installer archive, run:
 
