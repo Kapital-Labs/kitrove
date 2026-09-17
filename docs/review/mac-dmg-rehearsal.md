@@ -27,6 +27,16 @@ Validation passed: 77 Python tests (one skipped), actionlint on the dispatcher a
 reusable build workflow, governance, repository and diff checks. No Rust runtime
 code changed, so a redundant full local Rust suite and signing run were not needed.
 
+The subsequent main Windows check exposed an unused mutable directory builder in
+the previously merged native-image tooling. Mutation is now scoped to the Unix
+permission-setting block; Windows uses the immutable builder. This preserves Unix
+mode 0700, exclusive directory creation, and failure handling without suppressing
+warnings or duplicating the creation path. Follow-up review found no behavior or
+authority change. All 11 automated DMG tests passed (one operator-only native test
+remained ignored), along with all-target/all-feature xtask Clippy on the Mac host
+and the Windows GNU cross target. Cross-target linting is not Windows runtime
+evidence; hosted main validation remains required.
+
 NS-07/NS-09 and INV-07/INV-12 remain unchanged. Capability discovery, adoption,
 portable/native preservation, fidelity, receipts, synchronization and conflicts are
 untouched. Activation and an actual signing run require separate approval.
