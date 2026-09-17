@@ -37,6 +37,15 @@ remained ignored), along with all-target/all-feature xtask Clippy on the Mac hos
 and the Windows GNU cross target. Cross-target linting is not Windows runtime
 evidence; hosted main validation remains required.
 
+Hosted main validation subsequently passed Windows Rust checks but exposed a
+POSIX-only path expectation in the synthetic DMG verifier test. Expected command
+arguments now use native `Path` construction, matching the existing production
+code. The assertion still checks the complete ordered argument tuple, including
+the copied evidence paths, target and version. No production code, skip condition,
+credential boundary or failure assertion changed. Review of the remaining test
+found no other raw native-path command expectations. All 77 Python tests completed
+locally (one skipped); native Windows confirmation remains a hosted check.
+
 NS-07/NS-09 and INV-07/INV-12 remain unchanged. Capability discovery, adoption,
 portable/native preservation, fidelity, receipts, synchronization and conflicts are
 untouched. Activation and an actual signing run require separate approval.

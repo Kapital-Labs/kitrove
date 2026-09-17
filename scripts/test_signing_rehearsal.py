@@ -142,10 +142,11 @@ class SigningRehearsalTests(unittest.TestCase):
                     def run(*args):
                         calls.append(args)
                         if args[1] == 'verify-installer-dmg':
+                            evidence = Path('signing-evidence')
                             self.assertEqual(args[2:], (
-                                f'signing-evidence/kitrove-installer-{target}.tar.xz', target,
-                                'v0.0.0', 'signing-evidence/dist-manifest.json',
-                                f'signing-evidence/{image}'))
+                                str(evidence / f'kitrove-installer-{target}.tar.xz'), target,
+                                'v0.0.0', str(evidence / 'dist-manifest.json'),
+                                str(evidence / image)))
                             if failure == 'verification':
                                 raise RuntimeError('synthetic native refusal')
 
