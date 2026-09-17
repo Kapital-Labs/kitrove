@@ -122,6 +122,16 @@ needs separate approval. Production activation and release publication remain ga
 
 ## Consumer trust
 
+The first consumer library checkpoint authenticates an owned, nonempty image
+snapshot within the existing 256 MiB bound. `verify_installer_container_attestation`
+uses the closed container catalog for the subject name and computes the digest
+from those same bytes. It reuses the existing offline Sigstore verifier and exact
+production repository/workflow/tag/commit policy. The opaque result retains the
+bytes, identity and bundle digest, with no conversion to installer executable,
+application replacement or rollback authority. It performs no native image parsing,
+mounting, filesystem writes or execution. CLI intake, bundle selection and native
+consumer verification remain follow-up work; this API alone is not a bootstrap.
+
 An independently trusted verifier authenticates the exact image, repository,
 release workflow, tag, source commit and checksum before mounting or executing
 anything from it. Apple's native verification is additional evidence, not a
