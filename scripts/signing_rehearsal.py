@@ -23,10 +23,18 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
+def rehearsal_scope(target, env=os.environ):
+    scope = env.get('KITROVE_REHEARSAL_SCOPE', 'archives')
+    require(scope in ('archives', 'mac-dmg') and
+            (scope != 'mac-dmg' or target.endswith('apple-darwin')), 'Invalid rehearsal scope')
+    return scope
+
+
 def context(env=os.environ):
     target = env.get('DIST_TARGET', '')
     sha = env.get('GITHUB_SHA', '')
     require(target in DIST_DIGESTS and re.fullmatch('[0-9a-f]{40}', sha), 'Invalid rehearsal target or source')
+    rehearsal_scope(target, env)
     require(env.get('GITHUB_ACTIONS') == 'true'
             and env.get('RUNNER_ENVIRONMENT') == 'github-hosted'
             and env.get('GITHUB_EVENT_NAME') == 'workflow_dispatch'
@@ -144,6 +152,7 @@ def provision(target, sha):
 
 
 def verify(target, sha):
+    scope = rehearsal_scope(target)
     windows = target.endswith('windows-msvc')
     tool = Path(os.environ['RUNNER_TEMP']) / ('kitrove-release-xtask.exe' if windows else 'kitrove-release-xtask')
     evidence = Path('signing-evidence')
@@ -156,10 +165,22 @@ def verify(target, sha):
         for filename in (name, name + '.sha256'):
             shutil.copyfile(archive.parent / filename, evidence / filename)
     shutil.copyfile('dist-manifest.json', evidence / 'dist-manifest.json')
+    if scope == 'mac-dmg':
+        image = f'kitrove-installer-{target}.dmg'
+        directory = Path(os.environ['RUNNER_TEMP']) / 'kitrove-installer-dmg'
+        require(set(path.name for path in directory.iterdir()) == {image, image + '.sha256'},
+                'Unexpected container output inventory')
+        for name in (image, image + '.sha256'):
+            digest(directory / name)  # Refuse redirects/nonfiles before copying.
+            shutil.copyfile(directory / name, evidence / name)
+        run(str(tool), 'verify-installer-dmg',
+            str(evidence / f'kitrove-installer-{target}.tar.xz'), target, 'v0.0.0',
+            str(evidence / 'dist-manifest.json'), str(evidence / image))
     files = {path.name: digest(path) for path in evidence.iterdir()}
     with (evidence / 'evidence.json').open('x', encoding='utf-8') as output:
         json.dump(dict(source=sha, target=target, run=os.environ['GITHUB_RUN_ID'],
-                       attempt=os.environ['GITHUB_RUN_ATTEMPT'], published=False, files=files), output, sort_keys=True)
+                       attempt=os.environ['GITHUB_RUN_ATTEMPT'], scope=scope,
+                       published=False, files=files), output, sort_keys=True)
 
 
 def main():

@@ -2,6 +2,14 @@ name: Product signing rehearsal
 
 on:
   workflow_dispatch:
+    inputs:
+      scope:
+        description: Archive matrix or Mac-only archive and stapled DMG rehearsal
+        type: choice
+        default: archives
+        options:
+          - archives
+          - mac-dmg
 
 permissions:
   contents: read
@@ -31,24 +39,28 @@ jobs:
       target: x86_64-pc-windows-msvc
     permissions:
       contents: read
+    if: inputs.scope != 'mac-dmg'
 
   sign:
     needs: [build-apple-silicon, build-intel, build-windows]
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - target: aarch64-apple-darwin
-            build: build-apple-silicon
-          - target: x86_64-apple-darwin
-            build: build-intel
-          - target: x86_64-pc-windows-msvc
-            build: build-windows
+        include: >-
+          ${{ fromJSON(inputs.scope == 'mac-dmg' &&
+          '[{"target":"aarch64-apple-darwin","build":"build-apple-silicon"},{"target":"x86_64-apple-darwin","build":"build-intel"}]' ||
+          '[{"target":"aarch64-apple-darwin","build":"build-apple-silicon"},{"target":"x86_64-apple-darwin","build":"build-intel"},{"target":"x86_64-pc-windows-msvc","build":"build-windows"}]') }}
     env:
       DIST_TARGET: ${{ matrix.target }}
       RELEASE_TAG: v0.0.0
       KITROVE_SIGNING_REHEARSAL_SHA: ${{ vars.KITROVE_SIGNING_REHEARSAL_SHA }}
+      KITROVE_REHEARSAL_SCOPE: ${{ inputs.scope || 'archives' }}
     if: >-
+      always() && !cancelled() &&
+      needs.build-apple-silicon.result == 'success' &&
+      needs.build-intel.result == 'success' &&
+      (needs.build-windows.result == 'success' ||
+       (inputs.scope == 'mac-dmg' && needs.build-windows.result == 'skipped')) &&
       github.event_name == 'workflow_dispatch' &&
       github.repository == 'Kapital-Labs/kitrove' &&
       github.ref == 'refs/heads/main' &&
@@ -79,6 +91,7 @@ jobs:
       - name: Sign and notarize both Apple products
         if: runner.os == 'macOS'
         env:
+          KITROVE_PREPARE_DMG: ${{ inputs.scope == 'mac-dmg' && '1' || '' }}
           P12: ${{ secrets.KITROVE_APPLE_P12_BASE64 }}
           P12_PASSWORD: ${{ secrets.KITROVE_APPLE_P12_PASSWORD }}
           APPLE_ID: ${{ secrets.KITROVE_APPLE_ID }}

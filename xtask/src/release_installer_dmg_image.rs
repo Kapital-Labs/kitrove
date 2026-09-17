@@ -38,12 +38,14 @@ fn new_output_directory(output: Option<PathBuf>) -> Result<PathBuf, String> {
     {
         return Err("DMG output requires an absolute path with a canonical existing parent".into());
     }
-    let mut builder = fs::DirBuilder::new();
+    let builder = fs::DirBuilder::new();
     #[cfg(unix)]
-    {
+    let builder = {
         use std::os::unix::fs::DirBuilderExt as _;
+        let mut builder = builder;
         builder.mode(0o700);
-    }
+        builder
+    };
     builder
         .create(&path)
         .map_err(|_| "cannot create fresh DMG output directory")?;
