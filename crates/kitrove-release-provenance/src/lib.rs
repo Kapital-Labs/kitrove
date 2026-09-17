@@ -15,6 +15,7 @@ mod bundle_selection;
 mod bundle_shape;
 mod certificate_claims;
 mod installer;
+mod installer_container;
 mod recovery_material;
 mod statement;
 
@@ -25,6 +26,10 @@ pub use bundle_selection::{
 pub use installer::{
     AuthenticatedInstallerExecutable, InstallerVerificationError,
     verify_installer_archive_attestation,
+};
+pub use installer_container::{
+    AuthenticatedInstallerContainer, InstallerContainerVerificationError,
+    verify_installer_container_attestation,
 };
 pub use recovery_material::AuthenticatedRecoveryMaterial;
 
