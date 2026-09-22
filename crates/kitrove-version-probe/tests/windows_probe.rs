@@ -146,11 +146,29 @@ fn read_pid(path: PathBuf) -> u32 {
     let deadline = Instant::now() + Duration::from_secs(3);
     loop {
         if let Ok(value) = std::fs::read_to_string(&path) {
-            return value.trim().parse().expect("fixture PID");
+            if let Some(complete) = value.strip_suffix('\n') {
+                let pid = complete.parse().expect("fixture PID");
+                assert_ne!(pid, 0, "fixture PID must identify a process");
+                return pid;
+            }
         }
         assert!(Instant::now() < deadline, "fixture PID was not recorded");
         std::thread::sleep(Duration::from_millis(10));
     }
+}
+
+#[test]
+fn pid_handoff_waits_for_the_complete_record() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("descendant.pid");
+    std::fs::write(&path, b"12").unwrap();
+    let writer_path = path.clone();
+    let writer = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(50));
+        std::fs::write(writer_path, b"12345\n").unwrap();
+    });
+    assert_eq!(read_pid(path), 12345);
+    writer.join().unwrap();
 }
 
 fn assert_process_exited(pid: u32) {

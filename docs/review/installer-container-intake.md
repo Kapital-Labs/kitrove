@@ -31,9 +31,12 @@ image bytes to an archive parser. Existing selector tests cover ambiguity and fr
 new container cases cover empty images, malformed collections and unrelated provenance.
 
 Windows CI exposed an existing fixture publication race: the reader could observe
-an empty PID file between creation and writing. The fixture now writes and closes
-a sibling pending file before renaming it into view. Read-side PID validation and
-process-containment assertions are unchanged; native Windows CI must confirm the fix.
+an empty PID file between creation and writing. A first rename-based fix failed
+under retained Windows directory authority. The revised fixture uses a newline as
+the complete-record marker and the reader waits for it before strict nonzero PID
+parsing. A regression checks that a partial numeric prefix is not mistaken for a
+complete PID. Process-containment assertions remain unchanged; native Windows CI
+must confirm the fix. No production process permissions were relaxed.
 
 Local validation passed: all 220 installer library tests on macOS, all-target/
 all-feature installer Clippy, Rust 1.85 all-target installer check, governance,
