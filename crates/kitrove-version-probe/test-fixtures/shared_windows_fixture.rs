@@ -89,9 +89,10 @@ fn spawn_descendant(executable: &std::path::Path) {
         .arg("--fixture-child")
         .spawn()
         .expect("descendant fixture");
+    // A terminator marks the complete record without requiring rename permission
+    // inside the retained executable directory.
     std::fs::write(
         executable.parent().unwrap().join("descendant.pid"),
-        child.id().to_string(),
-    )
-    .expect("descendant PID");
+        format!("{}\n", child.id()),
+    ).expect("descendant PID");
 }

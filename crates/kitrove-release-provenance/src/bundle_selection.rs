@@ -1,6 +1,9 @@
 use std::fmt;
 
-use kitrove_release_policy::{ApplicationArchiveIntake, InspectedInstallerRelease};
+use kitrove_release_policy::{
+    ApplicationArchiveIntake, InspectedInstallerRelease, InstallerContainerSpec,
+};
+use sha2::{Digest as _, Sha256};
 
 use crate::{
     APPLICATION_ATTESTATION_BUNDLE_MAX_BYTES, ExpectedReleaseIdentity, ReleaseAttestationError,
@@ -15,6 +18,7 @@ pub const ATTESTATION_COLLECTION_MAX_BYTES: usize =
 pub enum BundleSelectionError {
     InvalidCollection,
     InvalidArchiveManifest,
+    InvalidContainerSize,
     NoMatchingBundle,
     AmbiguousBundles,
 }
@@ -26,6 +30,7 @@ impl fmt::Display for BundleSelectionError {
                 "attestation collection is malformed, unsupported or exceeds its bounds"
             }
             Self::InvalidArchiveManifest => "archive manifest does not match the selected release",
+            Self::InvalidContainerSize => "installer image is empty or exceeds its bound",
             Self::NoMatchingBundle => {
                 "no attestation authenticates the exact selected release archive"
             }
@@ -71,6 +76,22 @@ pub fn select_installer_attestation_bundle(
             expected,
             bundle,
         )
+    })
+    .map(<[u8]>::to_vec)
+}
+
+/// Select one exact image attestation without mounting or granting executable authority.
+pub fn select_installer_container_attestation_bundle(
+    spec: InstallerContainerSpec,
+    image: &[u8],
+    expected: &ExpectedReleaseIdentity,
+    collection: &[u8],
+) -> Result<Vec<u8>, BundleSelectionError> {
+    crate::installer_container::validate_image_size(image.len())
+        .map_err(|_| BundleSelectionError::InvalidContainerSize)?;
+    let digest = Sha256::digest(image).into();
+    select_bundle(collection, |bundle| {
+        verify_release_attestation(spec.image_name(), digest, expected, bundle)
     })
     .map(<[u8]>::to_vec)
 }

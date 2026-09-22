@@ -62,13 +62,17 @@ impl ReleaseInput {
     pub(super) fn authenticate(
         &self,
     ) -> Result<kitrove_release_provenance::AuthenticatedRecoveryMaterial, String> {
+        self.local_request()
+            .authenticate()
+            .map_err(|error| error.to_string())
+    }
+
+    pub(super) fn local_request(&self) -> LocalReleaseRequest<'_> {
         LocalReleaseRequest {
             archive: &self.archive,
             bundle: &self.bundle,
             expected: &self.pin.expected,
             archive_sha256: self.pin.digest,
         }
-        .authenticate()
-        .map_err(|error| error.to_string())
     }
 }

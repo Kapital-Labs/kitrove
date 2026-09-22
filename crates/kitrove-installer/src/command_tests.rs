@@ -34,17 +34,28 @@ pub(super) fn arguments(command: &str) -> Vec<OsString> {
 #[test]
 fn bundle_selection_accepts_only_exact_release_inputs() {
     for (command, expected_kind) in [
-        ("select-application-bundle", BundleArtifactKind::Application),
-        ("select-installer-bundle", BundleArtifactKind::Installer),
+        (
+            "select-application-bundle",
+            Some(BundleArtifactKind::Application),
+        ),
+        (
+            "select-installer-bundle",
+            Some(BundleArtifactKind::Installer),
+        ),
+        ("verify-installer-container", None),
+        (
+            "select-installer-container-bundle",
+            Some(BundleArtifactKind::Container),
+        ),
     ] {
         let mut args = arguments(command);
         args.truncate(args.len() - 2); // No destination for read-only selection.
-        let Parsed::BundleSelection(kind, _) =
-            parse(args.clone()).unwrap_or_else(|error| panic!("{error}"))
-        else {
-            panic!("selection parsed as a mutation");
+        let observed_kind = match parse(args.clone()).unwrap_or_else(|error| panic!("{error}")) {
+            Parsed::BundleSelection(kind, _) => Some(kind),
+            Parsed::VerifyContainer(_) => None,
+            _ => panic!("read-only command parsed as a mutation"),
         };
-        assert_eq!(kind, expected_kind);
+        assert_eq!(observed_kind, expected_kind);
         for extra in [
             vec!["--destination", "somewhere"],
             vec!["--state-root", "state"],
@@ -63,6 +74,22 @@ fn bundle_selection_accepts_only_exact_release_inputs() {
             bad.drain(index..=index + 1);
             assert!(parse(bad).is_err());
         }
+    }
+}
+
+#[test]
+#[cfg(not(target_os = "macos"))]
+fn container_verification_refuses_non_mac_hosts_before_opening_paths() {
+    for command in [
+        "verify-installer-container",
+        "select-installer-container-bundle",
+    ] {
+        let mut args = arguments(command);
+        args.truncate(args.len() - 2);
+        assert_eq!(
+            run(args).unwrap_err(),
+            "release intake is unsupported on this platform"
+        );
     }
 }
 

@@ -50,9 +50,33 @@ pub(crate) struct LocalReleaseRequest<'a> {
 pub(crate) enum BundleArtifactKind {
     Application,
     Installer,
+    Container,
 }
 
 impl LocalReleaseRequest<'_> {
+    pub(crate) fn verify_container(&self) -> Result<String, ReleaseIntakeError> {
+        let target = crate::compiled_release_target()
+            .map_err(|_| ReleaseIntakeError::UnsupportedPlatform)?;
+        let spec = kitrove_release_policy::installer_container_for_target(target)
+            .map_err(|_| ReleaseIntakeError::UnsupportedPlatform)?;
+        self.with_inputs(
+            spec.image_name(),
+            APPLICATION_ATTESTATION_BUNDLE_MAX_BYTES,
+            |image, bundle| {
+                let verified = kitrove_release_provenance::verify_installer_container_attestation(
+                    spec, image.to_vec(), self.expected, bundle,
+                )
+                .map_err(|_| ReleaseIntakeError::VerificationFailed)?;
+                Ok(format!(
+                    "Authenticated installer image provenance: {} {} {}\nNative signature, payload and launch verification are still required; nothing mounted or executed.",
+                    verified.spec().image_name(),
+                    verified.release_identity().tag(),
+                    verified.release_identity().source_commit(),
+                ))
+            },
+        )
+    }
+
     pub(crate) fn authenticate(&self) -> Result<AuthenticatedRecoveryMaterial, ReleaseIntakeError> {
         self.authenticate_with(verify_material)
     }
@@ -90,15 +114,34 @@ impl LocalReleaseRequest<'_> {
             .map_err(|_| ReleaseIntakeError::UnsupportedPlatform)?;
         let installer = kitrove_release_policy::installer_archive_for_target(target)
             .map_err(|_| ReleaseIntakeError::UnsupportedPlatform)?;
+        let container = if kind == BundleArtifactKind::Container {
+            Some(
+                kitrove_release_policy::installer_container_for_target(target)
+                    .map_err(|_| ReleaseIntakeError::UnsupportedPlatform)?,
+            )
+        } else {
+            None
+        };
         let name = match kind {
             BundleArtifactKind::Application => application.archive_name(),
             BundleArtifactKind::Installer => installer.archive_name(),
+            BundleArtifactKind::Container => container
+                .ok_or(ReleaseIntakeError::UnsupportedPlatform)?
+                .image_name(),
         };
         self.with_inputs(
             name,
             kitrove_release_provenance::ATTESTATION_COLLECTION_MAX_BYTES,
             |archive, collection| {
                 let selected = match kind {
+                    BundleArtifactKind::Container => {
+                        kitrove_release_provenance::select_installer_container_attestation_bundle(
+                            container.ok_or(ReleaseIntakeError::UnsupportedPlatform)?,
+                            archive,
+                            self.expected,
+                            collection,
+                        )
+                    }
                     BundleArtifactKind::Application => {
                         let inspected = kitrove_release_policy::extract_application_release(
                             application,

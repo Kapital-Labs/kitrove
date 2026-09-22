@@ -140,6 +140,14 @@ passed on that revision. Evidence was preserved and its archive checksums verifi
 temporary rehearsal activation was removed. This closes the hosted product signing
 gate, not public provenance, installer execution or production release acceptance.
 
+September 22 implementation checkpoint: the Mac-only hosted DMG rehearsal
+`35224395532` passed for both architectures, its evidence was preserved and verified,
+and temporary signing authorization was removed. Opaque container provenance
+authentication now reuses the existing offline verifier. The read-only
+`verify-installer-container` command adds strict local image intake without mounting
+or execution. These close implementation checkpoints, not trusted binary bootstrap,
+real production-tag provenance, or clean-machine launch acceptance.
+
 The remaining release work is:
 
 1. Establish and test trusted first acquisition of the installer. Implement the

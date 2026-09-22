@@ -7,6 +7,31 @@ fn expected() -> ExpectedReleaseIdentity {
 }
 
 #[test]
+fn container_bundle_selection_refuses_empty_malformed_and_unrelated_inputs() {
+    use crate::{BundleSelectionError, select_installer_container_attestation_bundle as select};
+    let unrelated = include_bytes!("../tests/fixtures/github-actions-public-slsa-v1.json");
+    for spec in INSTALLER_CONTAINERS {
+        assert_eq!(
+            select(spec, b"", &expected(), unrelated),
+            Err(BundleSelectionError::InvalidContainerSize)
+        );
+        for collection in [b"".as_slice(), b"{}", b"\n"] {
+            assert_eq!(
+                select(spec, b"image", &expected(), collection),
+                Err(BundleSelectionError::InvalidCollection)
+            );
+        }
+        let compact =
+            serde_json::to_vec(&serde_json::from_slice::<serde_json::Value>(unrelated).unwrap())
+                .unwrap();
+        assert_eq!(
+            select(spec, b"image", &expected(), &compact),
+            Err(BundleSelectionError::NoMatchingBundle)
+        );
+    }
+}
+
+#[test]
 fn image_bounds_are_checked_before_attestation() {
     let max = usize::try_from(APPLICATION_ARCHIVE_LIMITS.max_archive_bytes).unwrap();
     for size in [0, max + 1, usize::MAX] {

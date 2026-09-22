@@ -62,8 +62,19 @@ also passed for both Mac payload targets; the
 [native rehearsal record](review/installer-dmg-native-rehearsal.md) lists exact
 digests and limits of that evidence. The disabled production workflow now includes
 DMG preparation, credential-free native reverification, individual attestations and
-the expanded exact checksum/publication set. Hosted integration rehearsal, consumer
-provenance authentication and clean-machine online/offline execution remain open.
+the expanded exact checksum/publication set. Hosted Mac-only rehearsal
+[`35224395532`](https://github.com/Kapital-Labs/kitrove/actions/runs/35224395532)
+passed both architectures at `5d7d0b37fca4c923508a5d8f20600122e7b01044`, including
+native image preparation and final evidence verification. Both evidence inventories
+and all file digests were verified locally; temporary authorization was removed.
+The shared library now authenticates opaque container snapshots using the fixed
+production provenance policy. The read-only `verify-installer-container` command
+connects that library to retained local input validation. Neither checkpoint mounts
+or executes images. Container bundle selection reuses the exact-one-match JSONL
+selector through `select-installer-container-bundle`. The native consumer path and real
+production provenance acceptance remain open, as does clean-machine online/offline
+execution. The maintainer has no clean Mac available; the signing host is not a
+substitute for that evidence.
 A notarized archive
 of standalone executables does not prove offline first-launch acceptance. A stapled
 container design must specify its contents, authentication, quarantine behavior,
