@@ -123,7 +123,7 @@ pub fn verify_installer_container_attestation(
     })
 }
 
-fn validate_image_size(size: usize) -> Result<(), InstallerContainerVerificationError> {
+pub(super) fn validate_image_size(size: usize) -> Result<(), InstallerContainerVerificationError> {
     if size == 0
         || u64::try_from(size)
             .ok()

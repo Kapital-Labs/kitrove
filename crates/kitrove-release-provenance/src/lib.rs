@@ -22,6 +22,7 @@ mod statement;
 pub use bundle_selection::{
     ATTESTATION_COLLECTION_MAX_BYTES, ATTESTATION_COLLECTION_MAX_RECORDS, BundleSelectionError,
     select_application_attestation_bundle, select_installer_attestation_bundle,
+    select_installer_container_attestation_bundle,
 };
 pub use installer::{
     AuthenticatedInstallerExecutable, InstallerVerificationError,

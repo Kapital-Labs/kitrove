@@ -43,6 +43,10 @@ fn bundle_selection_accepts_only_exact_release_inputs() {
             Some(BundleArtifactKind::Installer),
         ),
         ("verify-installer-container", None),
+        (
+            "select-installer-container-bundle",
+            Some(BundleArtifactKind::Container),
+        ),
     ] {
         let mut args = arguments(command);
         args.truncate(args.len() - 2); // No destination for read-only selection.
@@ -76,12 +80,17 @@ fn bundle_selection_accepts_only_exact_release_inputs() {
 #[test]
 #[cfg(not(target_os = "macos"))]
 fn container_verification_refuses_non_mac_hosts_before_opening_paths() {
-    let mut args = arguments("verify-installer-container");
-    args.truncate(args.len() - 2);
-    assert_eq!(
-        run(args).unwrap_err(),
-        "release intake is unsupported on this platform"
-    );
+    for command in [
+        "verify-installer-container",
+        "select-installer-container-bundle",
+    ] {
+        let mut args = arguments(command);
+        args.truncate(args.len() - 2);
+        assert_eq!(
+            run(args).unwrap_err(),
+            "release intake is unsupported on this platform"
+        );
+    }
 }
 
 #[test]

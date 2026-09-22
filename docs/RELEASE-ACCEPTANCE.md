@@ -70,7 +70,8 @@ and all file digests were verified locally; temporary authorization was removed.
 The shared library now authenticates opaque container snapshots using the fixed
 production provenance policy. The read-only `verify-installer-container` command
 connects that library to retained local input validation. Neither checkpoint mounts
-or executes images. Container bundle selection, the native consumer path and real
+or executes images. Container bundle selection reuses the exact-one-match JSONL
+selector through `select-installer-container-bundle`. The native consumer path and real
 production provenance acceptance remain open, as does clean-machine online/offline
 execution. The maintainer has no clean Mac available; the signing host is not a
 substitute for that evidence.

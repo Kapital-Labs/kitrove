@@ -23,7 +23,8 @@ Replacement commands: preflight-upgrade, upgrade, recover-upgrade, retire-upgrad
   preflight-rollback, rollback, recover-rollback, retire-rollback,
   upgrade-history-status, upgrade-history-sync, rollback-history-status, rollback-history-sync
 
-Read-only bundle commands: select-application-bundle, select-installer-bundle
+Read-only bundle commands: select-application-bundle, select-installer-bundle,
+  select-installer-container-bundle (Mac DMG, compiled architecture only)
   Require only --archive, --bundle (downloaded JSONL collection), --tag, --commit,
   and --sha256. Emit one authenticated bundle to stdout; no destination or state options.
   Run only with an independently trusted or reviewed-source-built installer.
@@ -87,6 +88,7 @@ fn parse(arguments: impl IntoIterator<Item = OsString>) -> Result<Parsed, String
     let bundle_kind = match command.to_str() {
         Some("select-application-bundle") => Some(BundleArtifactKind::Application),
         Some("select-installer-bundle") => Some(BundleArtifactKind::Installer),
+        Some("select-installer-container-bundle") => Some(BundleArtifactKind::Container),
         _ => None,
     };
     let (action, direction) = match command.to_str() {
@@ -99,7 +101,10 @@ fn parse(arguments: impl IntoIterator<Item = OsString>) -> Result<Parsed, String
         Some("history-status") => (Action::Status, None),
         Some("history-sync") => (Action::Sync, None),
         Some(
-            "select-application-bundle" | "select-installer-bundle" | "verify-installer-container",
+            "select-application-bundle"
+            | "select-installer-bundle"
+            | "select-installer-container-bundle"
+            | "verify-installer-container",
         ) => (Action::Status, None),
         Some(command) => {
             let (action, direction) = replacement::command(command).ok_or("invalid command")?;

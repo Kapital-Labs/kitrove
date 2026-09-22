@@ -129,8 +129,9 @@ from those same bytes. It reuses the existing offline Sigstore verifier and exac
 production repository/workflow/tag/commit policy. The opaque result retains the
 bytes, identity and bundle digest, with no conversion to installer executable,
 application replacement or rollback authority. It performs no native image parsing,
-mounting, filesystem writes or execution. CLI intake, bundle selection and native
-consumer verification remain follow-up work; this API alone is not a bootstrap.
+mounting, filesystem writes or execution. Read-only CLI intake and bounded JSONL
+bundle selection now share the existing retained-file and exact-one-match boundaries.
+Native consumer verification remains follow-up work; these commands alone are not a bootstrap.
 
 An independently trusted verifier authenticates the exact image, repository,
 release workflow, tag, source commit and checksum before mounting or executing

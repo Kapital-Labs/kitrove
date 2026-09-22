@@ -98,7 +98,10 @@ provenance policy, then reports the verified image name, tag and commit. It reje
 destination, state, history and prior-release options. It makes no filesystem changes,
 does not repair permissions, and never mounts or executes the image. Non-Mac hosts
 reject it before opening inputs. A single Sigstore bundle is required, not a JSONL
-collection; container bundle selection remains follow-up work.
+collection. Use `select-installer-container-bundle` with the same five options to
+select that single bundle from a downloaded JSONL collection first. It shares the
+bounded collection parser and rejects zero or multiple authenticated matches.
+Both commands use the exact image basename for the verifier's compiled Mac target.
 
 Success is provenance evidence only. Native signature/ticket checks, read-only mount
 and exact payload validation, embedded installer authentication, safe staging and

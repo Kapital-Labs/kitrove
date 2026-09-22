@@ -21,8 +21,19 @@ cover strict command options, non-Mac early refusal, synthetic provenance refusa
 and unchanged filesystem snapshots. No verification bypass was added for testing.
 
 NS-07/NS-09 remain intact. This is a local verification command, not a completed
-bootstrap or clean-machine acceptance. Real production-tag provenance and container
-JSONL bundle selection remain open. No dependency, signing or publication change.
+bootstrap or clean-machine acceptance. Real production-tag provenance remains open.
+No dependency, signing or publication change.
+
+`select-installer-container-bundle` shares the existing bounded JSONL selector,
+exact-one-match rule and retained local intake. It computes the image digest once,
+uses the shared image bound and fixed production identity policy, and never passes
+image bytes to an archive parser. Existing selector tests cover ambiguity and framing;
+new container cases cover empty images, malformed collections and unrelated provenance.
+
+Windows CI exposed an existing fixture publication race: the reader could observe
+an empty PID file between creation and writing. The fixture now writes and closes
+a sibling pending file before renaming it into view. Read-side PID validation and
+process-containment assertions are unchanged; native Windows CI must confirm the fix.
 
 Local validation passed: all 220 installer library tests on macOS, all-target/
 all-feature installer Clippy, Rust 1.85 all-target installer check, governance,

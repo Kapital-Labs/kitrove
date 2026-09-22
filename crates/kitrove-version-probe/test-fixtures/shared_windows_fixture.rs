@@ -89,9 +89,10 @@ fn spawn_descendant(executable: &std::path::Path) {
         .arg("--fixture-child")
         .spawn()
         .expect("descendant fixture");
-    std::fs::write(
-        executable.parent().unwrap().join("descendant.pid"),
-        child.id().to_string(),
-    )
-    .expect("descendant PID");
+    let directory = executable.parent().unwrap();
+    let pending = directory.join("descendant.pid.pending");
+    std::fs::write(&pending, child.id().to_string()).expect("write complete descendant PID");
+    // Publish only after the write has closed, so observers never read an empty
+    // or partial PID. Each fixture owns a fresh behavior directory.
+    std::fs::rename(pending, directory.join("descendant.pid")).expect("publish descendant PID");
 }
