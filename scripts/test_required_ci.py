@@ -90,7 +90,7 @@ class RequiredCiTests(unittest.TestCase):
 
     def test_windows_pr_validation_includes_canonical_runtime_tests(self):
         job = WORKFLOW.read_text().split('  pull-request-os:\n', 1)[1].split('  ci:\n', 1)[0]
-        self.assertIn("timeout-minutes: ${{ matrix.os == 'windows-latest' && 30 || 20 }}", job)
+        self.assertIn("timeout-minutes: ${{ matrix.os == 'windows-latest' && 45 || 20 }}", job)
         self.assertIn('rustup toolchain install stable --profile minimal --component clippy,rustfmt', job)
         self.assertIn(
             "      - name: Run canonical Windows validation\n"
@@ -101,6 +101,13 @@ class RequiredCiTests(unittest.TestCase):
             "        if: runner.os != 'Windows'\n"
             "        run: cargo check --locked --workspace --all-targets\n", job)
         self.assertNotIn('cargo test --locked -p kitrove-installer\n', job)
+
+    def test_main_windows_budget_preserves_other_platform_limits_and_checks(self):
+        job = WORKFLOW.read_text().split('  ci:\n', 1)[1].split('  windows-governance:\n', 1)[0]
+        self.assertIn("timeout-minutes: ${{ matrix.os == 'windows-latest' && 45 || 30 }}", job)
+        self.assertIn('run: cargo ci', job)
+        self.assertIn('test-windows-installer-standard-user.ps1', job)
+        self.assertIn('cargo +1.85.0 check --locked --all-targets -p kitrove-cli', job)
 
 
 if __name__ == '__main__':
