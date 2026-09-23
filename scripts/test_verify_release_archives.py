@@ -164,7 +164,7 @@ def write_release_directory(root: Path) -> None:
     write_tar(
         root / "source.tar.gz",
         {"README.md": b"source"},
-        root_name="kitrove-cli-1.2.3",
+        root_name="kitrove-installer-1.2.3",
     )
     for name in verifier.EXPECTED_INSTALLER_CONTAINERS:
         (root / name).write_bytes(b"synthetic opaque container; not native signing evidence")
@@ -539,14 +539,24 @@ class ReleaseArchiveVerifierTests(unittest.TestCase):
     def test_accepts_one_versioned_source_root(self) -> None:
         with self.secure_temporary_directory() as temporary:
             path = Path(temporary) / "source.tar.gz"
-            write_tar(
-                path,
-                {"README.md": b"source"},
-                root_name="kitrove-cli-1.2.3-alpha.1",
-                root_mode=0o775,
-                mode_overrides={"README.md": 0o664},
-            )
-            verifier.validate_archive(path)
+            for package, _ in verifier.RELEASE_FAMILIES.values():
+                for version in ("1.2.3", "1.2.3-alpha.1", "0.1.0-rc.1.2"):
+                    with self.subTest(package=package, version=version):
+                        write_tar(path, {"README.md": b"source"},
+                                  root_name=f"{package}-{version}", root_mode=0o775,
+                                  mode_overrides={"README.md": 0o664})
+                        verifier.validate_archive(path)
+
+    def test_rejects_source_roots_outside_release_families(self) -> None:
+        with self.secure_temporary_directory() as temporary:
+            path = Path(temporary) / "source.tar.gz"
+            for root in ("other-1.2.3", "kitrove-1.2.3", "kitrove-cli-extra-1.2.3",
+                         "kitrove-installer", "kitrove-installer-01.2.3",
+                         "kitrove-installer-1.2.3/trailing"):
+                with self.subTest(root=root):
+                    write_tar(path, {"README.md": b"source"}, root_name=root)
+                    with self.assertRaises(verifier.ArchiveValidationError):
+                        verifier.validate_archive(path)
 
     def test_rejects_traversal_absolute_drive_and_backslash_paths(self) -> None:
         hostile = ["../escape", "/absolute", "C:/drive", "folder\\escape", "a/./b"]
