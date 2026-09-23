@@ -139,7 +139,8 @@ jobs:
       - name: "Upload dist-manifest.json"
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: artifacts-plan-dist-manifest
+          # Evidence only: pathless planning records must not enter build/host merges.
+          name: release-plan-dist-manifest
           path: plan-dist-manifest.json
 
   # Build and packages all the platform-specific things
@@ -236,17 +237,11 @@ jobs:
           New-Item -ItemType Directory -Force -Path $bin | Out-Null
           Copy-Item (Join-Path $env:RUNNER_TEMP "dist.exe") (Join-Path $bin "dist.exe")
           $bin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-      # Get the dist-manifest
-      - name: Fetch local artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
-        with:
-          pattern: artifacts-*
-          path: target/distrib/
-          merge-multiple: true
       - name: Install dependencies
         run: |
           ${{ matrix.packages_install }}
       - name: Build artifacts
+        shell: bash
         run: |
           # Actually do builds and make zips and whatnot
           dist build --tag="$RELEASE_TAG" --print=linkage --output-format=json ${{ matrix.dist_args }} > dist-manifest.json
