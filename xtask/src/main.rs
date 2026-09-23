@@ -10,7 +10,7 @@ use std::process::{Command, ExitCode};
 mod release_archive;
 
 const REVIEWED_CARGO_LOCK_BLAKE3: &str =
-    "c24b82d577df8ce31cf6bed65eb53403a6d6a16f9f2fa779b7bbea378ef0d79c";
+    "c4576cf18e215f4ed04198c03ad429051f853c52561ee3724753ab0a86bcda72";
 const REVIEWED_SIGSTORE_REKOR_TREE_BLAKE3: &str =
     "898ca8f9c61bd79c3ef16bcc22650249eb4f32872540d281660f07b1c828c355";
 const REVIEWED_SIGSTORE_TSA_TREE_BLAKE3: &str =
@@ -22,7 +22,7 @@ const REVIEWED_DIST_CONFIG_BLAKE3: &str =
 const REVIEWED_RELEASE_POLICY_BLAKE3: &str =
     "03be092bae87eddbc776daed227c8ed0b45d92ec0fcc2548e8218c25ef2dad5d";
 const REVIEWED_APPLICATION_COMPATIBILITY_BLAKE3: &str =
-    "9e27d66b38ee4555c61480132e7fd3cc28ce472af7c34fdb92cb559a2528824a";
+    "150f385521ee966fd42975f2a29d584e70b17ffdb7aa27e72b31fcae5f833005";
 const RELEASE_ACTION_PINS: [(&str, &str); 5] = [
     ("azure/login", "8216e11d8cd9b42fe925c852af8e76311ff067ac"),
     ("actions/attest", "1e69f48acb82d1966a394da916b4c1698aa569d6"),
