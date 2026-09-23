@@ -4,7 +4,20 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.1.2
+
+Replacement for the unpublished RC1.1 build. Earlier failed tags remain unchanged.
+
+### Fixed
+
+- Release staging uses native private-directory permissions on Windows instead of Unix chmod.
+
+Public-artifact and clean-machine acceptance remain pending. No earlier version
+is declared rollback-compatible.
+
 ## 0.1.0-rc.1.1
+
+Unpublished: Windows staging failed after signing, before publication.
 
 Replacement for the unpublished RC1 build. The failed RC1 tag is unchanged.
 
