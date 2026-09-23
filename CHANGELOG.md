@@ -4,7 +4,21 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.1.1
+
+Replacement for the unpublished RC1 build. The failed RC1 tag is unchanged.
+
+### Fixed
+
+- Release builds use Bash consistently, including Windows, so the version tag is passed correctly.
+- Planning-only manifests no longer override archive paths in build manifests.
+
+Public-artifact and clean-machine acceptance remain pending. No earlier version
+is declared rollback-compatible.
+
 ## 0.1.0-rc.1
+
+Unpublished: the release workflow failed before publication.
 
 First release candidate, not a stable release. Public-artifact acquisition and
 two-version installer lifecycle acceptance are still pending. Clean-machine Mac

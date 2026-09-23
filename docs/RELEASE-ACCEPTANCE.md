@@ -110,13 +110,16 @@ signed archive or invent production attestations for a manual rehearsal.
 
 The maintainer approved preparing, signing and publishing `v0.1.0-rc.1` for A and
 `v0.1.0-rc.2` for B on 2026-09-23, sequentially after verification. This is not
-stable-release approval. RC1's workspace version and compatibility catalog declare
-`0.1.0-rc.1` with no predecessor. Publication and real-artifact acceptance are pending.
+stable-release approval. RC1 failed before publication; its tag remains unchanged.
+The replacement A is `v0.1.0-rc.1.1`, which includes the reviewed workflow fixes.
+Its workspace version and compatibility catalog declare `0.1.0-rc.1.1` with no
+predecessor. B remains `v0.1.0-rc.2`, pending successful A verification. Publication
+and real-artifact acceptance are pending.
 
 Prepare each version in its own reviewed worktree/PR. Update the
 shared workspace version, locked workspace package records and compatibility
 catalog together, and review the resulting lock/catalog guard digests. A declares
-no rollback predecessor. B explicitly declares `0.1.0-rc.1` as compatible only
+no rollback predecessor. B explicitly declares `0.1.0-rc.1.1` as compatible only
 after review confirms no intervening incompatible state-format change. Do not
 change state formats merely to exercise replacement. Both packages inherit the
 workspace version; the release workflow requires the tag to match it exactly.
