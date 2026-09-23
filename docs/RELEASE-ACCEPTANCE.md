@@ -112,16 +112,17 @@ The maintainer approved preparing, signing and publishing `v0.1.0-rc.1` for A an
 `v0.1.0-rc.2` for B on 2026-09-23, sequentially after verification. This is not
 stable-release approval. RC1 failed before publication; its tag remains unchanged.
 RC1.1 also failed before publication, during Windows artifact staging after signing;
-its tag remains unchanged. The replacement A is `v0.1.0-rc.1.2`, which includes
-the reviewed native staging fix, proven by credential-free Windows CI.
-Its workspace version and compatibility catalog declare `0.1.0-rc.1.2` with no
+its tag remains unchanged. RC1.2 completed all platform jobs but failed shared
+source-archive validation before publication. Its tag also remains unchanged.
+The replacement A is `v0.1.0-rc.1.3`, including the reviewed source-family fix.
+Its workspace version and compatibility catalog declare `0.1.0-rc.1.3` with no
 predecessor. B remains `v0.1.0-rc.2`, pending successful A verification. Publication
 and real-artifact acceptance are pending.
 
 Prepare each version in its own reviewed worktree/PR. Update the
 shared workspace version, locked workspace package records and compatibility
 catalog together, and review the resulting lock/catalog guard digests. A declares
-no rollback predecessor. B explicitly declares `0.1.0-rc.1.2` as compatible only
+no rollback predecessor. B explicitly declares `0.1.0-rc.1.3` as compatible only
 after review confirms no intervening incompatible state-format change. Do not
 change state formats merely to exercise replacement. Both packages inherit the
 workspace version; the release workflow requires the tag to match it exactly.

@@ -4,7 +4,20 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.1.3
+
+Replacement for the unpublished RC1.2 build. Earlier failed tags remain unchanged.
+
+### Fixed
+
+- Shared source archives accept either known release product name, matching the packager's output.
+
+Public-artifact and clean-machine acceptance remain pending. No earlier version
+is declared rollback-compatible.
+
 ## 0.1.0-rc.1.2
+
+Unpublished: source-archive validation failed after all platform builds passed.
 
 Replacement for the unpublished RC1.1 build. Earlier failed tags remain unchanged.
 
