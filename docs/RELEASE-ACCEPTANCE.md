@@ -106,6 +106,46 @@ Prepare a compatibility-reviewed pair of distinct candidate versions. Record the
 exact source commits and compatibility metadata before building. Do not relabel a
 signed archive or invent production attestations for a manual rehearsal.
 
+#### Proposed candidate pair (not authorized or published)
+
+Use `v0.1.0-rc.1` for A and `v0.1.0-rc.2` for B. These names are a proposal,
+not tags to create automatically. Current workspace version is `0.0.0` and the
+compatibility catalog declares no predecessor; neither is ready for this pair.
+
+After approval, prepare each version in its own reviewed worktree/PR. Update the
+shared workspace version, locked workspace package records and compatibility
+catalog together, and review the resulting lock/catalog guard digests. A declares
+no rollback predecessor. B explicitly declares `0.1.0-rc.1` as compatible only
+after review confirms no intervening incompatible state-format change. Do not
+change state formats merely to exercise replacement. Both packages inherit the
+workspace version; the release workflow requires the tag to match it exactly.
+
+Record each final merged commit in the acceptance evidence before tagging; the
+current implementation commit is not a substitute for either future versioned
+commit. Require its main checks to pass. Publish A first, verify its complete
+inventory and acquisition path, then proceed to B. Do not launch two signing
+matrices together or retry successful signing jobs. If A fails authentication or
+native validation, stop before B and preserve the evidence.
+
+Prepare one private evidence record per target with these fields left explicitly
+pending until observed:
+
+- A/B tag, full source commit, workflow/run ID and artifact/bundle digests;
+- independently trusted verifier source/build and exact invocation;
+- OS, architecture, ordinary-user context, quarantine and clean-machine conditions;
+- fresh destination and selected test state roots, containing synthetic data only;
+- first install, A-to-B upgrade, B-to-A rollback and guarded recovery results;
+- expected and actual digests/versions, exit status, preserved failure evidence;
+- unmanaged-file and credential-canary checks, plus remaining unsupported behavior.
+
+Use the existing commands in [INSTALLER.md](INSTALLER.md), not a second replacement
+script. Keep A, B and the independently trusted installer available throughout.
+Synthetic interruption tests are supplemental; never claim a real-artifact
+interruption result without actually observing one. Windows uses its documented
+two-move gap. Mac online/offline first launch remains pending until a clean machine
+is available. No clean-machine claim may be inferred from hosted signing or the
+new credential-free DMG verifier.
+
 ### 3. Approve the release-candidate pair and verify the consumer path
 
 Real production provenance requires the protected tag workflow, which currently
