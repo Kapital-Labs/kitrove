@@ -14,7 +14,7 @@ The Phase 6 packaging configuration produces separate native `kitrove` and
 `kitrove-installer` archives for Apple Silicon macOS, Intel macOS, x86-64 Linux and
 x86-64 Windows: eight binary archives total. Each product also has its own generated
 shell and PowerShell convenience scripts. The inventory includes one source archive,
-per-archive SHA-256 files and a combined checksum file. Packaging integration remains
+per-archive SHA-256 files, two Mac installer DMGs and a combined checksum file. Packaging integration remains
 under review; this configuration is not evidence that a release is published or that
 the full installer/upgrade workflow has passed cross-platform acceptance.
 
@@ -79,8 +79,8 @@ Kitrove root. ZIP central-directory bounds and TAR decompression and extended me
 before the format parser can allocate from them. The final publication set is copied from the
 verified open handles into a new private staging directory; control manifests and the mutable source
 paths are not published. Archive SHA-256 digests are computed while those same handles are staged;
-each adjacent checksum must contain its one exact archive mapping, and the combined checksum must
-contain exactly the nine staged archive mappings with no missing, extra, or duplicate names. Any
+each adjacent checksum must contain its one exact artifact mapping, and the combined checksum must
+contain exactly the nine staged archives and two DMG mappings with no missing, extra, or duplicate names. Any
 refusal stops the release before publication.
 
 ## Verify a downloaded release

@@ -106,13 +106,14 @@ Prepare a compatibility-reviewed pair of distinct candidate versions. Record the
 exact source commits and compatibility metadata before building. Do not relabel a
 signed archive or invent production attestations for a manual rehearsal.
 
-#### Proposed candidate pair (not authorized or published)
+#### Approved candidate pair (publication pending)
 
-Use `v0.1.0-rc.1` for A and `v0.1.0-rc.2` for B. These names are a proposal,
-not tags to create automatically. Current workspace version is `0.0.0` and the
-compatibility catalog declares no predecessor; neither is ready for this pair.
+The maintainer approved preparing, signing and publishing `v0.1.0-rc.1` for A and
+`v0.1.0-rc.2` for B on 2026-09-23, sequentially after verification. This is not
+stable-release approval. RC1's workspace version and compatibility catalog declare
+`0.1.0-rc.1` with no predecessor. Publication and real-artifact acceptance are pending.
 
-After approval, prepare each version in its own reviewed worktree/PR. Update the
+Prepare each version in its own reviewed worktree/PR. Update the
 shared workspace version, locked workspace package records and compatibility
 catalog together, and review the resulting lock/catalog guard digests. A declares
 no rollback predecessor. B explicitly declares `0.1.0-rc.1` as compatible only

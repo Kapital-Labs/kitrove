@@ -2,7 +2,7 @@
   "schema": 1,
   "releases": [
     {
-      "version": "0.0.0",
+      "version": "0.1.0-rc.1",
       "rollback_compatible_predecessors": []
     }
   ]

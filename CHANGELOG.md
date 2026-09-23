@@ -1,8 +1,24 @@
 # Changelog
 
-All notable changes are recorded here. The first public repository will begin with an explicitly selected release-candidate snapshot rather than this private repository's history.
+Notable changes to Kitrove are recorded here.
 
 ## Unreleased
+
+## 0.1.0-rc.1
+
+First release candidate, not a stable release. Public-artifact acquisition and
+two-version installer lifecycle acceptance are still pending. Clean-machine Mac
+online/offline first launch has not been established. No earlier application
+version is declared rollback-compatible.
+
+### Release preparation
+
+- Separate CLI and installer archives for Apple Silicon, Intel Mac, x86-64 Linux
+  and x86-64 Windows, with production provenance verification.
+- Mac signed, notarized, stapled installer images and a reviewed-source native
+  consumer verifier that authenticates artifacts before mounting.
+- Ordinary-user installation, upgrade, recovery and rollback interfaces with
+  retained prior-version evidence; candidate acceptance remains required.
 
 ### Added
 
