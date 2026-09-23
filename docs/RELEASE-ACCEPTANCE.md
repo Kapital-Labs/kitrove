@@ -71,10 +71,19 @@ The shared library now authenticates opaque container snapshots using the fixed
 production provenance policy. The read-only `verify-installer-container` command
 connects that library to retained local input validation. Neither checkpoint mounts
 or executes images. Container bundle selection reuses the exact-one-match JSONL
-selector through `select-installer-container-bundle`. The native consumer path and real
-production provenance acceptance remain open, as does clean-machine online/offline
-execution. The maintainer has no clean Mac available; the signing host is not a
-substitute for that evidence.
+selector through `select-installer-container-bundle`. The reviewed-source operator
+command below connects authentication to the shared native verification path:
+
+```sh
+cargo xtask verify-downloaded-installer-dmg <image> <image-bundle> <installer-archive> <installer-bundle> <target> <tag> <commit>
+```
+
+Both artifacts must pass the fixed production provenance policy before native
+verification or read-only mounting. The command compares the exact payload and
+detaches without executing or installing it. It does not use signing credentials.
+This is implementation, not real production provenance acceptance or clean-machine
+online/offline execution. The maintainer has no clean Mac available; the signing
+host is not a substitute for that evidence.
 A notarized archive
 of standalone executables does not prove offline first-launch acceptance. A stapled
 container design must specify its contents, authentication, quarantine behavior,

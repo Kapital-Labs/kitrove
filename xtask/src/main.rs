@@ -10,7 +10,7 @@ use std::process::{Command, ExitCode};
 mod release_archive;
 
 const REVIEWED_CARGO_LOCK_BLAKE3: &str =
-    "67c1b5135574103e870d060ce2c2ed1d0e22f08840f8739d159b6d8731634488";
+    "c24b82d577df8ce31cf6bed65eb53403a6d6a16f9f2fa779b7bbea378ef0d79c";
 const REVIEWED_SIGSTORE_REKOR_TREE_BLAKE3: &str =
     "898ca8f9c61bd79c3ef16bcc22650249eb4f32872540d281660f07b1c828c355";
 const REVIEWED_SIGSTORE_TSA_TREE_BLAKE3: &str =
@@ -61,6 +61,9 @@ fn main() -> ExitCode {
         }
         "verify-installer-dmg" => {
             release_archive::installer_dmg::verify_image(env::args_os().skip(2).collect())
+        }
+        "verify-downloaded-installer-dmg" => {
+            release_archive::installer_dmg::consumer::verify(env::args_os().skip(2).collect())
         }
         "verify-application-release" => release_archive::verify(env::args_os().skip(2).collect()),
         "verify-application-release-bundle" => {
@@ -1480,6 +1483,9 @@ fn require_token(content: &str, token: &str, location: &str) -> Result<(), Strin
 }
 
 fn print_help() {
+    println!(
+        "  verify-downloaded-installer-dmg <image> <image-bundle> <installer-archive> <installer-bundle> <target> <tag> <commit>\n    Authenticate both downloads before native verification; never execute or install."
+    );
     println!(
         "  prepare-installer-dmg <installer-archive> <target> <tag> <dist-manifest> [new-output-directory]\n    Create, sign, notarize and staple a Mac installer image; never publish.\n  verify-installer-dmg <installer-archive> <target> <tag> <dist-manifest> <image>\n    Reverify native image and exact payload without signing or execution.\n"
     );

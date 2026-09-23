@@ -131,7 +131,17 @@ bytes, identity and bundle digest, with no conversion to installer executable,
 application replacement or rollback authority. It performs no native image parsing,
 mounting, filesystem writes or execution. Read-only CLI intake and bounded JSONL
 bundle selection now share the existing retained-file and exact-one-match boundaries.
-Native consumer verification remains follow-up work; these commands alone are not a bootstrap.
+These commands alone are not a bootstrap.
+
+The reviewed-source operator command `cargo xtask verify-downloaded-installer-dmg`
+takes an image, its single attestation bundle, the installer archive, its single
+attestation bundle, target, tag and full source commit, in that order. Both artifacts
+must authenticate under the same production release identity before any native tool
+runs. It stages authenticated snapshots privately and reuses native signature,
+staple, image-integrity, exact mounted-payload comparison and detach checks. It
+neither executes nor installs anything. Failed authentication cannot fall back to
+build-manifest authority. Real production attestations and clean-machine launch
+evidence remain separate acceptance requirements.
 
 An independently trusted verifier authenticates the exact image, repository,
 release workflow, tag, source commit and checksum before mounting or executing
