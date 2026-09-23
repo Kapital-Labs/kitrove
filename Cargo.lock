@@ -4034,6 +4034,7 @@ dependencies = [
  "cap-std",
  "kitrove-release-policy",
  "kitrove-release-provenance",
+ "kitrove-windows-security",
  "lzma-rust2",
  "semver",
  "serde",

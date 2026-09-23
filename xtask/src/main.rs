@@ -8,15 +8,16 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
 mod release_archive;
+mod release_staging;
 
 const REVIEWED_CARGO_LOCK_BLAKE3: &str =
-    "7a725e2717cf98c4665c0da64f29dc62c73a7adaed2f413e3997dd96ccbe0131";
+    "ef3f586a9ac7e7b22f704b1ab4c31207556042032c98fc066578667d397f2f85";
 const REVIEWED_SIGSTORE_REKOR_TREE_BLAKE3: &str =
     "898ca8f9c61bd79c3ef16bcc22650249eb4f32872540d281660f07b1c828c355";
 const REVIEWED_SIGSTORE_TSA_TREE_BLAKE3: &str =
     "c48b716039e6942cf81eba8cf3558d7fe6d08facf5353ca5de99b03072cfc8db";
 const REVIEWED_RELEASE_WORKFLOW_BLAKE3: &str =
-    "4e170d230aebafcc35202a75cbfcdb97c6255fcec340ca9a1e3331983922b386";
+    "7a229cea68c70be8adb99d8cc417397eb44621569be6367b0b2c54420069bb88";
 const REVIEWED_DIST_CONFIG_BLAKE3: &str =
     "6eeceed79e47b1673212b39a69064af206c28099868b1cfa6678f0d1ecb2b00d";
 const REVIEWED_RELEASE_POLICY_BLAKE3: &str =
@@ -49,6 +50,7 @@ fn main() -> ExitCode {
         "governance" => check_governance(&root),
         "licenses" => check_dependency_licenses(&root),
         "repository" => check_repository(&root),
+        "create-release-staging" => release_staging::create(Path::new(".")),
         "prepare-application-release" => release_archive::prepare(env::args_os().skip(2).collect()),
         "prepare-platform-release" => {
             release_archive::prepare_platform_signed(env::args_os().skip(2).collect())
@@ -1483,6 +1485,9 @@ fn require_token(content: &str, token: &str, location: &str) -> Result<(), Strin
 }
 
 fn print_help() {
+    println!(
+        "  create-release-staging                 Create fresh private local-artifact staging\n"
+    );
     println!(
         "  verify-downloaded-installer-dmg <image> <image-bundle> <installer-archive> <installer-bundle> <target> <tag> <commit>\n    Authenticate both downloads before native verification; never execute or install."
     );
