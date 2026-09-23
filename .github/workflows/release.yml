@@ -324,7 +324,7 @@ jobs:
         env:
           DIST_TARGET: ${{ matrix.targets[0] }}
         run: |
-          mkdir -m 700 verified-local-artifacts
+          cargo xtask create-release-staging
           for archive in \
             "${{ steps.application-archive.outputs.path }}" \
             "${{ steps.application-archive.outputs.installer_path }}"
