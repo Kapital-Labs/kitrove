@@ -4033,6 +4033,7 @@ dependencies = [
  "cap-fs-ext",
  "cap-std",
  "kitrove-release-policy",
+ "kitrove-release-provenance",
  "lzma-rust2",
  "semver",
  "serde",

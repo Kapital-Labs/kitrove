@@ -25,6 +25,9 @@ struct Payload {
 #[path = "release_installer_dmg_image.rs"]
 mod image;
 
+#[path = "release_installer_dmg_consumer.rs"]
+pub(crate) mod consumer;
+
 pub(crate) fn prepare_image(mut arguments: Vec<OsString>) -> Result<(), String> {
     let output = (arguments.len() == 5).then(|| PathBuf::from(arguments.pop().unwrap()));
     let payload = prepare(arguments, std::env::consts::OS)?;
@@ -116,21 +119,26 @@ fn prepare(arguments: Vec<OsString>, host: &str) -> Result<Payload, String> {
     checksum.revalidate()?;
     manifest.revalidate()?;
 
+    let payload = stage_payload(container, &archive.bytes, inspected.executable_bytes())?;
+    archive.revalidate()?;
+    checksum.revalidate()?;
+    manifest.revalidate()?;
+    Ok(payload)
+}
+
+fn stage_payload(
+    container: InstallerContainerSpec,
+    archive: &[u8],
+    executable: &[u8],
+) -> Result<Payload, String> {
+    let spec = container.installer_archive();
     // No caller-selected output can overwrite a prior artifact. Dropping an
     // incomplete payload removes only this newly owned temporary directory.
     let directory = private_directory("kitrove-dmg-payload-")?;
-    let canonical_checksum = render_checksum(&archive_path, &archive.bytes)?;
+    let canonical_checksum = render_checksum(Path::new(spec.archive_name()), archive)?;
     let leaves = [
-        (
-            spec.executable_name().to_owned(),
-            inspected.executable_bytes(),
-            true,
-        ),
-        (
-            spec.archive_name().to_owned(),
-            archive.bytes.as_slice(),
-            false,
-        ),
+        (spec.executable_name().to_owned(), executable, true),
+        (spec.archive_name().to_owned(), archive, false),
         (
             format!("{}.sha256", spec.archive_name()),
             canonical_checksum.as_bytes(),
@@ -154,9 +162,6 @@ fn prepare(arguments: Vec<OsString>, host: &str) -> Result<Payload, String> {
         retained.revalidate()?;
         files.push(retained);
     }
-    archive.revalidate()?;
-    checksum.revalidate()?;
-    manifest.revalidate()?;
     fs::File::open(directory.path())
         .and_then(|file| file.sync_all())
         .map_err(|_| "cannot synchronize installer DMG payload directory".to_owned())?;
