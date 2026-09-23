@@ -221,13 +221,15 @@ EXPECTED_RELEASE_FILES = (
     | {f"{name}.sha256" for name in EXPECTED_RELEASE_ARTIFACTS}
     | GENERATED_INSTALLERS | {"sha256.sum"}
 )
-SOURCE_ROOT = re.compile(
-    r"^kitrove-cli-(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
-    r"(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?(?:\+[0-9A-Za-z][0-9A-Za-z.-]*)?$"
-)
 RELEASE_VERSION = re.compile(
     r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
     r"(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?(?:\+[0-9A-Za-z][0-9A-Za-z.-]*)?$"
+)
+# cargo-dist's shared source archive can be named for either release family.
+# Bind the root to our closed product catalog and the same version grammar.
+SOURCE_ROOT = re.compile(
+    r"^(?:" + "|".join(re.escape(package) for package, _ in RELEASE_FAMILIES.values())
+    + ")-" + RELEASE_VERSION.pattern[1:]
 )
 CHECKSUM_LINE = re.compile(r"^([0-9a-f]{64}) \*([A-Za-z0-9._-]+)$")
 SHELL_INSTALLER_ARCHIVE_BLOCK = re.compile(
