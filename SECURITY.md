@@ -1,10 +1,16 @@
 # Security Policy
 
-Kitrove is not publicly released and should not be used in production or with irreplaceable agent environments.
+Kitrove has public release candidates, not a supported stable release. Do not use it
+in production or with irreplaceable agent environments.
 
 ## Supported versions
 
-No public version is supported yet. During the release-candidate period, security fixes are made only on the current reviewed development line; older commits and unreviewed branches are unsupported. A versioned support table will replace this paragraph before the first public release.
+No stable version is supported yet. During the release-candidate period, security
+fixes are made only on the current reviewed development line; published candidates
+are evaluation snapshots, not maintained release branches. Older commits and
+unreviewed branches are unsupported. A versioned support table is required before
+the first supported stable release. See [release acceptance](docs/RELEASE-ACCEPTANCE.md)
+for candidate verification results and open gates.
 
 ## Reporting a vulnerability
 
