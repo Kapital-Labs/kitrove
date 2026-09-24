@@ -25,6 +25,17 @@ separate platform and test attributes so governance recognizes hostile test fixt
 without exempting production code. Canonical Rust 1.85.0 validation also passed.
 Focused native Windows runtime and standard-user evidence remain required before merge.
 
+The first Windows runs passed the native installer suite, but the selected
+standard-user test could not create its fixture in the inherited administrator TEMP
+directory. The fixture now uses `destination_in(current_dir)`, matching the other
+standard-user tests and the runner-provided writable directory. This changes no
+production permission policy. The current PR Windows job runs canonical validation
+and the standard-user suite, so its corrected exact-head result can provide both
+requirements without another supplemental dispatch.
+After this fixture-only correction, strict Windows GNU Clippy and canonical stable
+and Rust 1.85.0 validation all passed again. Native standard-user confirmation remains
+pending; local checks do not substitute for it.
+
 NS-07/NS-09 and INV-06/INV-07/INV-08/INV-12 are unchanged. Files remain local and
 partial failures are preserved. Discovery/adoption, portable/native content, fidelity,
 capability receipts, synchronization and conflict behavior are unaffected. This is

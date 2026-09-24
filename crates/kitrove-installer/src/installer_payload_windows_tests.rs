@@ -2,7 +2,9 @@ use super::*;
 
 #[test]
 fn windows_payload_is_private_exact_and_retained_after_drop() {
-    let root = crate::windows_test_support::destination();
+    // The standard-user runner supplies a writable working directory, but may
+    // inherit the administrator's inaccessible TEMP location.
+    let root = crate::windows_test_support::destination_in(&std::env::current_dir().unwrap());
     let retained = stage(root.path(), b"data only", |_| Ok(())).unwrap();
     retained.revalidate(b"data only").unwrap();
     kitrove_windows_security::inspect_private_directory(&retained.directory).unwrap();
