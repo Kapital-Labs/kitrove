@@ -23,10 +23,8 @@ use std::io::{Seek as _, SeekFrom};
 #[cfg(unix)]
 use std::os::unix::process::CommandExt as _;
 #[cfg(unix)]
-use std::process::{Child, Command, ExitStatus, Stdio};
-#[cfg(any(unix, windows))]
-use std::sync::mpsc::{self, Receiver};
-#[cfg(any(unix, windows))]
+use std::process::{Command, Stdio};
+#[cfg(all(test, unix))]
 use std::thread;
 
 use kitrove_adapter_api::VerifiedVersionEvidence;
@@ -37,8 +35,14 @@ use kitrove_model::ContentHash;
 use kitrove_model::HarnessId;
 #[cfg(any(unix, windows, test))]
 use semver::{Version, VersionReq};
+#[cfg(any(unix, windows))]
+mod bounded_output;
+#[cfg(any(unix, windows))]
+use bounded_output::{receive_probe_output, spawn_output_reader};
 #[cfg(unix)]
-use wait_timeout::ChildExt as _;
+mod unix_process;
+#[cfg(unix)]
+use unix_process::ProbeProcess;
 
 #[cfg(any(unix, windows))]
 const MAX_PROBE_OUTPUT_BYTES: usize = 4096;
@@ -642,97 +646,6 @@ fn validate_interpreter(path: &Path) -> Result<(), ProbeError> {
 }
 
 #[cfg(unix)]
-struct ProbeProcess {
-    child: Child,
-    process_group: rustix::process::Pid,
-    group_armed: bool,
-    reaped: bool,
-}
-
-#[cfg(unix)]
-impl ProbeProcess {
-    fn new(child: Child) -> Result<Self, ProbeError> {
-        let process_group = i32::try_from(child.id())
-            .ok()
-            .and_then(rustix::process::Pid::from_raw)
-            .ok_or_else(probe_failed)?;
-        Ok(Self {
-            child,
-            process_group,
-            group_armed: true,
-            reaped: false,
-        })
-    }
-
-    fn take_stdout(&mut self) -> Result<std::process::ChildStdout, ProbeError> {
-        self.child.stdout.take().ok_or_else(probe_failed)
-    }
-
-    fn take_stderr(&mut self) -> Result<std::process::ChildStderr, ProbeError> {
-        self.child.stderr.take().ok_or_else(probe_failed)
-    }
-
-    fn wait_bounded(&mut self) -> Result<ExitStatus, ProbeError> {
-        match self.child.wait_timeout(PROBE_TIMEOUT) {
-            Ok(Some(status)) => {
-                self.reaped = true;
-                Ok(status)
-            }
-            Ok(None) => {
-                self.terminate_group()?;
-                Err(ProbeError::new(
-                    "version.probe_timeout",
-                    "the harness version probe did not finish within the time limit",
-                ))
-            }
-            Err(_) => {
-                self.terminate_group()?;
-                Err(probe_failed())
-            }
-        }
-    }
-
-    fn terminate_remaining_group(&mut self) -> Result<(), ProbeError> {
-        self.signal_group()?;
-        self.group_armed = false;
-        Ok(())
-    }
-
-    fn terminate_group(&mut self) -> Result<(), ProbeError> {
-        self.signal_group()?;
-        self.group_armed = false;
-        if !self.reaped {
-            self.child.wait().map_err(|_| termination_failed())?;
-            self.reaped = true;
-        }
-        Ok(())
-    }
-
-    fn signal_group(&self) -> Result<(), ProbeError> {
-        match rustix::process::kill_process_group(self.process_group, rustix::process::Signal::KILL)
-        {
-            Ok(()) | Err(rustix::io::Errno::SRCH) => Ok(()),
-            Err(_) => Err(termination_failed()),
-        }
-    }
-}
-
-#[cfg(unix)]
-impl Drop for ProbeProcess {
-    fn drop(&mut self) {
-        if self.group_armed {
-            let _ = self.signal_group();
-            self.group_armed = false;
-        }
-        if !self.reaped {
-            let _ = self.child.kill();
-            let _ = self.child.wait();
-            self.reaped = true;
-        }
-    }
-}
-
-#[cfg(unix)]
 fn open_executable(path: &Path) -> Result<File, ProbeError> {
     use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
 
@@ -837,51 +750,6 @@ fn hash_executable_reader(reader: &mut dyn Read) -> Result<ContentHash, ProbeErr
         hasher.update(&buffer[..read]);
     }
     ContentHash::parse(format!("blake3:{}", hasher.finalize().to_hex())).map_err(|_| probe_failed())
-}
-
-#[cfg(any(unix, windows))]
-fn spawn_output_reader(
-    mut output: impl Read + Send + 'static,
-) -> Result<Receiver<Result<String, ProbeError>>, ProbeError> {
-    let (sender, receiver) = mpsc::sync_channel(1);
-    thread::Builder::new()
-        .name("kitrove-version-output".to_owned())
-        .spawn(move || {
-            let result = read_probe_output(&mut output);
-            let _ = sender.send(result);
-        })
-        .map_err(|_| probe_failed())?;
-    Ok(receiver)
-}
-
-#[cfg(any(unix, windows))]
-fn receive_probe_output(
-    receiver: Receiver<Result<String, ProbeError>>,
-) -> Result<String, ProbeError> {
-    receiver
-        .recv_timeout(OUTPUT_READER_TIMEOUT)
-        .map_err(|_| probe_failed())?
-}
-
-#[cfg(any(unix, windows))]
-fn read_probe_output(mut output: impl Read) -> Result<String, ProbeError> {
-    let mut bytes = Vec::new();
-    output
-        .by_ref()
-        .take(
-            u64::try_from(MAX_PROBE_OUTPUT_BYTES)
-                .unwrap_or(u64::MAX)
-                .saturating_add(1),
-        )
-        .read_to_end(&mut bytes)
-        .map_err(|_| probe_failed())?;
-    if bytes.len() > MAX_PROBE_OUTPUT_BYTES {
-        return Err(ProbeError::new(
-            "version.probe_output_limit",
-            "the harness version probe output exceeds the supported bound",
-        ));
-    }
-    String::from_utf8(bytes).map_err(|_| invalid_output())
 }
 
 #[cfg(any(unix, windows))]
