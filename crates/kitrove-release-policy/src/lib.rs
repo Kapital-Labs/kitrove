@@ -7,6 +7,7 @@ mod installer_archive;
 mod installer_container;
 mod installer_manifest;
 mod intake;
+pub mod native_signature;
 mod release_manifest;
 mod tar_xz_intake;
 mod zip_intake;
