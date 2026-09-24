@@ -2,11 +2,20 @@
 use std::ffi::OsStr;
 use std::path::Path;
 
+#[cfg(unix)]
 use cap_std::fs::{Dir, File};
+#[cfg(windows)]
+use std::fs::File;
+#[cfg(windows)]
+type Dir = File;
 use kitrove_release_provenance::AuthenticatedInstallerExecutable;
 use sha2::{Digest as _, Sha256};
 
+#[cfg(unix)]
 use crate::unix_staging as native;
+#[cfg(windows)]
+#[path = "installer_payload_windows.rs"]
+mod native;
 use crate::{InstallerStageError, NativeFileIdentity};
 
 const DIRECTORY: &str = ".kitrove-installer-bootstrap";
@@ -34,7 +43,8 @@ impl StagedInstallerPayload {
     }
 }
 
-/// Stage authenticated installer bytes as private, non-executable data on Unix.
+/// Stage authenticated installer bytes as private data, without executable publication.
+/// Unix payloads have mode 0600; Windows payloads use the private ACL boundary.
 /// The existing parent must satisfy the ordinary-user destination policy. The fixed
 /// `.kitrove-installer-bootstrap` child must be absent. Partial output is preserved
 /// on error; callers must not use it or infer authority from its name.
@@ -129,11 +139,14 @@ fn stage(
         )?;
         native::require_exact_inventory(&directory, &[])?;
         let file = native::create_synced_private_file(&directory, OsStr::new(PAYLOAD), bytes)?;
+        #[cfg(unix)]
         let file_identity = native::metadata_identity(
             &file
                 .metadata()
                 .map_err(|_| InstallerStageError::RecoveryRequired)?,
         );
+        #[cfg(windows)]
+        let file_identity = native::file_identity(&file)?;
         boundary(Boundary::FileWritten)?;
         let retained = RetainedPayload {
             parent,
@@ -143,8 +156,13 @@ fn stage(
             file_identity,
         };
         retained.revalidate(bytes)?;
-        native::sync_directory(&retained.directory)?;
-        native::sync_directory(retained.parent.directory())?;
+        #[cfg(unix)]
+        {
+            native::sync_directory(&retained.directory)?;
+            native::sync_directory(retained.parent.directory())?;
+        }
+        #[cfg(windows)]
+        native::sync_stage(&retained.parent, &retained.directory)?;
         boundary(Boundary::Synced)?;
         retained.revalidate(bytes)?;
         Ok(retained)
@@ -152,6 +170,7 @@ fn stage(
     complete.map_err(|_: InstallerStageError| InstallerStageError::RecoveryRequired)
 }
 
+#[cfg(unix)]
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -300,3 +319,8 @@ mod tests {
         assert_eq!(std::fs::read_dir(parent).unwrap().count(), 0);
     }
 }
+
+#[cfg(windows)]
+#[cfg(test)]
+#[path = "installer_payload_windows_tests.rs"]
+mod windows_tests;
