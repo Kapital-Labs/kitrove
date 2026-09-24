@@ -7,25 +7,12 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 use kitrove_release_policy::APPLICATION_ARCHIVE_LIMITS;
+use kitrove_release_policy::native_signature::{
+    APPLE_REQUIREMENT, WINDOWS_VERIFY, validate_apple_signature_detail,
+};
 use serde::Deserialize;
 
 const APPLE_IDENTITY: &str = "Developer ID Application: Kapital Labs LLC (98RZ36ES7A)";
-const APPLE_REQUIREMENT: &str = concat!(
-    "=anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists ",
-    "and certificate leaf[field.1.2.840.113635.100.6.1.13] exists ",
-    "and certificate leaf[subject.OU] = \"98RZ36ES7A\""
-);
-const WINDOWS_VERIFY: &str = r#"
-$ErrorActionPreference = 'Stop'
-$signature = Get-AuthenticodeSignature -LiteralPath $env:KITROVE_VERIFY_FILE
-if ($signature.Status -ne 'Valid' -or
-    $signature.SignatureType -ne 'Authenticode' -or
-    $null -eq $signature.SignerCertificate -or
-    $null -eq $signature.TimeStamperCertificate -or
-    $signature.SignerCertificate.Subject -cne $env:KITROVE_WINDOWS_PUBLISHER) {
-    throw 'Expected timestamped publisher signature is absent or invalid'
-}
-"#;
 
 enum Signer {
     Apple {
@@ -219,28 +206,6 @@ pub(super) fn run(command: &mut Command, label: &str) -> Result<Output, String> 
     Ok(output)
 }
 
-fn verify_apple_detail(detail: &[u8]) -> Result<(), String> {
-    verify_apple_timestamp(detail)?;
-    let detail = String::from_utf8_lossy(detail);
-    if !detail
-        .lines()
-        .any(|line| line.starts_with("CodeDirectory ") && line.contains("(runtime)"))
-    {
-        return Err("Apple signature lacks hardened runtime or secure timestamp".to_owned());
-    }
-    Ok(())
-}
-
-fn verify_apple_timestamp(detail: &[u8]) -> Result<(), String> {
-    if !String::from_utf8_lossy(detail)
-        .lines()
-        .any(|line| line.starts_with("Timestamp=") && line.len() > 10)
-    {
-        return Err("Apple signature lacks secure timestamp".into());
-    }
-    Ok(())
-}
-
 pub(super) fn verify_apple_signature(file: &Path, executable: bool) -> Result<(), String> {
     run(
         Command::new("/usr/bin/codesign")
@@ -254,11 +219,7 @@ pub(super) fn verify_apple_signature(file: &Path, executable: bool) -> Result<()
             .arg(file),
         "Apple signature inspection",
     )?;
-    if executable {
-        verify_apple_detail(&detail.stderr)
-    } else {
-        verify_apple_timestamp(&detail.stderr)
-    }
+    validate_apple_signature_detail(&detail.stderr, executable).map_err(str::to_owned)
 }
 
 fn notarize(file: &Path, profile: &OsString, keychain: Option<&Path>) -> Result<(), String> {
@@ -411,15 +372,6 @@ mod tests {
     }
 
     #[test]
-    fn apple_requirement_is_inline_and_pins_developer_id_team() {
-        assert!(APPLE_REQUIREMENT.starts_with("=anchor apple generic"));
-        assert!(APPLE_REQUIREMENT.contains("certificate leaf[subject.OU] = \"98RZ36ES7A\""));
-        assert!(
-            APPLE_REQUIREMENT.contains("certificate leaf[field.1.2.840.113635.100.6.1.13] exists")
-        );
-    }
-
-    #[test]
     fn target_requires_native_host_and_closed_catalog() {
         for (target, host, expected) in [
             ("aarch64-apple-darwin", "macos", Platform::Apple),
@@ -446,20 +398,6 @@ mod tests {
             b"not JSON",
         ] {
             assert!(verify_notary_response(response).is_err());
-        }
-    }
-
-    #[test]
-    fn apple_requires_timestamp_and_hardened_runtime() {
-        let valid = b"CodeDirectory v=20500 flags=0x10000(runtime)\nTimestamp=Sep 8, 2026\n";
-        assert!(verify_apple_detail(valid).is_ok());
-        for invalid in [
-            b"".as_slice(),
-            b"Timestamp=now\n",
-            b"CodeDirectory flags=0x10000(runtime)\n",
-            b"CodeDirectory flags=0x10000(runtime)\nTimestamp=\n",
-        ] {
-            assert!(verify_apple_detail(invalid).is_err());
         }
     }
 

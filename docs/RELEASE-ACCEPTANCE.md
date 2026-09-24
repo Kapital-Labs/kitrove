@@ -41,6 +41,14 @@ installer authority distinct from application replacement and rollback authority
 No automatic launch, PATH modification, elevation, package installation or latest
 version discovery belongs in this step.
 
+Private authenticated installer-data staging is implemented on Unix and Windows.
+[PR #33 validation](https://github.com/Kapital-Labs/kitrove/actions/runs/36036868392)
+passed the native Windows suite and an explicitly unelevated retained-payload test;
+merged main validation also passed in
+[run 36040431645](https://github.com/Kapital-Labs/kitrove/actions/runs/36040431645).
+This is data staging only: native-signature-gated executable publication, reopening
+and a consumer bootstrap command remain unimplemented.
+
 Before advertising the binary path, prove:
 
 - independent selection of tag, full source commit, target and expected checksum;
