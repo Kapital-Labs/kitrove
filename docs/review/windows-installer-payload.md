@@ -36,6 +36,15 @@ After this fixture-only correction, strict Windows GNU Clippy and canonical stab
 and Rust 1.85.0 validation all passed again. Native standard-user confirmation remains
 pending; local checks do not substitute for it.
 
+The next native run rejected the checkout ancestry when the regular suite used the
+working-directory fixture (`UnsafeDestination`). Keep the regular test in the existing
+private temporary fixture, and select a separate explicitly unelevated test for the
+standard-user runner. Both invoke one shared assertion helper. The dedicated test is
+ignored by the regular suite and explicitly included by the standard-user runner,
+matching its existing convention. No production validation is relaxed. Strict Windows
+GNU Clippy and canonical stable and Rust 1.85.0 validation passed for this correction.
+The corrected native Windows and standard-user run remains required before merge.
+
 NS-07/NS-09 and INV-06/INV-07/INV-08/INV-12 are unchanged. Files remain local and
 partial failures are preserved. Discovery/adoption, portable/native content, fidelity,
 capability receipts, synchronization and conflict behavior are unaffected. This is

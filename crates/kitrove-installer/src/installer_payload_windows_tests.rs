@@ -2,9 +2,20 @@ use super::*;
 
 #[test]
 fn windows_payload_is_private_exact_and_retained_after_drop() {
+    assert_private_retained_payload(crate::windows_test_support::destination());
+}
+
+#[test]
+#[ignore = "run explicitly under the dedicated unelevated Windows CI account"]
+fn standard_user_payload_is_private_exact_and_retained_after_drop() {
+    assert!(!kitrove_windows_security::current_process_is_elevated().unwrap());
     // The standard-user runner supplies a writable working directory, but may
     // inherit the administrator's inaccessible TEMP location.
     let root = crate::windows_test_support::destination_in(&std::env::current_dir().unwrap());
+    assert_private_retained_payload(root);
+}
+
+fn assert_private_retained_payload(root: crate::windows_test_support::TestDestination) {
     let retained = stage(root.path(), b"data only", |_| Ok(())).unwrap();
     retained.revalidate(b"data only").unwrap();
     kitrove_windows_security::inspect_private_directory(&retained.directory).unwrap();
