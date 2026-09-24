@@ -79,8 +79,11 @@ and JSONL with an independently trusted download tool; run `select-application-b
 with independently selected tag/commit/digest; save successful stdout; then run
 `preflight-install` and `install` with that single bundle, the same pins, the destination,
 and every configured state root (or `--no-state-roots` only for a machine with no state).
-The public repository currently has no release artifacts, so this is a development
-contract, not a completed public release rehearsal. Do not run a downloaded installer
+The public `v0.1.0-rc.1.3` candidate is available, but its bundled installer predates
+the release-environment identity correction in ADR-0044 and rejects production
+provenance. Use an independently reviewed source build containing that correction;
+RC2 is being prepared to carry it. See [release acceptance](RELEASE-ACCEPTANCE.md)
+for observed results and remaining platform gates. Do not run a downloaded installer
 merely to ask it whether it is trustworthy.
 
 ## Commands

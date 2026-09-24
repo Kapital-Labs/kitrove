@@ -4,7 +4,7 @@ Kitrove is in Phase 6, before public alpha. Implementation, rehearsal evidence a
 supported-release acceptance are separate gates. Passing one does not imply the
 others. This record supersedes older pending-signing statements, not accepted ADRs.
 
-## Accepted checkpoint
+## Historical signing checkpoint
 
 Source: `1267b8438276d70fd3f083cfa9e4a8576a31178b`.
 
@@ -81,9 +81,9 @@ cargo xtask verify-downloaded-installer-dmg <image> <image-bundle> <installer-ar
 Both artifacts must pass the fixed production provenance policy before native
 verification or read-only mounting. The command compares the exact payload and
 detaches without executing or installing it. It does not use signing credentials.
-This is implementation, not real production provenance acceptance or clean-machine
-online/offline execution. The maintainer has no clean Mac available; the signing
-host is not a substitute for that evidence.
+Production-artifact results are recorded below; native verification alone does not
+establish clean-machine online/offline execution. The maintainer has no clean Mac
+available; the signing host is not a substitute for that evidence.
 A notarized archive
 of standalone executables does not prove offline first-launch acceptance. A stapled
 container design must specify its contents, authentication, quarantine behavior,
@@ -106,7 +106,7 @@ Prepare a compatibility-reviewed pair of distinct candidate versions. Record the
 exact source commits and compatibility metadata before building. Do not relabel a
 signed archive or invent production attestations for a manual rehearsal.
 
-#### Approved candidate pair (publication pending)
+#### Approved candidate pair
 
 The maintainer approved preparing, signing and publishing `v0.1.0-rc.1` for A and
 `v0.1.0-rc.2` for B on 2026-09-23, sequentially after verification. This is not
@@ -116,8 +116,33 @@ its tag remains unchanged. RC1.2 completed all platform jobs but failed shared
 source-archive validation before publication. Its tag also remains unchanged.
 The replacement A is `v0.1.0-rc.1.3`, including the reviewed source-family fix.
 Its workspace version and compatibility catalog declare `0.1.0-rc.1.3` with no
-predecessor. B remains `v0.1.0-rc.2`, pending successful A verification. Publication
-and real-artifact acceptance are pending.
+predecessor. A was published by
+[run 35941035846](https://github.com/Kapital-Labs/kitrove/actions/runs/35941035846)
+from `31b4657a8742756f26aa0596e2c57a4f357c8295`. All 27 public assets were acquired;
+the exact inventory/checksums passed and all 17 directly attested files passed
+independent, pinned GitHub attestation verification. Temporary signing activation
+was removed afterward.
+
+A's bundled installer rejects the production release-environment certificate
+identity. [ADR-0044](adr/0044-release-environment-provenance.md) records the correction
+merged at `3c469d5b8b86489bb44327db19abf0a651758baf`; its main CI passed in
+[run 35955613847](https://github.com/Kapital-Labs/kitrove/actions/runs/35955613847).
+The corrected, independently reviewed source verifier authenticated both Mac DMGs
+and their installer archives before native signature/staple checks and read-only
+exact-payload verification. Neither embedded installer was executed.
+
+Using that corrected source installer, A's authenticated arm64 CLI passed preflight,
+first install, installed digest/version checks, retirement into history and read-only
+history inspection in a private, empty-state sandbox on the existing arm64 Mac
+(macOS 26.6, ordinary user). No actual user installation or configured state was
+touched. This is not clean-machine/offline evidence, Intel execution, or evidence
+for Windows/Linux installation, application-state preservation or credential canaries.
+
+B is now prepared as `v0.1.0-rc.2` with the verifier correction. Review of changes
+since A found only provenance verification, tests and documentation before candidate
+metadata updates: no application-state or lifecycle format changed. The catalog
+therefore declares A rollback-compatible. B publication and real A-to-B-to-A
+lifecycle acceptance remain pending; no stable platform support is asserted.
 
 Prepare each version in its own reviewed worktree/PR. Update the
 shared workspace version, locked workspace package records and compatibility
@@ -200,8 +225,10 @@ Run a native acceptance matrix only when platform behavior or the release candid
 requires it; reuse recorded evidence only for the exact unchanged artifacts.
 Do not rerun expensive signing just for documentation updates.
 
-Production activation, tags, publication, expanded cloud permissions and purchases
-remain separate approval gates. The completed signing monitor is paused.
+The maintainer authorized production activation, signing, tags and publication for
+this sequential candidate pair. Protected environment gates remain in force. Stable
+publication, expanded cloud permissions and purchases are not authorized by that
+approval. The completed signing rehearsal monitor is paused.
 
 ## Invariant impact
 
