@@ -138,11 +138,36 @@ history inspection in a private, empty-state sandbox on the existing arm64 Mac
 touched. This is not clean-machine/offline evidence, Intel execution, or evidence
 for Windows/Linux installation, application-state preservation or credential canaries.
 
-B is now prepared as `v0.1.0-rc.2` with the verifier correction. Review of changes
-since A found only provenance verification, tests and documentation before candidate
+B was published as `v0.1.0-rc.2` with the verifier correction by
+[run 35966127917](https://github.com/Kapital-Labs/kitrove/actions/runs/35966127917)
+from `11f2d7b7daa1115e23d95121a6f7c923153b3190`, after exact-head PR and main checks
+passed. All four platform builds and global artifact validation passed. The release
+is a prerelease, not a stable release; temporary signing activation was removed.
+All 27 public assets were downloaded and passed the shared inventory/checksum checks;
+all 17 directly attested files passed independently pinned GitHub verification.
+
+Review of changes since A found only provenance verification, tests and documentation before candidate
 metadata updates: no application-state or lifecycle format changed. The catalog
-therefore declares A rollback-compatible. B publication and real A-to-B-to-A
-lifecycle acceptance remain pending; no stable platform support is asserted.
+therefore declares A rollback-compatible.
+
+Both B Mac images and installer archives passed corrected-source provenance and
+native signature/staple/read-only payload verification on the existing arm64 Mac.
+No embedded installer was executed. The same independently trusted source installer
+then upgraded the isolated, empty-state A installation to B and rolled it back to A.
+Both preflights passed without mutation; both transactions committed and were
+retained in history. Explicit version checks reported B then A, and rollback restored
+A's exact original executable SHA-256. No actual user installation or state was used.
+
+| Observed executable | SHA-256 |
+|---|---|
+| A, before upgrade and after rollback | `766afbe0279cf6a1f623a8a69bb122cfdcb3206f26a7b7c1acceff749e905e7e` |
+| B, after upgrade | `54ac690c5ae5b0bcc480f4925b0f7ef5fe4e9b777a6b9390ca0ead593715bed2` |
+
+This proves the real-artifact happy path on the existing arm64 Mac, using a reviewed
+source installer. It does not prove downloaded-installer bootstrap, clean-machine
+online/offline launch, Intel execution, Windows/Linux lifecycle behavior, application
+data or canary preservation, or real-artifact interruption recovery. Those acceptance
+gates remain open; no stable platform support is asserted.
 
 Prepare each version in its own reviewed worktree/PR. Update the
 shared workspace version, locked workspace package records and compatibility
