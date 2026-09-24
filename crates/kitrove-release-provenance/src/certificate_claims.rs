@@ -43,6 +43,8 @@ pub(super) const SOURCE_REPOSITORY_VISIBILITY_OID: ObjectIdentifier =
     ObjectIdentifier::new_unwrap("1.3.6.1.4.1.57264.1.22");
 pub(super) const TOKEN_SUBJECT_OID: ObjectIdentifier =
     ObjectIdentifier::new_unwrap("1.3.6.1.4.1.57264.1.24");
+pub(super) const DEPLOYMENT_ENVIRONMENT_OID: ObjectIdentifier =
+    ObjectIdentifier::new_unwrap("1.3.6.1.4.1.57264.1.23");
 
 pub(super) const LEGACY_ISSUER_OID: ObjectIdentifier =
     ObjectIdentifier::new_unwrap("1.3.6.1.4.1.57264.1.1");
@@ -99,14 +101,35 @@ pub(super) fn validate(
             SOURCE_REPOSITORY_VISIBILITY_OID,
             policy.repository_visibility,
         ),
-        (
-            TOKEN_SUBJECT_OID,
-            &format!("repo:{}:ref:{}", policy.repository_slug, policy.source_ref),
-        ),
     ] {
         if extension_utf8(&certificate, oid)? != expected {
             return Err(ReleaseAttestationError::InvalidCertificateClaims);
         }
+    }
+    let expected_subject = match policy.subject_policy {
+        crate::SubjectPolicy::ReleaseEnvironment(environment) => {
+            if extension_utf8(&certificate, DEPLOYMENT_ENVIRONMENT_OID)? != environment {
+                return Err(ReleaseAttestationError::InvalidCertificateClaims);
+            }
+            let (owner, repository) = policy
+                .repository_slug
+                .split_once('/')
+                .ok_or(ReleaseAttestationError::InvalidCertificateClaims)?;
+            format!(
+                "repo:{owner}@{}/{repository}@{}:environment:{environment}",
+                policy.owner_id, policy.repository_id
+            )
+        }
+        #[cfg(test)]
+        crate::SubjectPolicy::LegacyRefFixture => {
+            if unique_noncritical_extension(&certificate, DEPLOYMENT_ENVIRONMENT_OID)?.is_some() {
+                return Err(ReleaseAttestationError::InvalidCertificateClaims);
+            }
+            format!("repo:{}:ref:{}", policy.repository_slug, policy.source_ref)
+        }
+    };
+    if extension_utf8(&certificate, TOKEN_SUBJECT_OID)? != expected_subject {
+        return Err(ReleaseAttestationError::InvalidCertificateClaims);
     }
     for (oid, expected) in [
         (LEGACY_ISSUER_OID, GITHUB_OIDC_ISSUER),

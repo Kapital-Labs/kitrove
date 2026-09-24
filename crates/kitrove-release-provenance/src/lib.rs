@@ -403,6 +403,7 @@ fn release_policy<'a>(
         runner_environment: GITHUB_HOSTED_RUNNER,
         repository_visibility: PUBLIC_REPOSITORY_VISIBILITY,
         build_trigger: PUSH_BUILD_TRIGGER,
+        subject_policy: SubjectPolicy::ReleaseEnvironment("release"),
     }
 }
 
@@ -416,6 +417,12 @@ fn verify_release_attestation(
     let signer_identity = expected.signer_identity();
     let policy = release_policy(expected, &source_ref, &signer_identity);
     verify_attestation(archive_name, archive_sha256, bundle_bytes, &policy)
+}
+
+enum SubjectPolicy<'a> {
+    ReleaseEnvironment(&'a str),
+    #[cfg(test)]
+    LegacyRefFixture,
 }
 
 struct AttestationPolicy<'a> {
@@ -432,6 +439,7 @@ struct AttestationPolicy<'a> {
     runner_environment: &'a str,
     repository_visibility: &'a str,
     build_trigger: &'a str,
+    subject_policy: SubjectPolicy<'a>,
 }
 
 fn verify_attestation(
@@ -504,6 +512,29 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn real_protected_release_attestation_authenticates_offline() {
+        let expected = ExpectedReleaseIdentity::new(
+            "v0.1.0-rc.1.3",
+            "31b4657a8742756f26aa0596e2c57a4f357c8295",
+        )
+        .unwrap();
+        let bundle = include_bytes!("../tests/fixtures/kitrove-rc1.3-arm64-cli.json");
+        assert_eq!(
+            verify_release_attestation(
+                "kitrove-cli-aarch64-apple-darwin.tar.xz",
+                [
+                    0xe8, 0xc3, 0x2f, 0x13, 0xcd, 0x4d, 0x6a, 0x11, 0x5a, 0x86, 0xcf, 0xe3, 0x19,
+                    0x2d, 0x88, 0x63, 0xb2, 0xe1, 0xb2, 0xe8, 0x7f, 0xff, 0x90, 0x52, 0x48, 0x69,
+                    0x21, 0xc2, 0xef, 0x77, 0x1c, 0x3c
+                ],
+                &expected,
+                bundle
+            ),
+            Ok(())
+        );
+    }
+
     const FIXTURE: &[u8] = include_bytes!("../tests/fixtures/github-actions-public-slsa-v1.json");
     pub(super) const ARCHIVE_NAME: &str = "gam-7.48.02-macos26.5-arm64.tar.xz";
     const KITROVE_ZIP: &[u8] = include_bytes!(
@@ -531,6 +562,7 @@ mod tests {
             runner_environment: "github-hosted",
             repository_visibility: "public",
             build_trigger: "push",
+            subject_policy: SubjectPolicy::LegacyRefFixture,
         }
     }
 
@@ -555,7 +587,13 @@ mod tests {
     }
 
     fn mutate_certificate(mutator: impl FnOnce(&mut Certificate)) -> Bundle {
-        let mut bundle = fixture_bundle();
+        mutate_bundle_certificate(fixture_bundle(), mutator)
+    }
+
+    fn mutate_bundle_certificate(
+        mut bundle: Bundle,
+        mutator: impl FnOnce(&mut Certificate),
+    ) -> Bundle {
         let VerificationMaterialContent::Certificate(content) =
             &mut bundle.verification_material.content
         else {
@@ -853,6 +891,64 @@ mod tests {
                 OctetString::new([0xff]).unwrap();
         });
         assert_invalid_certificate(&malformed);
+    }
+
+    #[test]
+    fn protected_environment_and_immutable_subject_are_exact_and_required() {
+        let expected = ExpectedReleaseIdentity::new(
+            "v0.1.0-rc.1.3",
+            "31b4657a8742756f26aa0596e2c57a4f357c8295",
+        )
+        .unwrap();
+        let source_ref = format!("refs/tags/{}", expected.tag());
+        let signer = expected.signer_identity();
+        let policy = release_policy(&expected, &source_ref, &signer);
+        let original = Bundle::from_json(include_str!(
+            "../tests/fixtures/kitrove-rc1.3-arm64-cli.json"
+        ))
+        .unwrap();
+        assert!(validate_certificate_claims(&original, &policy).is_ok());
+        for oid in [
+            certificate_claims::DEPLOYMENT_ENVIRONMENT_OID,
+            TOKEN_SUBJECT_OID,
+        ] {
+            for mutation in 0..5 {
+                let bundle =
+                    mutate_bundle_certificate(original.clone(), |certificate| match mutation {
+                        0 => extensions_mut(certificate).retain(|value| value.extn_id != oid),
+                        1 => {
+                            let copy = extension_mut(certificate, oid).clone();
+                            extensions_mut(certificate).push(copy);
+                        }
+                        2 => extension_mut(certificate, oid).critical = true,
+                        3 => {
+                            extension_mut(certificate, oid).extn_value =
+                                OctetString::new([0xff]).unwrap()
+                        }
+                        _ => {
+                            extension_mut(certificate, oid).extn_value = OctetString::new(
+                                Utf8StringRef::new("wrong").unwrap().to_der().unwrap(),
+                            )
+                            .unwrap()
+                        }
+                    });
+                assert!(validate_certificate_claims(&bundle, &policy).is_err());
+            }
+        }
+        for subject in [
+            "repo:Kapital-Labs/kitrove:ref:refs/tags/v0.1.0-rc.1.3",
+            "repo:Kapital-Labs/kitrove:environment:release",
+            "repo:Kapital-Labs@320223113/kitrove@1360443188:environment:staging",
+            "repo:Kapital-Labs@1/kitrove@1360443188:environment:release",
+            "repo:Kapital-Labs@320223113/kitrove@1:environment:release",
+        ] {
+            let bundle = mutate_bundle_certificate(original.clone(), |certificate| {
+                extension_mut(certificate, TOKEN_SUBJECT_OID).extn_value =
+                    OctetString::new(Utf8StringRef::new(subject).unwrap().to_der().unwrap())
+                        .unwrap();
+            });
+            assert!(validate_certificate_claims(&bundle, &policy).is_err());
+        }
     }
 
     #[test]
