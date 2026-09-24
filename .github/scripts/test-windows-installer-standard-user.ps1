@@ -24,6 +24,7 @@ try {
     if ($probeArtifacts.Count -ne 1) { throw "expected exactly one application probe fixture" }
     $cases = @(
         @{ Target = "public_staging"; Name = "authenticated_windows_executable_crosses_the_public_staging_boundary"; Ignored = $false },
+        @{ Target = "kitrove_installer"; Name = "installer_payload::windows_tests::standard_user_payload_is_private_exact_and_retained_after_drop"; Ignored = $true },
         @{ Target = "kitrove_installer"; Name = "upgrade_transaction::windows_tests::standard_user_preparation_and_recovery"; Ignored = $true },
         @{ Target = "kitrove_installer"; Name = "release_intake::windows_tests::standard_user_local_release_intake"; Ignored = $true },
         @{ Target = "kitrove_installer"; Name = "installation_state::windows_tests::standard_user_first_install_state_preparation"; Ignored = $true },

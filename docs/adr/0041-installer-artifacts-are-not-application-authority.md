@@ -146,9 +146,14 @@ bootstrap claim follows from source compilation or synthetic tests alone.
 
 NS-07/NS-09 and INV-06/INV-07/INV-08/INV-12 remain unchanged. Staging and evidence
 stay local. Discovery/adoption, portable/native content, fidelity, capability receipts,
-synchronization and conflict behavior are unaffected. The initial Unix-only library
-checkpoint implements retained non-executable staging and revalidation. Windows,
-native-signature-gated executable publication, reopening and a public CLI remain
+synchronization and conflict behavior are unaffected. The library checkpoint uses
+one staging sequence with native Unix and Windows filesystem bindings. Windows uses
+the existing private ACL, ancestry and identity checks and retains a read-only file
+lease after synchronized creation; sharing restrictions may prevent substitutions
+that Unix detects during revalidation. This does not claim an OS-level prohibition
+on executing arbitrary data files: the API never publishes or launches an executable.
+Native Windows runtime validation is required before accepting the Windows checkpoint.
+Native-signature-gated executable publication, reopening and a public CLI remain
 unimplemented; this is not a supported bootstrap workflow.
 
 ## Validation
