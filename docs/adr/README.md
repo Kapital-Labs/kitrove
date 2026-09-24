@@ -57,5 +57,6 @@ ADRs document foundational decisions and their consequences. Accepted ADRs are a
 | [0041](0041-installer-artifacts-are-not-application-authority.md) | Installer artifacts are not application replacement authority | Accepted for Phase 6 implementation; publication gated | NS-07, NS-09 |
 | [0042](0042-platform-signing-precedes-release-authority.md) | Native signing precedes final release digest authority | Accepted; hosted product rehearsal passed, production activation gated | NS-07, NS-09 |
 | [0043](0043-stapled-mac-installer-container.md) | Stapled Mac installer container supplements release archives | Accepted; local signed preparation passed, native consumer acceptance pending | NS-07, NS-08, NS-09 |
+| [0044](0044-release-environment-provenance.md) | Pin protected release environment and immutable subject | Implementation correction; real production fixture and local native verification passed | NS-07, NS-09 |
 
 Use [`0000-template.md`](0000-template.md) for new records.
