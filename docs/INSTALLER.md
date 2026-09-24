@@ -1,10 +1,10 @@
 # Offline installer development workflow
 
-The `kitrove-installer` executable is under development. Separate installer packaging
-is implemented and has been exercised locally, but an attested public release download
-is not yet available. This guide describes the implemented first-install and replacement
-interfaces, not a claim of complete release acceptance. Use [RELEASES.md](RELEASES.md) for
-the currently accepted release-verification procedure.
+The `kitrove-installer` executable is under development. Attested public prerelease
+downloads are available, including `v0.1.0-rc.2`. This guide describes the implemented
+first-install and replacement interfaces, not a claim of complete release acceptance.
+Use [RELEASES.md](RELEASES.md) for the release-verification procedure and
+[RELEASE-ACCEPTANCE.md](RELEASE-ACCEPTANCE.md) for observed results and open gates.
 
 The actual installer archives passed hosted signing and final archive checks on
 both Mac architectures and Windows in rehearsal `35118722213`. That workflow did
@@ -81,8 +81,8 @@ with independently selected tag/commit/digest; save successful stdout; then run
 and every configured state root (or `--no-state-roots` only for a machine with no state).
 The public `v0.1.0-rc.1.3` candidate is available, but its bundled installer predates
 the release-environment identity correction in ADR-0044 and rejects production
-provenance. Use an independently reviewed source build containing that correction;
-RC2 is being prepared to carry it. See [release acceptance](RELEASE-ACCEPTANCE.md)
+provenance. Use an independently reviewed source build containing that correction.
+The published RC2 includes it. See [release acceptance](RELEASE-ACCEPTANCE.md)
 for observed results and remaining platform gates. Do not run a downloaded installer
 merely to ask it whether it is trustworthy.
 
