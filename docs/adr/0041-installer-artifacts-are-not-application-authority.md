@@ -100,6 +100,57 @@ take no destination, state roots or operation ID, create no files, execute nothi
 and emit the selected bundle only after both inputs have been revalidated. They
 require an independently trusted or reviewed-source-built installer to run.
 
+### Authenticated installer staging contract
+
+The next bootstrap checkpoint is a distinct retained staging object constructed
+only from `AuthenticatedInstallerExecutable`, never from application authority,
+archive filenames, caller-supplied executable bytes or a saved verification receipt.
+It must preserve the authenticated target, version, archive/bundle digests and exact
+executable bytes. It has no conversion to application staging, installation,
+replacement, history or rollback authority.
+
+Staging uses an explicitly selected, existing ordinary-user-controlled parent.
+Validate and retain its complete ancestry without repairing permissions. Create one
+fresh private child using the existing native directory and no-follow file helpers;
+an occupied child or leaf is a refusal, not a reason to reuse, truncate or overwrite.
+Retain parent, child and file handles and identities through writing, synchronization,
+byte verification and final ancestry/name revalidation. Reuse bounded archive parsing,
+offline provenance and platform identity/ACL checks rather than implementing another
+decoder, verifier or permissive filesystem abstraction.
+
+The initial library checkpoint writes a fixed private data leaf, `installer.payload`,
+with no executable mode on Unix. It does not claim launch readiness or expose an
+installation command. A later, separately tested publication boundary must freshly
+revalidate retained bytes and identities and apply the shared native executable
+signature policy on Mac and Windows before exposing the platform executable name.
+Linux still requires the same provenance and filesystem checks. No stage may infer
+execution authority from a checksum, path, historical record or earlier native check.
+
+Any failure after creation preserves partial staging and reports that the output
+must not be used. Do not recursively delete an uncertain namespace, silently retry
+in it, or report a failed operation as successful because bytes happen to match.
+Dropping the retained object releases handles, not files. Reopening or cleanup is
+outside this initial checkpoint and must not be inferred from the staging basename.
+
+This is explicit local preparation, not self-update or general package management.
+It downloads nothing, launches nothing, changes no PATH or quarantine attributes,
+requires no elevation, and never acquires application-state or replacement authority.
+It does not by itself close the independently trusted first-verifier requirement,
+native launch acceptance, or the clean-machine online/offline Mac gate in ADR-0043.
+
+Required tests cover type separation, wrong target, exact retained bytes, private
+permissions, occupied names, symlink/reparse/hardlink substitutions, changed ancestry,
+changed file identity/content, write and sync failure retention, and non-execution.
+Native Windows evidence remains required for ACL and sharing behavior. No supported
+bootstrap claim follows from source compilation or synthetic tests alone.
+
+NS-07/NS-09 and INV-06/INV-07/INV-08/INV-12 remain unchanged. Staging and evidence
+stay local. Discovery/adoption, portable/native content, fidelity, capability receipts,
+synchronization and conflict behavior are unaffected. The initial Unix-only library
+checkpoint implements retained non-executable staging and revalidation. Windows,
+native-signature-gated executable publication, reopening and a public CLI remain
+unimplemented; this is not a supported bootstrap workflow.
+
 ## Validation
 
 Test all four exact catalogs, manifest field/schema/target/name/version/digest refusals,

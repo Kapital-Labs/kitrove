@@ -8,6 +8,11 @@ use std::path::PathBuf;
 use kitrove_release_policy::ParsedReleaseManifest;
 use kitrove_release_provenance::AuthenticatedApplicationExecutable;
 
+#[cfg(unix)]
+mod installer_payload;
+#[cfg(unix)]
+pub use installer_payload::{StagedInstallerPayload, stage_authenticated_installer_payload};
+
 #[cfg(any(unix, windows))]
 mod command;
 
