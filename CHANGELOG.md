@@ -4,6 +4,16 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.2
+
+### Fixed
+
+- Production provenance verification accepts the pinned repository's immutable-ID
+  release-environment identity while retaining independent tag, commit and signature checks.
+
+Declares RC1.3 rollback-compatible: no application-state or lifecycle format changed.
+Publication and two-version native acceptance remain pending. This is not a stable release.
+
 ## 0.1.0-rc.1.3
 
 Replacement for the unpublished RC1.2 build. Earlier failed tags remain unchanged.
