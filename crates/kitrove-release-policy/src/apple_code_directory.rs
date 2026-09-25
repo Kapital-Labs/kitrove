@@ -13,10 +13,52 @@ use sha2::{Digest as _, Sha256};
 const MAX_SIGNATURE: usize = 4 * 1024 * 1024;
 const INVALID: &str = "unsupported or malformed Apple code-directory binding";
 
+/// Captured signature fingerprints for comparison with a native verifier's output.
+/// This is not a verified signature, provenance receipt or execution authority.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AppleSignatureCandidate {
+    cdhash: [u8; 20],
+    cms_sha256: [u8; 32],
+}
+
+impl AppleSignatureCandidate {
+    pub fn cdhash(&self) -> &[u8; 20] {
+        &self.cdhash
+    }
+
+    /// Hash of the raw CMS content, excluding the Mach-O blob wrapper header.
+    pub fn cms_sha256(&self) -> &[u8; 32] {
+        &self.cms_sha256
+    }
+}
+
+struct ParsedCandidate {
+    cdhash: [u8; 20],
+    cms_sha256: Option<[u8; 32]>,
+}
+
+/// Capture both directory and CMS fingerprints without validating the signature.
+/// An absent, empty or wrongly tagged CMS blob is refused. CMS syntax, trust,
+/// timestamps and special slots still require independent native verification.
+pub fn candidate_signature(
+    bytes: &[u8],
+    target: &str,
+) -> Result<AppleSignatureCandidate, &'static str> {
+    let parsed = parse_candidate(bytes, target)?;
+    Ok(AppleSignatureCandidate {
+        cdhash: parsed.cdhash,
+        cms_sha256: parsed.cms_sha256.ok_or(INVALID)?,
+    })
+}
+
 /// Derive the 20-byte SHA-256 CDHash candidate from captured executable bytes.
 /// This checks ordinary code-page hashes, but does not authenticate CMS signatures
 /// or special slots. Success must never be interpreted as native readiness.
 pub fn candidate_cdhash(bytes: &[u8], target: &str) -> Result<[u8; 20], &'static str> {
+    Ok(parse_candidate(bytes, target)?.cdhash)
+}
+
+fn parse_candidate(bytes: &[u8], target: &str) -> Result<ParsedCandidate, &'static str> {
     let (cpu, subtype) = match target {
         "aarch64-apple-darwin" => (macho::CPU_TYPE_ARM64, macho::CPU_SUBTYPE_ARM64_ALL),
         "x86_64-apple-darwin" => (macho::CPU_TYPE_X86_64, macho::CPU_SUBTYPE_X86_64_ALL),
@@ -72,7 +114,7 @@ pub fn candidate_cdhash(bytes: &[u8], target: &str) -> Result<[u8; 20], &'static
     bind_signature(&bytes[offset..], &bytes[..offset])
 }
 
-fn bind_signature(signature: &[u8], code: &[u8]) -> Result<[u8; 20], &'static str> {
+fn bind_signature(signature: &[u8], code: &[u8]) -> Result<ParsedCandidate, &'static str> {
     let parsed = CodeSignature::parse(signature).map_err(|_| INVALID)?;
     let length = parsed.header().length.get(BigEndian) as usize;
     let count = parsed.index().len();
@@ -91,6 +133,7 @@ fn bind_signature(signature: &[u8], code: &[u8]) -> Result<[u8; 20], &'static st
     let mut ranges = Vec::with_capacity(count);
     let mut slots = Vec::with_capacity(count);
     let mut result = None;
+    let mut cms_sha256 = None;
     for blob in parsed.blobs() {
         let blob = blob.map_err(|_| INVALID)?;
         let start = blob.offset() as usize;
@@ -106,6 +149,14 @@ fn bind_signature(signature: &[u8], code: &[u8]) -> Result<[u8; 20], &'static st
         }
         slots.push(blob.slot());
         ranges.push((start, end));
+        if blob.slot() == macho::CSSLOT_SIGNATURESLOT {
+            if blob.magic() != macho::CSMAGIC_BLOBWRAPPER || blob.contents().is_empty() {
+                return Err(INVALID);
+            }
+            cms_sha256 = Some(Sha256::digest(blob.contents()).into());
+        } else if blob.magic() == macho::CSMAGIC_BLOBWRAPPER {
+            return Err(INVALID);
+        }
         if blob.slot() != macho::CSSLOT_CODEDIRECTORY {
             if blob.magic() == macho::CSMAGIC_CODEDIRECTORY {
                 return Err(INVALID);
@@ -140,7 +191,10 @@ fn bind_signature(signature: &[u8], code: &[u8]) -> Result<[u8; 20], &'static st
         cdhash.copy_from_slice(&digest[..20]);
         result = Some(cdhash);
     }
-    result.ok_or(INVALID)
+    Ok(ParsedCandidate {
+        cdhash: result.ok_or(INVALID)?,
+        cms_sha256,
+    })
 }
 
 #[cfg(test)]
@@ -256,6 +310,49 @@ mod tests {
             signature.extend_from_slice(directory);
             signature.extend_from_slice(directory);
             assert!(bind_signature(&signature, &fixture[..48]).is_err());
+        }
+    }
+
+    fn cms_fixture(cms: &[u8]) -> Vec<u8> {
+        let original = fixture();
+        let signature_length = 28 + 80 + 8 + cms.len() as u32;
+        let mut bytes = original[..48].to_vec();
+        bytes[44..48].copy_from_slice(&signature_length.to_le_bytes());
+        let mut directory = original[68..].to_vec();
+        directory[48..].copy_from_slice(&Sha256::digest(&bytes));
+        for word in [0xfade_0cc0u32, signature_length, 2, 0, 28, 0x10000, 108] {
+            bytes.extend_from_slice(&word.to_be_bytes());
+        }
+        bytes.extend_from_slice(&directory);
+        bytes.extend_from_slice(&0xfade_0b01u32.to_be_bytes());
+        bytes.extend_from_slice(&(8 + cms.len() as u32).to_be_bytes());
+        bytes.extend_from_slice(cms);
+        bytes
+    }
+
+    #[test]
+    fn cms_substitution_changes_the_binding_even_with_identical_directory() {
+        // Deliberately not a valid CMS signature: parsing must not claim trust.
+        let first = cms_fixture(b"opaque-one");
+        let second = cms_fixture(b"opaque-two");
+        let a = candidate_signature(&first, "aarch64-apple-darwin").unwrap();
+        let b = candidate_signature(&second, "aarch64-apple-darwin").unwrap();
+        assert_eq!(a.cdhash(), b.cdhash());
+        assert_ne!(a.cms_sha256(), b.cms_sha256());
+        assert_eq!(
+            a.cms_sha256().as_slice(),
+            Sha256::digest(b"opaque-one").as_slice()
+        );
+    }
+
+    #[test]
+    fn cms_candidate_refuses_absent_empty_wrong_magic_and_wrong_slot() {
+        let mut wrong_magic = cms_fixture(b"opaque");
+        wrong_magic[48 + 108] ^= 1;
+        let mut wrong_slot = cms_fixture(b"opaque");
+        wrong_slot[48 + 23] = 1;
+        for bytes in [fixture(), cms_fixture(b""), wrong_magic, wrong_slot] {
+            assert!(candidate_signature(&bytes, "aarch64-apple-darwin").is_err());
         }
     }
 }

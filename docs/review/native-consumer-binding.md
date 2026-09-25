@@ -95,6 +95,24 @@ review and adversarial tests. The currently cached security-framework 3.7.0 wrap
 offers static-code construction/validity checking but not this information API;
 do not substitute private framework fields or claim an existing safe binding.
 
+Apple's published [StaticCode implementation](https://github.com/apple-oss-distributions/Security/blob/main/OSX/libsecurity_codesigning/lib/StaticCode.cpp)
+caches the CMS and directory digest in the static-code object; signing-information
+uses those accessors. Its validity result is also cached. This supports investigating
+one-object verification followed by exact CMS/digest comparison, but is not a
+guarantee that every supported OS implementation has identical behavior. Reject
+missing fields: the information path can suppress internal errors and return a
+partial dictionary. Never request Apple's internal-information flags to extract
+undocumented fields. Native substitution tests and a bounded helper remain necessary.
+
+The shared parser now also returns an `AppleSignatureCandidate` containing the
+directory digest and SHA-256 of the raw CMS content (without its Mach-O wrapper).
+It refuses missing, empty, mistagged, duplicate or overlapping CMS containers. One
+regression changes only same-length CMS content and proves the directory digest
+stays identical while the CMS fingerprint changes. The fixture deliberately has no
+valid CMS signature: this API captures bytes, not trust. The public RC2 test still
+authenticates provenance first and never executes the installer. Native validation,
+special-slot checks, timestamp policy and retained-object binding remain open.
+
 Dependency identity/license review: Cargo.lock adds only `object` 0.40.0 from
 crates.io, checksum `dd229a0361b9d0d4396176e02d65897f487eebeab7caa6d443855ee152ca0b9c`.
 Package metadata points to `gimli-rs/object`, declares Rust 1.85 and
