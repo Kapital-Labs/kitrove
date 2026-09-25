@@ -48,6 +48,12 @@ fn published_rc2_installer_crosses_the_distinct_payload_boundary() {
     )
     .unwrap();
     let executable_digest = Sha256::digest(authenticated.bytes());
+    let cdhash = kitrove_release_policy::apple_code_directory::candidate_cdhash(
+        authenticated.bytes(),
+        "aarch64-apple-darwin",
+    )
+    .unwrap();
+    assert_ne!(cdhash, [0; 20]);
     let root = tempfile::Builder::new()
         .prefix(".kitrove-payload-acceptance-")
         .tempdir_in(std::env::var_os("HOME").expect("ordinary-user home"))

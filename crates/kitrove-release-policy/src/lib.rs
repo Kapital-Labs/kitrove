@@ -2,6 +2,7 @@
 
 use std::fmt;
 
+pub mod apple_code_directory;
 mod entry_policy;
 mod installer_archive;
 mod installer_container;
