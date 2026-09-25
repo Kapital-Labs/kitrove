@@ -1,7 +1,7 @@
 //! Bounded native identity checks, not provenance or permission to resume a child.
 //! The caller must already trust this executing verifier and the system runtime.
 use super::{InspectionFailure, ProbeProcess, receive_probe_output, spawn_output_reader};
-use kitrove_macos_process::{SuspendedSelf, SystemVerifier};
+use kitrove_macos_process::{InspectionTransport, SuspendedSelf, SystemVerifier};
 use kitrove_release_policy::native_signature::AppleProcessIdentityCandidate;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -24,25 +24,30 @@ impl std::error::Error for IdentityRefused {}
 /// This does not authenticate first execution and deliberately offers no resume.
 pub struct VerifiedSuspendedSelf {
     child: SuspendedSelf,
+    transport: InspectionTransport,
 }
 
 impl VerifiedSuspendedSelf {
     /// Terminate the retained child and confirm reaping; failure stays redacted.
     pub fn terminate(self) -> Result<(), IdentityRefused> {
-        self.child.terminate().map_err(|_| IdentityRefused)
+        let Self { child, transport } = self;
+        drop(transport);
+        child.terminate().map_err(|_| IdentityRefused)
     }
 }
 
 /// Capture and check self identity, then spawn and check the retained child under
 /// one inspection deadline. Refusal drops the child and attempts bounded cleanup.
 /// The caller must independently trust this process before calling this function.
+/// Only the reviewed standalone cooperative-launch contract is supported; foreign
+/// or embedding-runtime launches outside the shared gate are not covered.
 pub fn prepare_verified_suspended_self() -> Result<VerifiedSuspendedSelf, IdentityRefused> {
     let deadline = Instant::now() + DEADLINE;
     let verifier = SystemVerifier::open().map_err(|_| IdentityRefused)?;
     let identity = capture_candidate(&verifier, deadline).map_err(|_| IdentityRefused)?;
     remaining(deadline).map_err(|_| IdentityRefused)?;
-    let child = SuspendedSelf::spawn().map_err(|_| IdentityRefused)?;
-    bind_child(&verifier, child, &identity, deadline).map_err(|_| IdentityRefused)
+    let (child, transport) = SuspendedSelf::spawn_with_transport().map_err(|_| IdentityRefused)?;
+    bind_child(&verifier, child, transport, &identity, deadline).map_err(|_| IdentityRefused)
 }
 
 enum Operation<'a> {
@@ -101,11 +106,12 @@ fn remaining(deadline: Instant) -> Result<Duration, InspectionFailure> {
 fn bind_child(
     verifier: &SystemVerifier,
     child: SuspendedSelf,
+    transport: InspectionTransport,
     identity: &AppleProcessIdentityCandidate,
     deadline: Instant,
 ) -> Result<VerifiedSuspendedSelf, InspectionFailure> {
     inspect_child(verifier, &child, identity, deadline)?;
-    Ok(VerifiedSuspendedSelf { child })
+    Ok(VerifiedSuspendedSelf { child, transport })
 }
 
 fn inspect_child(
@@ -170,23 +176,36 @@ fn inspect(
 mod tests {
     use super::*;
 
+    fn retain_outputs(transport: &InspectionTransport) -> [rustix::fd::OwnedFd; 2] {
+        [transport.output(), transport.error()]
+            .map(|fd| rustix::io::fcntl_dupfd_cloexec(fd, 3).unwrap())
+    }
+
+    fn assert_outputs_closed(outputs: [rustix::fd::OwnedFd; 2]) {
+        for output in outputs {
+            assert_eq!(rustix::io::read(&output, &mut [0]).unwrap(), 0);
+        }
+    }
+
     #[test]
     fn expired_binding_reaps_the_owned_suspended_child() {
         let verifier = SystemVerifier::open().unwrap();
-        let child = SuspendedSelf::spawn().unwrap();
+        let (child, transport) = SuspendedSelf::spawn_with_transport().unwrap();
+        let outputs = retain_outputs(&transport);
         let pid = rustix::process::Pid::from_raw(child.id()).unwrap();
         let identity = AppleProcessIdentityCandidate::from_display(
             b"CDHash=0000000000000000000000000000000000000000\n",
         )
         .unwrap();
         assert!(matches!(
-            bind_child(&verifier, child, &identity, Instant::now()),
+            bind_child(&verifier, child, transport, &identity, Instant::now()),
             Err(InspectionFailure::Timeout)
         ));
         assert_eq!(
             rustix::process::waitpid(Some(pid), rustix::process::WaitOptions::NOHANG).unwrap_err(),
             rustix::io::Errno::CHILD
         );
+        assert_outputs_closed(outputs);
     }
 
     #[test]
@@ -194,7 +213,29 @@ mod tests {
     fn verified_owner_drop_reaps_the_exact_suspended_child() {
         let verified = prepare_verified_suspended_self().unwrap();
         let pid = rustix::process::Pid::from_raw(verified.child.id()).unwrap();
+        let outputs = retain_outputs(&verified.transport);
+        for output in &outputs {
+            assert_eq!(
+                rustix::io::read(output, &mut [0]),
+                Err(rustix::io::Errno::AGAIN)
+            );
+        }
         drop(verified);
+        assert_eq!(
+            rustix::process::waitpid(Some(pid), rustix::process::WaitOptions::NOHANG).unwrap_err(),
+            rustix::io::Errno::CHILD
+        );
+        assert_outputs_closed(outputs);
+    }
+
+    #[test]
+    #[ignore = "operator-only: requires native signed source-built test executable"]
+    fn verified_owner_termination_closes_transport_and_reaps_child() {
+        let verified = prepare_verified_suspended_self().unwrap();
+        let pid = rustix::process::Pid::from_raw(verified.child.id()).unwrap();
+        let outputs = retain_outputs(&verified.transport);
+        verified.terminate().unwrap();
+        assert_outputs_closed(outputs);
         assert_eq!(
             rustix::process::waitpid(Some(pid), rustix::process::WaitOptions::NOHANG).unwrap_err(),
             rustix::io::Errno::CHILD

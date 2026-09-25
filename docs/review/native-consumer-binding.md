@@ -702,3 +702,19 @@ protocol byte limits or provide a strict spawn wall-clock bound. The verified-ow
 API, bounded protocol loop and resume step are still disconnected. No child was
 resumed and no downloaded installer executed. The existing rustix pipe feature is
 enabled again; the lockfile and third-party package set are unchanged.
+
+### Verified owner retains transport
+
+Verified preparation now creates the guarded suspended child and its pipes together,
+then dynamically checks the child's identity before returning their opaque owner.
+The public owner exposes neither descriptors nor child extraction, and still has no
+resume operation. The same standalone cooperative-launch restriction applies.
+Verification failure drops both resources; explicit termination closes parent ends
+and confirms child reaping. Ordinary Drop remains bounded best-effort cleanup.
+
+The expired-binding regression retains output observers and checks EOF and reaping
+after refusal. Native operator tests check pending pipes before owner Drop, EOF and
+reaping afterward, and the same cleanup after explicit termination. These observers
+are test-only descriptor copies, not public output access. No request bytes were
+sent and no helper resumed. A bounded protocol driver, authenticated payload binding
+and conditional resume still remain; owned pipes are not a readiness receipt.
