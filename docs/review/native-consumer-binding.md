@@ -386,3 +386,32 @@ The lockfile adds only this workspace package and its edge to already-reviewed
 libc 0.2.189: no third-party package, version or checksum changes. The reviewed
 lockfile BLAKE3 becomes
 `859b33abc314a35838f96bf863d32d4cfa5050cf6b7849a3e57611fcf5be54d6`.
+
+## Fixed system-verifier filesystem selection
+
+`SystemVerifier` retains handles for `/`, `usr`, `bin`, and `codesign`, opening each
+component relative to its retained parent with no-follow, nonblocking, close-on-exec
+flags. Directories additionally require directory-only opens. Selection accepts only
+root-owned objects with the expected type, executable/search permissions, no group
+or other write permission, and no set-ID bits. The executable must be nonempty and
+at most 16 MiB. There is no PATH search or caller-selected location.
+
+The existing `calcifer-macos-acl` handle reader and canonical empty predicate enforce
+an empty ACL on every object; no ACL parser is duplicated. This is intentionally
+stricter than user-state ancestry's deny-only ACL policy or version-probe ownership
+rules. No permissions are repaired. Identity includes device/inode, size, ownership,
+mode, link count, and nanosecond modification/change times. Inspection brackets ACL
+reading with metadata checks. Revalidation both reinspects retained handles and
+reopens the fixed chain, requiring every identity to match.
+
+Tests cover unsafe metadata and retained-identity mismatches at every chain position,
+plus read-only selection/revalidation of the installed system verifier. They do not
+execute codesign, replace system files, prove concurrent substitution resistance, or
+establish a helper signature. This is filesystem evidence only; privileged OS changes
+remain outside the guarantee. Process identity validation and bounded execution must
+still be connected before a helper can resume or consumer readiness can be issued.
+
+Dependency review adds only edges to already-locked `rustix` and
+`calcifer-macos-acl`; no third-party version or checksum changes. The reviewed
+lockfile BLAKE3 is now
+`0b82ff2c03cc11643a69727ff4b976ffe0c25e56ac9e7e25e074c54c02a3b600`.

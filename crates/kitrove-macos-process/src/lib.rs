@@ -6,6 +6,9 @@ use std::ffi::CString;
 use std::os::unix::ffi::OsStrExt as _;
 use std::time::{Duration, Instant};
 
+mod system_verifier;
+pub use system_verifier::SystemVerifier;
+
 unsafe extern "C" {
     // Public spawn.h API (macOS 10.15+), absent from the pinned libc wrapper.
     // This crate is not yet linked into a released executable; integration must

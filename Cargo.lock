@@ -1835,7 +1835,9 @@ dependencies = [
 name = "kitrove-macos-process"
 version = "0.1.0-rc.2"
 dependencies = [
+ "calcifer-macos-acl",
  "libc",
+ "rustix",
 ]
 
 [[package]]
