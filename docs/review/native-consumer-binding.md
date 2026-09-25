@@ -330,3 +330,21 @@ bounded input/output, cleanup on every refusal and concurrent substitution tests
 must all be established. An Apple-anchor success in this experiment does not prove
 Kitrove helper identity. Do not run an unverified helper and check it afterward, use
 private code-signing syscalls, or treat this experiment as consumer readiness.
+
+## Exact process-identity candidate
+
+Shared native policy now captures one canonical 40-character lowercase CDHash from
+at most 4096 bytes of UTF-8 display text. Missing, duplicate, malformed, oversized,
+NUL-containing and requirement-injection inputs fail closed. A private field prevents
+construction with arbitrary requirement syntax; the only output is the exact inline
+CDHash requirement. The type deliberately grants no trust and has no debug formatter
+that could expose the surrounding display output. Display is not verification, and
+this type does not establish the initial verifier's trust or digest algorithm policy.
+
+An additional development experiment captured the installed system `true` CDHash,
+then used that exact requirement with the fixed system codesign verifier against
+suspended `true` and `false` children. The matching child returned zero and the other
+Apple binary returned 3. Both children were killed and reaped without resumption.
+This demonstrates exact identity discrimination, not merely an Apple-publisher check;
+it does not yet establish trusted Kitrove self-identity acquisition, bounded launch,
+or concurrent replacement resistance. No downloaded artifact was executed.
