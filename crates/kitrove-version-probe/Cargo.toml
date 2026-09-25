@@ -34,7 +34,6 @@ semver.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 rustix.workspace = true
-wait-timeout.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 kitrove-windows-process.workspace = true
@@ -42,6 +41,9 @@ kitrove-windows-security.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+kitrove-macos-process = { path = "../kitrove-macos-process" }
 
 [lints]
 workspace = true

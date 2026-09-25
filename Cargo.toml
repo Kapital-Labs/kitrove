@@ -93,7 +93,6 @@ toml = "0.9.5"
 toml_edit = "=0.25.13"
 yaml_serde = "0.10.7"
 tempfile = "3.27.0"
-wait-timeout = "=0.2.1"
 unicase = "=2.9.0"
 unicode-normalization = "=0.1.25"
 rustix = { version = "1.1.4", features = ["fs", "process"] }

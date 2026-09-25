@@ -415,3 +415,32 @@ Dependency review adds only edges to already-locked `rustix` and
 `calcifer-macos-acl`; no third-party version or checksum changes. The reviewed
 lockfile BLAKE3 is now
 `0b82ff2c03cc11643a69727ff4b976ffe0c25e56ac9e7e25e074c54c02a3b600`.
+
+## Bounded shared Unix cleanup
+
+Review of the shared probe lifecycle found that a bounded inspection could still
+enter an unbounded `Child::wait` during termination or Drop. Both cleanup paths now
+reuse one private nonblocking `Child::try_wait` loop with an absolute deadline.
+The cleanup attempt has a five-second budget and records reaping only after an
+observed child exit. Timeout or wait failure returns the existing cleanup refusal;
+Drop may retry once with the same finite budget and cannot grant success.
+
+The cleanup budget is separate from the operation deadline, not a claim that the
+whole operation finishes within five seconds. An OS that cannot terminate/reap its
+child can still leave unresolved cleanup; this must refuse consumer readiness.
+Review also found that `wait-timeout` installs a process-wide SIGCHLD handler, which
+conflicts with suspended-self ownership policy. The shared normal wait and cleanup
+now use the same polling loop without installing signal handlers. The direct
+dependency was removed; no new dependency, launch permission, command policy or
+version-error code is added.
+A native regression test expires a zero reaping budget on a retained system sleep
+child, verifies ownership remains, then kills/reaps its group and checks that
+repeated reaping is a no-op. Existing timeout/descendant tests remain in the suite.
+On Mac the test then starts and terminates a suspended self in the same process,
+checking compatibility with its SIGCHLD ownership guard. The macOS-only development
+dependency does not wire suspended launch into production version probing.
+
+Lock review removes `wait-timeout` 0.2.1 and adds only the workspace test edge to
+`kitrove-macos-process`; no new third-party package/version/checksum is introduced.
+The updated reviewed lockfile BLAKE3 is
+`70dce02f2e4feba3ab2c94d1fcf926142b52c81bcc72a1d8cb09ca2bd33ff2b1`.
