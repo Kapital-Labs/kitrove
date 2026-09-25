@@ -6,11 +6,11 @@
 //! wrapper: a pathname check matching it alone cannot prove the captured wrapper
 //! was inspected. Consumer readiness must remain a separate, stronger boundary.
 
-use object::read::macho::{CodeSignature, MachHeader};
+use object::read::macho::{CodeDirectory, CodeSignature, MachHeader};
 use object::{BigEndian, LittleEndian, macho};
 use sha2::{Digest as _, Sha256};
 
-const MAX_SIGNATURE: usize = 4 * 1024 * 1024;
+use crate::native_signature::APPLE_SIGNATURE_MAX_BYTES;
 const INVALID: &str = "unsupported or malformed Apple code-directory binding";
 
 /// Captured signature fingerprints for comparison with a native verifier's output.
@@ -39,7 +39,7 @@ struct ParsedCandidate {
 
 /// Capture both directory and CMS fingerprints without validating the signature.
 /// An absent, empty or wrongly tagged CMS blob is refused. CMS syntax, trust,
-/// timestamps and special slots still require independent native verification.
+/// timestamps and native interpretation still require independent verification.
 pub fn candidate_signature(
     bytes: &[u8],
     target: &str,
@@ -52,8 +52,8 @@ pub fn candidate_signature(
 }
 
 /// Derive the 20-byte SHA-256 CDHash candidate from captured executable bytes.
-/// This checks ordinary code-page hashes, but does not authenticate CMS signatures
-/// or special slots. Success must never be interpreted as native readiness.
+/// This checks code pages and supported embedded special-slot hashes, but does not
+/// authenticate CMS signatures. Success must never be interpreted as native readiness.
 pub fn candidate_cdhash(bytes: &[u8], target: &str) -> Result<[u8; 20], &'static str> {
     Ok(parse_candidate(bytes, target)?.cdhash)
 }
@@ -105,7 +105,7 @@ fn parse_candidate(bytes: &[u8], target: &str) -> Result<ParsedCandidate, &'stat
     let signature = signature.ok_or(INVALID)?;
     let offset = signature.dataoff.get(LittleEndian) as usize;
     let length = signature.datasize.get(LittleEndian) as usize;
-    if length > MAX_SIGNATURE
+    if length > APPLE_SIGNATURE_MAX_BYTES
         || offset < size_of::<macho::MachHeader64<LittleEndian>>() + command_bytes
         || offset.checked_add(length) != Some(bytes.len())
     {
@@ -133,6 +133,7 @@ fn bind_signature(signature: &[u8], code: &[u8]) -> Result<ParsedCandidate, &'st
     let mut ranges = Vec::with_capacity(count);
     let mut slots = Vec::with_capacity(count);
     let mut result = None;
+    let mut code_directory = None;
     let mut cms_sha256 = None;
     for blob in parsed.blobs() {
         let blob = blob.map_err(|_| INVALID)?;
@@ -141,26 +142,32 @@ fn bind_signature(signature: &[u8], code: &[u8]) -> Result<ParsedCandidate, &'st
         if start < table_end
             || end > length
             || blob.data().len() < size_of::<macho::CsGenericBlob>()
-            || slots.contains(&blob.slot())
+            || slots.iter().any(|(slot, _)| *slot == blob.slot())
             || ranges.iter().any(|&(a, b)| start < b && a < end)
             || blob.slot().is_alternate_codedirectory()
         {
             return Err(INVALID);
         }
-        slots.push(blob.slot());
+        slots.push((blob.slot(), blob.data()));
         ranges.push((start, end));
+        let expected_magic = match blob.slot() {
+            macho::CSSLOT_CODEDIRECTORY => macho::CSMAGIC_CODEDIRECTORY,
+            macho::CSSLOT_SIGNATURESLOT => macho::CSMAGIC_BLOBWRAPPER,
+            macho::CSSLOT_REQUIREMENTS => macho::CSMAGIC_REQUIREMENTS,
+            macho::CSSLOT_ENTITLEMENTS => macho::CSMAGIC_EMBEDDED_ENTITLEMENTS,
+            macho::CSSLOT_DER_ENTITLEMENTS => macho::CSMAGIC_EMBEDDED_DER_ENTITLEMENTS,
+            _ => return Err(INVALID),
+        };
+        if blob.magic() != expected_magic {
+            return Err(INVALID);
+        }
         if blob.slot() == macho::CSSLOT_SIGNATURESLOT {
-            if blob.magic() != macho::CSMAGIC_BLOBWRAPPER || blob.contents().is_empty() {
+            if blob.contents().is_empty() {
                 return Err(INVALID);
             }
             cms_sha256 = Some(Sha256::digest(blob.contents()).into());
-        } else if blob.magic() == macho::CSMAGIC_BLOBWRAPPER {
-            return Err(INVALID);
         }
         if blob.slot() != macho::CSSLOT_CODEDIRECTORY {
-            if blob.magic() == macho::CSMAGIC_CODEDIRECTORY {
-                return Err(INVALID);
-            }
             continue;
         }
         let directory = blob.code_directory().map_err(|_| INVALID)?.ok_or(INVALID)?;
@@ -190,11 +197,38 @@ fn bind_signature(signature: &[u8], code: &[u8]) -> Result<ParsedCandidate, &'st
         let mut cdhash = [0; 20];
         cdhash.copy_from_slice(&digest[..20]);
         result = Some(cdhash);
+        code_directory = Some(directory);
     }
+    validate_special_slots(&code_directory.ok_or(INVALID)?, &slots)?;
     Ok(ParsedCandidate {
         cdhash: result.ok_or(INVALID)?,
         cms_sha256,
     })
+}
+
+fn validate_special_slots(
+    directory: &CodeDirectory<'_>,
+    blobs: &[(macho::CsSlot, &[u8])],
+) -> Result<(), &'static str> {
+    let count = directory.header().n_special_slots.get(BigEndian);
+    // Standalone CLI policy: no external Info.plist/resources or launch constraints.
+    if count > 7
+        || blobs
+            .iter()
+            .any(|(slot, _)| (1..=7).contains(&slot.0) && slot.0 > count)
+    {
+        return Err(INVALID);
+    }
+    for index in 1..=count {
+        let slot = macho::CsSlot(index);
+        let expected = directory.special_hash(slot).map_err(|_| INVALID)?;
+        match blobs.iter().find(|(kind, _)| *kind == slot) {
+            Some((_, bytes)) if Sha256::digest(bytes).as_slice() == expected => {}
+            None if expected.iter().all(|byte| *byte == 0) => {}
+            _ => return Err(INVALID),
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -354,5 +388,38 @@ mod tests {
         for bytes in [fixture(), cms_fixture(b""), wrong_magic, wrong_slot] {
             assert!(candidate_signature(&bytes, "aarch64-apple-darwin").is_err());
         }
+    }
+
+    #[test]
+    fn special_slots_bind_exact_embedded_metadata_and_refuse_missing_content() {
+        let requirements = [0xfa, 0xde, 0x0c, 0x01, 0, 0, 0, 12, 0, 0, 0, 0];
+        let mut bytes = fixture()[68..].to_vec();
+        bytes.splice(48..48, [0; 64]);
+        bytes[4..8].copy_from_slice(&144u32.to_be_bytes());
+        bytes[16..20].copy_from_slice(&112u32.to_be_bytes());
+        bytes[24..28].copy_from_slice(&2u32.to_be_bytes());
+        bytes[48..80].copy_from_slice(&Sha256::digest(requirements));
+        let blobs = [(macho::CSSLOT_REQUIREMENTS, requirements.as_slice())];
+        let directory = CodeDirectory::parse(&bytes).unwrap();
+        assert!(validate_special_slots(&directory, &blobs).is_ok());
+        assert!(validate_special_slots(&directory, &[]).is_err());
+        let mut substituted = requirements;
+        substituted[11] = 1;
+        assert!(
+            validate_special_slots(
+                &directory,
+                &[(macho::CSSLOT_REQUIREMENTS, substituted.as_slice())],
+            )
+            .is_err()
+        );
+        for (offset, value) in [(27, 1), (27, 8), (80, 1)] {
+            let mut altered = bytes.clone();
+            altered[offset] = value;
+            assert!(
+                validate_special_slots(&CodeDirectory::parse(&altered).unwrap(), &blobs).is_err()
+            );
+        }
+        bytes[48..80].fill(0);
+        assert!(validate_special_slots(&CodeDirectory::parse(&bytes).unwrap(), &blobs).is_err());
     }
 }

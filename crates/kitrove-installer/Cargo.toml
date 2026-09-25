@@ -57,6 +57,9 @@ zip.workspace = true
 [target.'cfg(unix)'.dev-dependencies]
 kitrove-testkit.workspace = true
 
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+kitrove-macos-signature.workspace = true
+
 [target.'cfg(windows)'.dev-dependencies]
 kitrove-windows-security = { workspace = true, features = ["test-support"] }
 

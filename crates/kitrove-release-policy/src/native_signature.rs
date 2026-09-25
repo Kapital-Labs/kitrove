@@ -2,6 +2,11 @@
 //! Callers must run the trusted native verifier against retained, authenticated
 //! bytes and revalidate their identity afterward. These rules launch nothing.
 
+/// Upper bound shared by captured signature parsing and native CMS inspection.
+pub const APPLE_SIGNATURE_MAX_BYTES: usize = 4 * 1024 * 1024;
+/// Public Security.framework hardened-runtime code-signing flag.
+pub const APPLE_HARDENED_RUNTIME_FLAG: u32 = 0x10000;
+
 /// Inline requirement for a Developer ID signature from the reviewed Apple team.
 pub const APPLE_REQUIREMENT: &str = concat!(
     "=anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists ",

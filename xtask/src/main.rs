@@ -11,7 +11,7 @@ mod release_archive;
 mod release_staging;
 
 const REVIEWED_CARGO_LOCK_BLAKE3: &str =
-    "929142b0a98de214b042913d1f083ddd9e93fcddf18cf1d5d86c70ac8b3578f1";
+    "6650de88e6f6eabc8674abc286d5b56385fcef4ff84fb28e0f6b84b0e50486bc";
 const REVIEWED_SIGSTORE_REKOR_TREE_BLAKE3: &str =
     "898ca8f9c61bd79c3ef16bcc22650249eb4f32872540d281660f07b1c828c355";
 const REVIEWED_SIGSTORE_TSA_TREE_BLAKE3: &str =

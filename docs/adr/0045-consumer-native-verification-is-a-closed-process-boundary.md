@@ -62,6 +62,27 @@ reopening, automatic launch, PATH changes or self-update.
 
 ## Implementation order and acceptance
 
+### Apple same-object evidence binding
+
+The Mac helper uses one Security.framework static-code object: validate it with the
+shared Developer ID requirement and strict validation, then obtain documented signing
+information from that same object. Compare both its CDHash and raw CMS fingerprint
+with the captured candidate, require typed hardened-runtime flags and a secure
+timestamp, and refuse missing or malformed fields. Captured code pages and supported
+embedded metadata must independently match their CodeDirectory hashes. CDHash alone
+does not bind a CMS wrapper or timestamp.
+
+Reuse security-framework/Core Foundation wrappers for existing APIs. Isolate the
+missing public signing-information binding in a narrow Mac-specific crate, with
+explicit ownership and type checks; never use internal-information flags or private
+framework fields. This low-level operation grants no retained readiness and must not
+be wired into consumer operation before the fixed helper protocol, deadline/output
+bounds, retained-object checks and adversarial native tests are complete. No Swift
+compiler dependency is introduced for consumers. This implementation detail does not
+relax the process-launch allowlist or any acceptance gate.
+
+### Sequence
+
 1. Consolidate process lifecycle and bounded output mechanics, retaining current
    version-probe regression tests, error behavior and environment policy.
 2. Add closed native-verification operations with synthetic refusal tests. Reuse

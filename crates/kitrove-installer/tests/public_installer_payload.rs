@@ -64,6 +64,9 @@ fn published_rc2_installer_crosses_the_distinct_payload_boundary() {
     let payload = root
         .path()
         .join(".kitrove-installer-bootstrap/installer.payload");
+    // Operator-only native API evidence, not the still-unimplemented bounded helper.
+    kitrove_macos_signature::inspect_captured_signature(&payload, &signature).unwrap();
+    staged.revalidate().unwrap();
     assert_eq!(
         std::fs::metadata(&payload).unwrap().permissions().mode() & 0o777,
         0o600

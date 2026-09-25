@@ -61,7 +61,7 @@ ordinary SHA-256 code page against the captured bytes. The result is only a cand
 20-byte CodeDirectory digest. Apple's [TN3126](https://developer.apple.com/documentation/technotes/tn3126-inside-code-signing-hashes)
 documents the truncation of the SHA-256 digest to 20 bytes.
 
-This deliberately does not validate CMS, timestamps or special slots. In particular,
+This does not authenticate CMS, timestamps or native metadata semantics. In particular,
 the CodeDirectory digest does not bind the entire signature container: a different CMS
 wrapper can retain the same directory digest. A native pathname check constrained by
 that digest therefore does not, by itself, prove that the captured CMS/timestamp was
@@ -111,7 +111,7 @@ regression changes only same-length CMS content and proves the directory digest
 stays identical while the CMS fingerprint changes. The fixture deliberately has no
 valid CMS signature: this API captures bytes, not trust. The public RC2 test still
 authenticates provenance first and never executes the installer. Native validation,
-special-slot checks, timestamp policy and retained-object binding remain open.
+metadata interpretation, timestamp policy and retained-object binding remain open.
 
 After PR #36 merged the separately reviewed faster-hex advisory fix, the combined
 lockfile differs from that main revision only by the reviewed object 0.40.0 addition.
@@ -121,6 +121,34 @@ The earlier d0223b11 digest above records the pre-advisory-fix evaluation, not t
 current graph. Six candidate tests, strict focused Clippy and the independently
 authenticated RC2 test pass with CMS capture; no native readiness is inferred.
 Rerun canonical validation against the combined graph before pushing this branch.
+
+## Captured metadata and supported API probe
+
+The candidate parser now checks SHA-256 special slots against complete captured
+requirements/XML-entitlements/DER-entitlements blobs. It permits only those embedded
+slots plus the primary directory and CMS, with matching magic tags; external
+Info.plist/resources and launch-constraint layouts fail closed. Absent slots must
+have zero hashes, present blobs must be covered, and counts are bounded to seven.
+Missing, substituted, unsigned and unsupported metadata are covered by regression
+tests. The authenticated public RC2 arm64 artifact still passes this narrower policy.
+These are hash-consistency checks, not interpretation or cryptographic trust.
+
+A read-only Swift probe on trusted system `/usr/bin/true` successfully called
+`SecStaticCodeCreateWithPath`, `SecStaticCodeCheckValidity`, and then
+`SecCodeCopySigningInformation` on the same object, using default flags and no
+publisher requirement solely to exercise the supported API. It returned a 20-byte CDHash
+and 4567 CMS bytes, but no secure timestamp. That last result must be refused by
+Kitrove's Developer ID policy, not treated as permission to relax timestamp checks.
+No downloaded product was executed; no signing or credentials were used. Swift is
+only a development probe, not a proposed consumer dependency or shipped verifier.
+
+Implementation direction: the maintained security-framework 3.7.0 wrapper supports
+Rust 1.85, static-code creation, requirements and validity checks. Its missing
+signing-information function needs a narrowly isolated binding to the documented
+public API, with Core Foundation ownership/type checks, similar in scope to the
+existing isolated Windows native boundary. Any such helper must stay behind the
+closed, deadline-bounded process boundary in ADR-0045. This direction is not yet
+integrated into consumer readiness; native substitution tests remain open.
 
 Dependency identity/license review: Cargo.lock adds only `object` 0.40.0 from
 crates.io, checksum `dd229a0361b9d0d4396176e02d65897f487eebeab7caa6d443855ee152ca0b9c`.
@@ -136,3 +164,40 @@ pre-existing `faster-hex` 0.10.0 Git dependency. Its advisory identifies an x86/
 AVX2 over-read in `hex_decode_unchecked`, patched in 0.10.1. This is separate from the
 new parser and must be followed up before release acceptance; an audit success exit
 does not resolve this informational unsoundness warning.
+
+## Isolated public Apple API implementation
+
+`kitrove-macos-signature` now uses the maintained wrappers for static-code creation,
+strict publisher validation and Core Foundation ownership. Its isolated binding
+adds only the missing public signing-information function and four public keys.
+It queries the same validated object, requires typed CDHash/CMS/flags/timestamp
+values, matches both captured fingerprints, requires hardened runtime and refuses
+missing, nonfinite or wrong-typed timestamp evidence. No internal flags, process
+launches, installer readiness tokens or publication operations are exposed.
+
+The native dictionary tests cover missing and wrong-typed fields, mismatched hashes,
+empty CMS, malformed directory length, invalid flags and nonfinite dates. Their
+synthetic CMS is deliberately not trusted. Rust 1.85 tests pass. The ignored operator
+test independently authenticates the public RC2 archive before native inspection;
+strict publisher validation and every captured-field comparison passed without
+executing the downloaded installer. This is existing-host API evidence, not a
+bounded consumer-helper or clean-machine acceptance result.
+
+Dependency review adds three crates.io packages: core-foundation 0.10.1
+(`b2a6cd9ae233e7f62ba4e9353e81a88df7fc8a5987b8d445b4d90c879bd156f6`),
+security-framework 3.7.0
+(`b7f4bc775c73d9a02cde8bf7b2ec4c9d12743edf609006c7facc23998404cd1d`),
+and security-framework-sys 2.17.0
+(`6ce2691df843ecc5d231c0b14ece2acc3efb62c0a398c7e1d875f3983ce020e3`).
+Their upstream identities are servo/core-foundation-rs and
+kornelski/rust-security-framework; shipped MIT and Apache-2.0 licenses match
+metadata. All declare no build script and Rust minimums at or below 1.85.
+Other dependencies reuse locked versions; default security-framework features are
+disabled. The exact reviewed lockfile BLAKE3 is now
+`6650de88e6f6eabc8674abc286d5b56385fcef4ff84fb28e0f6b84b0e50486bc`.
+The fresh advisory audit passes without the earlier faster-hex warning, already
+fixed separately in PR #36. Earlier digests above are historical checkpoints.
+
+Remaining integration work: closed helper framing, process deadline/output bounds,
+retained-object revalidation and adversarial file/CMS/metadata substitution tests.
+Native API success alone must never grant executable or installation authority.
