@@ -38,7 +38,11 @@ use semver::{Version, VersionReq};
 #[cfg(any(unix, windows))]
 mod bounded_output;
 #[cfg(any(unix, windows))]
+mod inspection_failure;
+#[cfg(any(unix, windows))]
 use bounded_output::{receive_probe_output, spawn_output_reader};
+#[cfg(any(unix, windows))]
+use inspection_failure::InspectionFailure;
 #[cfg(unix)]
 mod unix_process;
 #[cfg(unix)]
@@ -126,6 +130,25 @@ impl Display for ProbeError {
 }
 
 impl std::error::Error for ProbeError {}
+
+#[cfg(any(unix, windows))]
+impl From<InspectionFailure> for ProbeError {
+    fn from(failure: InspectionFailure) -> Self {
+        match failure {
+            InspectionFailure::Failed => probe_failed(),
+            InspectionFailure::Timeout => Self::new(
+                "version.probe_timeout",
+                "the harness version probe did not finish within the time limit",
+            ),
+            InspectionFailure::Cleanup => termination_failed(),
+            InspectionFailure::OutputLimit => Self::new(
+                "version.probe_output_limit",
+                "the harness version probe output exceeds the supported bound",
+            ),
+            InspectionFailure::InvalidOutput => invalid_output(),
+        }
+    }
+}
 
 /// Opaque proof that the exact selected Pi executable produced a reviewed version.
 ///
@@ -275,12 +298,12 @@ fn probe_version(
 
     let child = command.spawn().map_err(|_| probe_failed())?;
     let mut process = ProbeProcess::new(child)?;
-    let stdout = spawn_output_reader(process.take_stdout()?)?;
-    let stderr = spawn_output_reader(process.take_stderr()?)?;
-    let status = process.wait_bounded()?;
+    let stdout = spawn_output_reader(process.take_stdout()?, MAX_PROBE_OUTPUT_BYTES)?;
+    let stderr = spawn_output_reader(process.take_stderr()?, MAX_PROBE_OUTPUT_BYTES)?;
+    let status = process.wait_bounded(PROBE_TIMEOUT)?;
     process.terminate_remaining_group()?;
-    let stdout = receive_probe_output(stdout)?;
-    let stderr = receive_probe_output(stderr)?;
+    let stdout = receive_probe_output(stdout, OUTPUT_READER_TIMEOUT)?;
+    let stderr = receive_probe_output(stderr, OUTPUT_READER_TIMEOUT)?;
     if !status.success() {
         return Err(ProbeError::new(
             "version.probe_failed",
@@ -328,24 +351,27 @@ fn probe_version(
         environment: &environment,
     })
     .map_err(|_| probe_failed())?;
-    let stdout = spawn_output_reader(process.take_stdout().map_err(|_| probe_failed())?)?;
-    let stderr = spawn_output_reader(process.take_stderr().map_err(|_| probe_failed())?)?;
+    let stdout = spawn_output_reader(
+        process.take_stdout().map_err(|_| probe_failed())?,
+        MAX_PROBE_OUTPUT_BYTES,
+    )?;
+    let stderr = spawn_output_reader(
+        process.take_stderr().map_err(|_| probe_failed())?,
+        MAX_PROBE_OUTPUT_BYTES,
+    )?;
     let deadline = Instant::now()
         .checked_add(PROBE_TIMEOUT)
         .ok_or_else(probe_failed)?;
     let status = process.wait_until(deadline).map_err(|error| {
         use kitrove_windows_process::ContainedProcessFailure;
         match error.kind() {
-            ContainedProcessFailure::Timeout => ProbeError::new(
-                "version.probe_timeout",
-                "the harness version probe did not finish within the time limit",
-            ),
-            ContainedProcessFailure::Cleanup => termination_failed(),
-            ContainedProcessFailure::Failed => probe_failed(),
+            ContainedProcessFailure::Timeout => ProbeError::from(InspectionFailure::Timeout),
+            ContainedProcessFailure::Cleanup => ProbeError::from(InspectionFailure::Cleanup),
+            ContainedProcessFailure::Failed => ProbeError::from(InspectionFailure::Failed),
         }
     })?;
-    let stdout = receive_probe_output(stdout)?;
-    let stderr = receive_probe_output(stderr)?;
+    let stdout = receive_probe_output(stdout, OUTPUT_READER_TIMEOUT)?;
+    let stderr = receive_probe_output(stderr, OUTPUT_READER_TIMEOUT)?;
     if !status.success() {
         return Err(ProbeError::new(
             "version.probe_failed",
@@ -787,6 +813,32 @@ fn invalid_output() -> ProbeError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn lifecycle_failures_keep_the_existing_version_error_policy() {
+        for (failure, expected) in [
+            (InspectionFailure::Failed, probe_failed()),
+            (InspectionFailure::Cleanup, termination_failed()),
+            (InspectionFailure::InvalidOutput, invalid_output()),
+            (
+                InspectionFailure::Timeout,
+                ProbeError::new(
+                    "version.probe_timeout",
+                    "the harness version probe did not finish within the time limit",
+                ),
+            ),
+            (
+                InspectionFailure::OutputLimit,
+                ProbeError::new(
+                    "version.probe_output_limit",
+                    "the harness version probe output exceeds the supported bound",
+                ),
+            ),
+        ] {
+            assert_eq!(ProbeError::from(failure), expected);
+        }
+    }
 
     #[test]
     fn pi_version_policy_accepts_only_the_reviewed_security_boundary() {

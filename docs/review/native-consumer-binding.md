@@ -249,3 +249,21 @@ through this framing. This is still an in-process operator call, not production
 helper isolation. A transport must enforce the exported bound before collecting
 input, bound writes and native execution time, and establish trusted helper identity
 and cleanup. No launcher, helper CLI entry point or installer authority is added.
+
+## Operation-neutral private lifecycle outcomes
+
+The private Unix lifecycle and bounded-output collectors no longer depend on the
+version probe's timeout constants or user-facing errors. Their caller supplies the
+wait duration, stream cap and reader receive duration. A private five-variant
+`InspectionFailure` separates failed operations, timeouts, cleanup failures, excess
+output and invalid output; the version probe maps these back to its exact existing
+error codes/messages. The Windows Job result uses that same mapping, retaining the
+existing native Job implementation.
+
+Version calls still supply the same constants. Process-group setup, signal/reap
+ordering, Drop behavior, stream collection and Windows launch policy are unchanged.
+These helpers remain private, with no arbitrary public launcher or process allowlist
+change. Tests pin every version-error mapping and cover caller-supplied zero/small
+output limits, exact/overflow bounds, ready and expired reader channels, alongside
+the existing timeout and descendant-cleanup regressions. This enables the next
+closed caller without granting native readiness or claiming a new helper deadline.
