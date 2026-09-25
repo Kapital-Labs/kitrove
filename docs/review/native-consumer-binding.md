@@ -652,3 +652,30 @@ paths above; that source inventory alone is not proof about every dependency's
 runtime behavior. Before sensitive transport use, the standalone consumer's launch
 contract must exclude uncoordinated spawning and validate the relevant dependency
 paths. Do not expose the pipe prototype as generally safe library transport.
+
+### Standalone installer dependency audit
+
+At launch-gate commit `b836949`, offline locked Cargo metadata filtered to
+`aarch64-apple-darwin` yielded a conservative normal-dependency closure of 182
+packages. This includes procedural-macro dependencies, not just linked runtime
+code. Searching their library sources for Command/process launch, fork/exec,
+system and popen calls found declarations, examples and non-process methods
+such as parser forks, plus one relevant platform fallback in rustix.
+
+Rustix 1.1.4's Apple `utimensat` implementation can fork when the native function
+is unavailable on pre-10.13 systems. The native helper already refuses hosts
+without the public 10.15+ spawn chdir action, so this fallback is outside its
+usable host range; it must not be silently ignored in broader platform claims.
+The bundled AWS-LC and ring crypto source search found fork calls in tests and
+fork-detection commentary, not an additional runtime launch call. The standalone
+installer entry point is synchronous; no installer production thread-spawn call
+was found. Its version-probe output-reader threads remain separate from launch.
+
+This review supports a standalone-installer-specific cooperative contract, not a
+proof about arbitrary native frameworks, generated code, future dependency changes
+or embedding applications. Reaudit the closure when dependencies or entry-point
+concurrency change. Before enabling pipe transport, add a regression that races
+participating launch attempts with pipe creation, holds the gate through temporary
+descriptor closure, and verifies failure cleanup without nested acquisition.
+The general library must continue to state that uncoordinated foreign launches
+are outside this contract. No pipe or resume path is enabled by this audit.
