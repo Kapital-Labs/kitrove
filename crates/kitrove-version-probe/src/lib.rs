@@ -48,6 +48,10 @@ mod unix_process;
 #[cfg(unix)]
 use unix_process::ProbeProcess;
 
+#[cfg(test)]
+#[path = "native_identity_tests.rs"]
+mod native_identity_tests;
+
 #[cfg(any(unix, windows))]
 const MAX_PROBE_OUTPUT_BYTES: usize = 4096;
 #[cfg(any(unix, windows))]

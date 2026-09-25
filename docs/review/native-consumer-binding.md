@@ -444,3 +444,31 @@ Lock review removes `wait-timeout` 0.2.1 and adds only the workspace test edge t
 `kitrove-macos-process`; no new third-party package/version/checksum is introduced.
 The updated reviewed lockfile BLAKE3 is
 `70dce02f2e4feba3ab2c94d1fcf926142b52c81bcc72a1d8cb09ca2bd33ff2b1`.
+
+## Bounded native self/helper identity experiment
+
+An ignored, operator-only Mac test now connects the retained fixed system verifier,
+shared process lifecycle/output readers, canonical CDHash candidate, and suspended
+self primitive. One 15-second operation deadline supplies the remaining budget to
+each child wait and output receive, with the existing separate cleanup budgets.
+Both streams are capped at 4096 bytes; environment is empty, cwd is `/`, stdin is
+null, and every system-verifier operation is bracketed by retained revalidation.
+
+The test captures current-process display metadata, dynamically verifies the
+current PID against that candidate, and only then compares a suspended copy against
+the same requirement. The correct identity succeeds with empty verifier output;
+an all-zero identity is rejected. The child is explicitly killed/reaped before
+asserting those outcomes and is never resumed. The test passed on the development
+Mac using the reviewed-source test binary; no downloaded product was executed.
+
+This is executable native evidence, not production integration or independent
+bootstrap trust. The initial test executable is trusted through its reviewed-source
+build, not through the display metadata. No generic runner is exported and no
+production launch exception is broadened. Test-only module classification uses the
+existing explicit cfg-test/path convention. Release linkage still requires resolving
+the suspended primitive's macOS deployment minimum. Concurrent source substitution,
+end-to-end transport and retained installer readiness remain unproved.
+
+The lock adds only a macOS test edge to existing workspace release policy; no new
+third-party packages, versions or checksums. Reviewed lockfile BLAKE3:
+`96622894b7e98bb60e15b72742ac97005ff12e9e43321d8976dfe43fe91ef2b0`.

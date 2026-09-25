@@ -1962,6 +1962,7 @@ dependencies = [
  "kitrove-adapter-api",
  "kitrove-macos-process",
  "kitrove-model",
+ "kitrove-release-policy",
  "kitrove-windows-process",
  "kitrove-windows-security",
  "rustix",
