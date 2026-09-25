@@ -718,3 +718,22 @@ reaping afterward, and the same cleanup after explicit termination. These observ
 are test-only descriptor copies, not public output access. No request bytes were
 sent and no helper resumed. A bounded protocol driver, authenticated payload binding
 and conditional resume still remain; owned pipes are not a readiness receipt.
+
+### Nonblocking request-write primitive
+
+Transport now offers a checked write of at most 1024 bytes per call. It distinguishes
+written bytes from pending backpressure/interruption, and refuses zero progress,
+empty input, closed input and other errors. It does not treat a partial write as a
+complete request; the future driver must retain its offset and enforce total input
+limits and a deadline.
+
+Before writing, it queries SIGPIPE handling and requires it to be ignored. No signal
+handler is installed or changed. This avoids accepting a default/custom disposition
+that could terminate the parent on a closed pipe. The reviewed caller must maintain
+that disposition throughout transport use; a read-only check cannot prevent foreign
+threads from changing it concurrently. This is an explicit standalone process
+contract, not signal-race safety for arbitrary embeddings.
+
+Tests cover the policy without modifying global handlers, bounded partial input,
+closed-peer refusal and nonblocking backpressure. The primitive remains disconnected
+from verified-owner request execution. No protocol success or resume is added.

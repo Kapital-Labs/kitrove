@@ -12,7 +12,30 @@ pub struct InspectionTransport {
     error: OwnedFd,
 }
 
+/// Progress from one nonblocking input write. Pending is not request completion.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum InputProgress {
+    Written(usize),
+    Pending,
+}
+
 impl InspectionTransport {
+    /// Write at most 1024 bytes without blocking. Empty input and closed pipes
+    /// refuse. SIGPIPE must remain ignored for the transport lifetime: this check
+    /// never changes process signal handling and cannot control foreign changes.
+    pub fn write_input_chunk(&self, bytes: &[u8]) -> Result<InputProgress, ProcessRefused> {
+        if bytes.is_empty() {
+            return Err(ProcessRefused);
+        }
+        require_ignored_sigpipe()?;
+        let input = self.input().ok_or(ProcessRefused)?;
+        match rustix::io::write(input, &bytes[..bytes.len().min(1024)]) {
+            Ok(0) => Err(ProcessRefused),
+            Ok(count) => Ok(InputProgress::Written(count)),
+            Err(rustix::io::Errno::AGAIN | rustix::io::Errno::INTR) => Ok(InputProgress::Pending),
+            Err(_) => Err(ProcessRefused),
+        }
+    }
     pub fn input(&self) -> Option<BorrowedFd<'_>> {
         self.input.as_ref().map(AsFd::as_fd)
     }
@@ -25,6 +48,25 @@ impl InspectionTransport {
     }
     pub fn error(&self) -> BorrowedFd<'_> {
         self.error.as_fd()
+    }
+}
+
+fn require_ignored_sigpipe() -> Result<(), ProcessRefused> {
+    let mut action = std::mem::MaybeUninit::<libc::sigaction>::uninit();
+    // SAFETY: null action is a read-only query, old action points to writable
+    // storage. Initialized output is read only after the query succeeds.
+    if unsafe { libc::sigaction(libc::SIGPIPE, std::ptr::null(), action.as_mut_ptr()) } != 0 {
+        return Err(ProcessRefused);
+    }
+    // SAFETY: successful sigaction initialized the output structure.
+    validate_sigpipe(unsafe { action.assume_init() }.sa_sigaction)
+}
+
+fn validate_sigpipe(handler: libc::sighandler_t) -> Result<(), ProcessRefused> {
+    if handler == libc::SIG_IGN {
+        Ok(())
+    } else {
+        Err(ProcessRefused)
     }
 }
 
@@ -74,6 +116,45 @@ fn private_pipe() -> Result<(OwnedFd, OwnedFd), ProcessRefused> {
 mod tests {
     use super::*;
     use rustix::io::{FdFlags, fcntl_getfd};
+
+    #[test]
+    fn sigpipe_policy_refuses_default_and_custom_handlers() {
+        assert!(validate_sigpipe(libc::SIG_IGN).is_ok());
+        assert!(validate_sigpipe(libc::SIG_DFL).is_err());
+        assert!(validate_sigpipe(libc::SIG_ERR).is_err());
+    }
+
+    #[test]
+    fn full_pipe_returns_pending_without_blocking() {
+        let launch = crate::acquire_launch_guard(std::time::Duration::from_secs(5)).unwrap();
+        let (parent, _child) = create(&launch).unwrap();
+        for _ in 0..4096 {
+            if parent.write_input_chunk(&[0; 1024]).unwrap() == InputProgress::Pending {
+                return;
+            }
+        }
+        panic!("native pipe did not apply backpressure within bounded fixture writes");
+    }
+
+    #[test]
+    fn writes_are_chunked_and_closed_inputs_refuse_without_signal_changes() {
+        let launch = crate::acquire_launch_guard(std::time::Duration::from_secs(5)).unwrap();
+        let (mut parent, child) = create(&launch).unwrap();
+        require_ignored_sigpipe().unwrap();
+        assert!(parent.write_input_chunk(b"").is_err());
+        assert_eq!(
+            parent.write_input_chunk(&[7; 2048]).unwrap(),
+            InputProgress::Written(1024)
+        );
+        let mut received = [0; 1024];
+        assert_eq!(rustix::io::read(&child.input, &mut received).unwrap(), 1024);
+        assert_eq!(received, [7; 1024]);
+        drop(child);
+        assert!(parent.write_input_chunk(b"x").is_err());
+        parent.close_input();
+        assert!(parent.write_input_chunk(b"x").is_err());
+        require_ignored_sigpipe().unwrap();
+    }
 
     #[test]
     fn parent_is_nonblocking_and_child_remains_blocking_with_cloexec_everywhere() {
