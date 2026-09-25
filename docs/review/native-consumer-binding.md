@@ -628,3 +628,27 @@ explicitly for foreign-library or embedding-runtime launches outside that bounda
 do not claim that a cooperative application lock controls arbitrary process code.
 Alternatively use a supported atomic primitive without silently dropping support
 for existing targets. Private Apple APIs and a best-effort flag fallback are excluded.
+
+## Cooperative launch gate
+
+A shared Mac launch guard now serializes the reviewed explicit launch sites:
+suspended-self creation, the fixed native verifier's anchored launch and ordinary
+Unix version/application probes on Mac. It uses bounded `try_lock` polling and
+refuses expired, overflowing or poisoned acquisition. RAII releases the guard on
+spawn failure and success. The anchor spawn releases its guard before verifier
+launch acquires another; no guard is retained across child waits or output reads.
+Tests cover contention refusal, release, expired/overflowing budgets and poisoning.
+
+The gate does not itself enable pipe transport. Its eventual pipe-construction
+caller must hold the same guard until temporary inheritable descriptors have closed,
+and call a non-relocking internal spawn path. Synchronous spawn and filesystem calls
+still do not have a hard wall-clock deadline. Existing operation deadlines remain
+necessary after lock acquisition and spawn.
+
+This is cooperative application serialization, not a universal OS inheritance
+guarantee. Tests, dependencies, foreign code and embedding applications can spawn
+without participating. The audited product source has the three explicit launch
+paths above; that source inventory alone is not proof about every dependency's
+runtime behavior. Before sensitive transport use, the standalone consumer's launch
+contract must exclude uncoordinated spawning and validate the relevant dependency
+paths. Do not expose the pipe prototype as generally safe library transport.

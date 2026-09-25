@@ -147,10 +147,16 @@ impl ProbeProcess {
             kitrove_macos_process::SuspendedSelf::spawn().map_err(|_| InspectionFailure::Failed)?;
         let process_group =
             rustix::process::Pid::from_raw(anchor.id()).ok_or(InspectionFailure::Failed)?;
-        let child = command
-            .process_group(anchor.id())
-            .spawn()
-            .map_err(|_| InspectionFailure::Failed)?;
+        let child = {
+            // SuspendedSelf::spawn released its own guard before this acquisition.
+            // Never hold this gate while waiting for either retained child.
+            let _launch = kitrove_macos_process::acquire_launch_guard(CLEANUP_TIMEOUT)
+                .map_err(|_| InspectionFailure::Failed)?;
+            command
+                .process_group(anchor.id())
+                .spawn()
+                .map_err(|_| InspectionFailure::Failed)?
+        };
         // No fallible work between successful spawn and cleanup ownership.
         // Spawn failure instead drops only the owned anchor.
         Ok(Self {

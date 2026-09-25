@@ -8,6 +8,8 @@ use std::time::{Duration, Instant};
 
 mod system_verifier;
 pub use system_verifier::SystemVerifier;
+mod launch_gate;
+pub use launch_gate::{LaunchGuard, acquire_launch_guard};
 
 // Public spawn.h signature, available starting with macOS 10.15. Resolve it
 // without a strong import so unavailable hosts can refuse before creating a child.
@@ -104,6 +106,7 @@ impl SuspendedSelf {
     /// The selected path remains untrusted until separate dynamic validation;
     /// this checkpoint never resumes it. No downloaded installer is selected here.
     pub fn spawn() -> Result<Self, ProcessRefused> {
+        let _launch = acquire_launch_guard(Duration::from_secs(5))?;
         require_retained_child_policy()?;
         let add_chdir = resolve_add_chdir()?;
         let executable = std::env::current_exe().map_err(|_| ProcessRefused)?;

@@ -303,7 +303,12 @@ fn probe_version(
     }
     inherit_launch_environment(&mut command, launch_path.as_deref());
 
-    let child = command.spawn().map_err(|_| probe_failed())?;
+    let child = {
+        #[cfg(target_os = "macos")]
+        let _launch = kitrove_macos_process::acquire_launch_guard(PROBE_TIMEOUT)
+            .map_err(|_| probe_failed())?;
+        command.spawn().map_err(|_| probe_failed())?
+    };
     let mut process = ProbeProcess::new(child)?;
     let stdout = spawn_output_reader(process.take_stdout()?, MAX_PROBE_OUTPUT_BYTES)?;
     let stderr = spawn_output_reader(process.take_stderr()?, MAX_PROBE_OUTPUT_BYTES)?;
