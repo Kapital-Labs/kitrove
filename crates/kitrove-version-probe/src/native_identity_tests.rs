@@ -31,11 +31,12 @@ fn inspect(
         .revalidate()
         .map_err(|_| InspectionFailure::Failed)?;
     remaining(deadline)?;
+    let anchor = SuspendedSelf::spawn().map_err(|_| InspectionFailure::Failed)?;
     let mut command = Command::new(verifier.path());
     command
         .env_clear()
         .current_dir("/")
-        .process_group(0)
+        .process_group(anchor.id())
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -53,7 +54,7 @@ fn inspect(
         }
     }
     let child = command.spawn().map_err(|_| InspectionFailure::Failed)?;
-    let mut process = ProbeProcess::new(child)?;
+    let mut process = ProbeProcess::with_suspended_anchor(child, anchor)?;
     let stdout = spawn_output_reader(process.take_stdout()?, 4096)?;
     let stderr = spawn_output_reader(process.take_stderr()?, 4096)?;
     let status = process.wait_bounded(remaining(deadline)?)?;

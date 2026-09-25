@@ -500,3 +500,43 @@ execution, including early dyld work. It also specifies that `CLOEXEC_DEFAULT`
 leaves only explicitly created file-action descriptors available. This establishes
 the documented API contract for the chosen flags, not adversarial native acceptance
 or permission to resume before exact identity verification.
+
+## Retained group-anchor experiment
+
+Review identified a window in ordinary `ProbeProcess` cleanup: reaping its leader
+before signaling the remaining numeric group permits group-ID reuse after the group
+empties. An attempted `waitid(..., NOWAIT)` ordering change was withdrawn: on this
+Mac, signaling a group containing only an exited, unreaped child returned `EPERM`.
+Accepting every permission error would hide real descendant cleanup failures.
+
+The native test now uses a separate suspended self as the group leader and launches
+the system verifier into its group. This anchor never runs user-space code and stays
+owned after the verifier exits. Cleanup consumes the anchor, signaling its group
+while the anchor is alive, then reaping it. No later path signals that numeric group
+again. Error paths still refuse success and use the existing bounded direct-child
+cleanup. The initial ownership/SIGCHLD contract remains necessary.
+
+The anchor constructor and storage are Mac test-only. Normal production probes do
+not acquire an anchor, so this does not claim the existing production race is fixed.
+Shared cleanup now has one idempotent entry point for explicit termination and Drop;
+output limits, deadlines and error mapping remain shared. The test-only constructor
+requires the caller to launch its child into the retained anchor's group. A production
+closed launcher must enforce that relationship by construction, not accept arbitrary
+children or groups.
+
+Native tests verify the anchor's group ownership after verifier reaping, timeout
+cleanup, Drop reaping of both direct children, and SIGKILL delivery to another live
+group member. The bounded native identity experiment also passes through this anchored
+path, including wrong-identity refusal. These establish a viable local prototype,
+not arbitrary descendant containment, concurrent-attacker resistance or readiness.
+No new dependencies or release executable linkage are introduced.
+
+An additional hostile-lifetime test kills the anchor after its verifier has exited,
+observes the anchor exit without reaping, and requires cleanup refusal rather than
+success. This exposed a resource leak in `SuspendedSelf`: returning immediately on
+a failed group signal skipped reaping an already-dead owned child. It now attempts
+one nonblocking reap even after signal failure, preserving the failure result and
+disarming a reaped PID. It does not wait indefinitely or accept `EPERM` as success.
+The regression confirms the dead anchor is reaped and its numeric group is not
+signaled again. A still-live child that the OS refuses to terminate remains a
+reported cleanup failure, not a successful or guaranteed cleanup.

@@ -12,6 +12,8 @@ pub(super) struct ProbeProcess {
     process_group: rustix::process::Pid,
     group_armed: bool,
     reaped: bool,
+    #[cfg(all(test, target_os = "macos"))]
+    suspended_anchor: Option<kitrove_macos_process::SuspendedSelf>,
 }
 
 impl ProbeProcess {
@@ -25,7 +27,23 @@ impl ProbeProcess {
             process_group,
             group_armed: true,
             reaped: false,
+            #[cfg(all(test, target_os = "macos"))]
+            suspended_anchor: None,
         })
+    }
+
+    /// Test-only native prototype: the caller launches the child into this
+    /// retained anchor's group. The anchor never resumes or exposes readiness.
+    #[cfg(all(test, target_os = "macos"))]
+    pub(super) fn with_suspended_anchor(
+        child: Child,
+        anchor: kitrove_macos_process::SuspendedSelf,
+    ) -> Result<Self, InspectionFailure> {
+        let mut process = Self::new(child)?;
+        process.process_group =
+            rustix::process::Pid::from_raw(anchor.id()).ok_or(InspectionFailure::Failed)?;
+        process.suspended_anchor = Some(anchor);
+        Ok(process)
     }
 
     pub(super) fn take_stdout(&mut self) -> Result<std::process::ChildStdout, InspectionFailure> {
@@ -57,14 +75,23 @@ impl ProbeProcess {
     }
 
     pub(super) fn terminate_remaining_group(&mut self) -> Result<(), InspectionFailure> {
+        if !self.group_armed {
+            return Ok(());
+        }
+        #[cfg(all(test, target_os = "macos"))]
+        if let Some(anchor) = self.suspended_anchor.take() {
+            // The anchor is alive and unreaped when its group is signaled. It is
+            // consumed by termination, so no later path may signal its numeric ID.
+            self.group_armed = false;
+            return anchor.terminate().map_err(|_| InspectionFailure::Cleanup);
+        }
         self.signal_group()?;
         self.group_armed = false;
         Ok(())
     }
 
     fn terminate_group(&mut self) -> Result<(), InspectionFailure> {
-        self.signal_group()?;
-        self.group_armed = false;
+        self.terminate_remaining_group()?;
         self.reap_bounded(CLEANUP_TIMEOUT)
     }
 
@@ -112,7 +139,7 @@ fn wait_for_exit(child: &mut Child, timeout: Duration) -> std::io::Result<Option
 impl Drop for ProbeProcess {
     fn drop(&mut self) {
         if self.group_armed {
-            let _ = self.signal_group();
+            let _ = self.terminate_remaining_group();
             self.group_armed = false;
         }
         if !self.reaped {
@@ -127,6 +154,151 @@ mod tests {
     use super::*;
     use std::os::unix::process::CommandExt as _;
     use std::process::{Command, Stdio};
+
+    #[cfg(target_os = "macos")]
+    fn anchored_sleep(seconds: &str) -> ProbeProcess {
+        let anchor = kitrove_macos_process::SuspendedSelf::spawn().unwrap();
+        let child = Command::new("/bin/sleep")
+            .arg(seconds)
+            .env_clear()
+            .process_group(anchor.id())
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        ProbeProcess::with_suspended_anchor(child, anchor).unwrap()
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn suspended_anchor_keeps_group_owned_after_verifier_reaping() {
+        let mut process = anchored_sleep("0");
+        assert!(
+            process
+                .wait_bounded(Duration::from_secs(2))
+                .unwrap()
+                .success()
+        );
+        assert!(process.reaped);
+        let anchor = process.suspended_anchor.as_ref().unwrap();
+        let pid = rustix::process::Pid::from_raw(anchor.id()).unwrap();
+        assert_eq!(
+            rustix::process::getpgid(Some(pid)).unwrap(),
+            process.process_group
+        );
+        process.terminate_remaining_group().unwrap();
+        assert!(process.suspended_anchor.is_none());
+        assert!(!process.group_armed);
+        process.terminate_remaining_group().unwrap();
+        assert_eq!(
+            rustix::process::waitpid(Some(pid), rustix::process::WaitOptions::NOHANG).unwrap_err(),
+            rustix::io::Errno::CHILD
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn anchored_timeout_reaps_both_owned_children() {
+        let mut process = anchored_sleep("30");
+        let anchor_pid = process.process_group;
+        assert_eq!(
+            process.wait_bounded(Duration::ZERO),
+            Err(InspectionFailure::Timeout)
+        );
+        assert!(process.reaped);
+        assert!(!process.group_armed);
+        assert!(process.suspended_anchor.is_none());
+        assert_eq!(
+            rustix::process::waitpid(Some(anchor_pid), rustix::process::WaitOptions::NOHANG)
+                .unwrap_err(),
+            rustix::io::Errno::CHILD
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn anchored_drop_reaps_both_owned_children() {
+        let process = anchored_sleep("30");
+        let anchor_pid = process.process_group;
+        let child_pid =
+            rustix::process::Pid::from_raw(i32::try_from(process.child.id()).unwrap()).unwrap();
+        drop(process);
+        for pid in [anchor_pid, child_pid] {
+            assert_eq!(
+                rustix::process::waitpid(Some(pid), rustix::process::WaitOptions::NOHANG)
+                    .unwrap_err(),
+                rustix::io::Errno::CHILD
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn anchored_cleanup_signals_other_live_group_members() {
+        use std::os::unix::process::ExitStatusExt as _;
+        let mut process = anchored_sleep("30");
+        let mut other = Command::new("/bin/sleep")
+            .arg("30")
+            .env_clear()
+            .process_group(process.process_group.as_raw_pid())
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        let cleanup = process.terminate_group();
+        let observed = wait_for_exit(&mut other, Duration::from_secs(2));
+        // Preserve test-fixture cleanup even if the group assertion fails.
+        if !matches!(&observed, Ok(Some(_))) {
+            let _ = other.kill();
+            let _ = wait_for_exit(&mut other, Duration::from_secs(2));
+        }
+        cleanup.unwrap();
+        assert_eq!(
+            observed.unwrap().unwrap().signal(),
+            Some(rustix::process::Signal::KILL.as_raw())
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn lost_live_anchor_refuses_cleanup_success_but_reaps_the_dead_child() {
+        let mut process = anchored_sleep("0");
+        assert!(
+            process
+                .wait_bounded(Duration::from_secs(2))
+                .unwrap()
+                .success()
+        );
+        let pid = process.process_group;
+        rustix::process::kill_process(pid, rustix::process::Signal::KILL).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(2);
+        loop {
+            let exited = rustix::process::waitid(
+                rustix::process::WaitId::Pid(pid),
+                rustix::process::WaitIdOptions::EXITED
+                    | rustix::process::WaitIdOptions::NOHANG
+                    | rustix::process::WaitIdOptions::NOWAIT,
+            )
+            .unwrap();
+            if exited.is_some() {
+                break;
+            }
+            assert!(Instant::now() < deadline, "test anchor did not exit");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!(
+            process.terminate_remaining_group(),
+            Err(InspectionFailure::Cleanup)
+        );
+        assert!(!process.group_armed);
+        assert!(process.suspended_anchor.is_none());
+        assert_eq!(
+            rustix::process::waitpid(Some(pid), rustix::process::WaitOptions::NOHANG).unwrap_err(),
+            rustix::io::Errno::CHILD
+        );
+    }
 
     #[test]
     fn expired_reap_budget_preserves_ownership_for_termination() {

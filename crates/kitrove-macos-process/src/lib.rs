@@ -201,9 +201,8 @@ impl SuspendedSelf {
         // SAFETY: this unreaped child owns the group created at spawn. Negative PID
         // addresses that group, never the caller's group.
         let killed = unsafe { libc::kill(-self.pid, libc::SIGKILL) };
-        if killed != 0 && std::io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH) {
-            return Err(ProcessRefused);
-        }
+        let signal_failed =
+            killed != 0 && std::io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH);
         let deadline = Instant::now() + Duration::from_secs(5);
         loop {
             let mut status = 0;
@@ -211,14 +210,20 @@ impl SuspendedSelf {
             let waited = unsafe { libc::waitpid(self.pid, &mut status, libc::WNOHANG) };
             if waited == self.pid {
                 self.owned = false;
-                return Ok(());
+                // Even a refused group signal can leave a dead owned child to
+                // reap. Reaping it is cleanup, never proof that the signal worked.
+                return if signal_failed {
+                    Err(ProcessRefused)
+                } else {
+                    Ok(())
+                };
             }
             if waited < 0 && std::io::Error::last_os_error().raw_os_error() != Some(libc::EINTR) {
                 // Ownership is uncertain: do not signal a possibly reused PID again.
                 self.owned = false;
                 return Err(ProcessRefused);
             }
-            if Instant::now() >= deadline {
+            if signal_failed || Instant::now() >= deadline {
                 return Err(ProcessRefused);
             }
             std::thread::sleep(Duration::from_millis(5));
