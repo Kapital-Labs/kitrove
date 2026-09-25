@@ -19,7 +19,10 @@ use sha2::{Digest as _, Sha256};
 use std::path::Path;
 
 mod protocol;
-pub use protocol::{MAX_INSPECTION_REQUEST_BYTES, encode_inspection_request, inspect_request};
+pub use protocol::{
+    INSPECTION_SUCCESS_RESPONSE, MAX_INSPECTION_REQUEST_BYTES, encode_inspection_request,
+    inspect_request, serve_inspection,
+};
 
 #[link(name = "Security", kind = "framework")]
 unsafe extern "C" {

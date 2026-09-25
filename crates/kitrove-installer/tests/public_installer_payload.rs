@@ -28,7 +28,17 @@ fn inspect_framed(
     candidate: &AppleSignatureCandidate,
 ) -> Result<(), kitrove_macos_signature::SignatureRefused> {
     let request = kitrove_macos_signature::encode_inspection_request(path, candidate)?;
-    kitrove_macos_signature::inspect_request(&request)
+    let mut response = Vec::new();
+    let result = kitrove_macos_signature::serve_inspection(request.as_slice(), &mut response);
+    if result.is_ok() {
+        assert_eq!(
+            response,
+            kitrove_macos_signature::INSPECTION_SUCCESS_RESPONSE
+        );
+    } else {
+        assert!(response.is_empty());
+    }
+    result
 }
 
 #[test]

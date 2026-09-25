@@ -267,3 +267,33 @@ change. Tests pin every version-error mapping and cover caller-supplied zero/sma
 output limits, exact/overflow bounds, ready and expired reader channels, alongside
 the existing timeout and descendant-cleanup regressions. This enables the next
 closed caller without granting native readiness or claiming a new helper deadline.
+
+## Child-side bounded transport
+
+The native crate can now serve exactly one inspection frame from a reader. It
+collects at most the request bound plus one overflow byte, validates the exact frame,
+and emits one fixed acknowledgement only after native validation succeeds. Read,
+write and flush failures return the same redacted refusal. A partial or complete
+acknowledgement is not proof by itself: the future parent must also require a trusted
+child, empty stderr, successful exit and confirmed cleanup. Input EOF and blocking
+native calls still require the parent's wall-clock deadline.
+
+Tests cover endless oversized input, bounded consumption, failed reads, exact output,
+write/flush failures, and no acknowledgement on refused input. The authenticated RC2
+operator fixture uses this transport in-process, checking exact success output and
+empty output on native refusal. This neither launches a helper nor proves isolation.
+
+A read-only launch experiment opened the trusted system `/usr/bin/true` and attempted
+to execute `/dev/fd/3` from `zsh`; this Mac refused with permission denied (exit 126).
+Do not infer that descriptor-path execution is a supported helper binding mechanism.
+No downloaded program was executed. Trusted helper resolution and concurrent
+substitution-safe launch remain unresolved implementation work; no fallback to
+arbitrary paths or to checksum-only readiness was introduced.
+
+The initial canonical run stopped at the source side-effect sentinel because it
+classifies `write_all` as filesystem mutation. The reviewed adjustment allows only
+that token in this exact protocol file for the fixed acknowledgement stream; it
+does not add the file to the filesystem-mutation allowlist. Regression tests refuse
+file creation, writable opens, network access and process launch in the protocol,
+and still refuse stream writes in adjacent files. A fresh canonical run is required
+after this narrow governance change.

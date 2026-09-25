@@ -1268,8 +1268,13 @@ fn check_production_source(path: &Path, source: &str) -> Result<(), String> {
     let network_allowed = path == Path::new("crates/kitrove-core/src/git_sync_backend.rs")
         || path == Path::new("crates/kitrove-core/src/ssh_git_transport.rs");
     let process_launch_allowed = path == Path::new("crates/kitrove-version-probe/src/lib.rs");
+    // This boundary writes only the fixed native-inspection acknowledgement to a
+    // supplied stream. Do not grant it the broader filesystem-mutation exception.
+    let inspection_stream_write_allowed =
+        path == Path::new("crates/kitrove-macos-signature/src/protocol.rs");
     if let Some((token, category)) = forbidden.into_iter().find(|(token, category)| {
         production.contains(token)
+            && !(*token == "write_all(" && inspection_stream_write_allowed)
             && !(*category == "filesystem mutation" && filesystem_mutation_allowed)
             && !(*category == "network access" && network_allowed)
             && !(*category == "process launch" && process_launch_allowed)
@@ -1870,6 +1875,28 @@ x86_64-pc-windows-msvc = ["kitrove"]
             let error = check_production_source(Path::new("fixture.rs"), source)
                 .expect_err("compiled production source must reject side-effect APIs");
             assert!(error.contains("fixture.rs"));
+        }
+    }
+
+    #[test]
+    fn inspection_stream_exception_is_exact_and_not_filesystem_authority() {
+        let protocol = Path::new("crates/kitrove-macos-signature/src/protocol.rs");
+        assert!(check_production_source(protocol, "output.write_all(ACK)?;").is_ok());
+        for path in [
+            "crates/kitrove-macos-signature/src/lib.rs",
+            "crates/kitrove-macos-signature/src/adjacent.rs",
+            "crates/kitrove-installer/src/protocol.rs",
+        ] {
+            assert!(check_production_source(Path::new(path), "output.write_all(ACK)?;").is_err());
+        }
+        for source in [
+            "std::fs::write(path, ACK);",
+            "File::create(path);",
+            "options.write(true);",
+            "Command::new(path);",
+            "std::net::TcpStream::connect(path);",
+        ] {
+            assert!(check_production_source(protocol, source).is_err());
         }
     }
 
