@@ -297,3 +297,36 @@ does not add the file to the filesystem-mutation allowlist. Regression tests ref
 file creation, writable opens, network access and process launch in the protocol,
 and still refuse stream writes in adjacent files. A fresh canonical run is required
 after this narrow governance change.
+
+## Suspended-process validation experiment
+
+The installed public SDK exposes `POSIX_SPAWN_START_SUSPENDED`. A development-only
+Swift experiment spawned Apple's installed `/usr/bin/true` with this flag and an
+empty environment, obtained its dynamic code object by PID, and checked `anchor
+apple`. The native check succeeded; an all-zero CDHash requirement failed with
+`-67050`. The experiment never resumed the child and explicitly killed and reaped it.
+No downloaded artifact, credentials or signing operation was involved.
+
+A second experiment used the installed `/usr/bin/codesign --verify -R REQUIREMENT PID`
+on another suspended system `true` child, with empty environment and discarded output.
+The Apple requirement returned zero; the wrong CDHash returned 3. A nonblocking wait
+confirmed the child had not exited, and explicit kill/reap completed. The installed
+codesign manual documents PID verification as dynamic validation. These development
+experiments used direct waits, not the proposed production deadline implementation.
+
+[Apple's dynamic validation documentation](https://developer.apple.com/documentation/security/seccodecheckvalidity(_:_:_:))
+describes checking the host-reported validity and required identity while resisting
+changes to filesystem source. In contrast,
+[signing-information lookup](https://developer.apple.com/documentation/security/seccodecopysigninginformation(_:_:_:))
+can still return static data from disk for a dynamic object. Lookup alone therefore
+cannot establish the executing helper's identity.
+
+Candidate direction, not yet accepted runtime implementation: obtain an independently
+bound identity for the trusted first verifier, start its helper suspended, and use the
+fixed system codesign verifier under existing process deadlines to validate the
+retained child's exact identity before resume. Root-controlled verifier resolution,
+suspension-before-user-code guarantees, trusted-self identity acquisition, PID lifetime,
+bounded input/output, cleanup on every refusal and concurrent substitution tests
+must all be established. An Apple-anchor success in this experiment does not prove
+Kitrove helper identity. Do not run an unverified helper and check it afterward, use
+private code-signing syscalls, or treat this experiment as consumer readiness.
