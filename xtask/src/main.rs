@@ -11,7 +11,7 @@ mod release_archive;
 mod release_staging;
 
 const REVIEWED_CARGO_LOCK_BLAKE3: &str =
-    "6650de88e6f6eabc8674abc286d5b56385fcef4ff84fb28e0f6b84b0e50486bc";
+    "859b33abc314a35838f96bf863d32d4cfa5050cf6b7849a3e57611fcf5be54d6";
 const REVIEWED_SIGSTORE_REKOR_TREE_BLAKE3: &str =
     "898ca8f9c61bd79c3ef16bcc22650249eb4f32872540d281660f07b1c828c355";
 const REVIEWED_SIGSTORE_TSA_TREE_BLAKE3: &str =
@@ -1225,6 +1225,7 @@ fn check_production_source(path: &Path, source: &str) -> Result<(), String> {
         ("process::Command", "process launch"),
         ("Command::new(", "process launch"),
         ("tokio::process", "process launch"),
+        ("posix_spawn(", "native suspended launch"),
         ("std::process::exit(", "process termination"),
         ("std::net::", "network access"),
         ("TcpStream", "network access"),
@@ -1268,12 +1269,15 @@ fn check_production_source(path: &Path, source: &str) -> Result<(), String> {
     let network_allowed = path == Path::new("crates/kitrove-core/src/git_sync_backend.rs")
         || path == Path::new("crates/kitrove-core/src/ssh_git_transport.rs");
     let process_launch_allowed = path == Path::new("crates/kitrove-version-probe/src/lib.rs");
+    let suspended_self_launch_allowed =
+        path == Path::new("crates/kitrove-macos-process/src/lib.rs");
     // This boundary writes only the fixed native-inspection acknowledgement to a
     // supplied stream. Do not grant it the broader filesystem-mutation exception.
     let inspection_stream_write_allowed =
         path == Path::new("crates/kitrove-macos-signature/src/protocol.rs");
     if let Some((token, category)) = forbidden.into_iter().find(|(token, category)| {
         production.contains(token)
+            && !(*category == "native suspended launch" && suspended_self_launch_allowed)
             && !(*token == "write_all(" && inspection_stream_write_allowed)
             && !(*category == "filesystem mutation" && filesystem_mutation_allowed)
             && !(*category == "network access" && network_allowed)
@@ -1871,10 +1875,32 @@ x86_64-pc-windows-msvc = ["kitrove"]
             "std::fs::File::create(\"result\");",
             "options.write(true);",
             "writer.write_all(b\"changed\");",
+            "libc::posix_spawn(&mut pid, executable, actions, attrs, args, env);",
         ] {
             let error = check_production_source(Path::new("fixture.rs"), source)
                 .expect_err("compiled production source must reject side-effect APIs");
             assert!(error.contains("fixture.rs"));
+        }
+    }
+
+    #[test]
+    fn suspended_launch_exception_does_not_enable_arbitrary_command_runners() {
+        let path = Path::new("crates/kitrove-macos-process/src/lib.rs");
+        let spawn = "libc::posix_spawn(&mut pid, executable, actions, attrs, args, env);";
+        assert!(check_production_source(path, spawn).is_ok());
+        for adjacent in [
+            "crates/kitrove-macos-process/src/other.rs",
+            "crates/kitrove-installer/src/lib.rs",
+            "crates/kitrove-version-probe/src/lib.rs",
+        ] {
+            assert!(check_production_source(Path::new(adjacent), spawn).is_err());
+        }
+        for source in [
+            "Command::new(path);",
+            "std::fs::write(path, bytes);",
+            "std::net::TcpStream::connect(path);",
+        ] {
+            assert!(check_production_source(path, source).is_err());
         }
     }
 

@@ -348,3 +348,41 @@ Apple binary returned 3. Both children were killed and reaped without resumption
 This demonstrates exact identity discrimination, not merely an Apple-publisher check;
 it does not yet establish trusted Kitrove self-identity acquisition, bounded launch,
 or concurrent replacement resistance. No downloaded artifact was executed.
+
+## Suspended-self lifecycle checkpoint
+
+`kitrove-macos-process` creates only a suspended copy of the current executable,
+using a fixed internal argument, empty environment, `/` working directory, null
+standard streams, close-on-exec-by-default and a new process group. Its public API
+has no resume method and takes no executable path, arguments or environment. It
+retains child ownership until explicit termination/reaping or best-effort Drop.
+Cleanup signals the group before nonblocking exact-child waits, with a five-second
+wait budget per attempt; a failure is reported rather than treated as readiness.
+Drop can retry cleanup, but cannot report success or guarantee cleanup after an OS
+failure. Callers must not externally reap the owned child or change SIGCHLD handling
+while it is owned. Review found that automatic child reaping could otherwise release
+the retained PID before cleanup. Launch now queries the parent signal disposition
+without changing it and refuses ignored/custom SIGCHLD handlers or `SA_NOCLDWAIT`.
+A regression test covers each refusal and the default accepted policy. This is a
+caller lifetime contract, not synchronization against other threads changing signals.
+
+The native tests confirm a distinct child process group, no child exit before
+termination, explicit kill/reap and Drop reaping. These are not proof that an
+untrusted image can safely resume; no resume or consumer linkage exists. The
+current-executable path remains an untrusted selection until dynamic identity checks
+are implemented. The native primitive exists because Rust's `Child` cannot be
+constructed from a raw `posix_spawn` PID; shared parent stream/error policy remains
+separate rather than pretending the handles are interchangeable.
+
+The only missing public libc binding is `posix_spawn_file_actions_addchdir_np`,
+declared in the installed SDK for macOS 10.15+. Before linking this crate into release
+binaries, deployment minimums must explicitly support it or the implementation must
+refuse safely on older hosts. No current release executable depends on this crate.
+Governance recognizes the native spawn token and permits it only in this exact
+reviewed source; adjacent files and generic process/network/filesystem operations
+remain refused by regression tests.
+
+The lockfile adds only this workspace package and its edge to already-reviewed
+libc 0.2.189: no third-party package, version or checksum changes. The reviewed
+lockfile BLAKE3 becomes
+`859b33abc314a35838f96bf863d32d4cfa5050cf6b7849a3e57611fcf5be54d6`.

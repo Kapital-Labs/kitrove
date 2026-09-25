@@ -16,6 +16,7 @@ members = [
   "crates/kitrove-risk",
   "crates/kitrove-windows-security",
   "crates/kitrove-macos-signature",
+  "crates/kitrove-macos-process",
   "crates/kitrove-windows-process",
   "crates/kitrove-windows-names",
   "crates/kitrove-release-policy",

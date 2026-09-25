@@ -1832,6 +1832,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "kitrove-macos-process"
+version = "0.1.0-rc.2"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "kitrove-macos-signature"
 version = "0.1.0-rc.2"
 dependencies = [
