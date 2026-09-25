@@ -201,3 +201,30 @@ fixed separately in PR #36. Earlier digests above are historical checkpoints.
 Remaining integration work: closed helper framing, process deadline/output bounds,
 retained-object revalidation and adversarial file/CMS/metadata substitution tests.
 Native API success alone must never grant executable or installation authority.
+
+## Native sequential substitution evidence
+
+The ignored, independently authenticated RC2 arm64 operator test now also checks:
+
+- A valid payload refuses a candidate with the same CDHash but a different CMS hash.
+- A same-length CMS mutation is refused even when the supplied candidate fingerprints
+  match those mutated bytes. Fingerprint agreement cannot substitute for native trust.
+- Changing a byte in the signed prefix outside the Mach-O header fails both the
+  captured-code parser and native verification with the original candidate.
+- Retained payload revalidation refuses both on-disk mutations, and dropping the
+  staging handle preserves the test payload until its owning temporary directory
+  cleans it up.
+
+The signature mutation targets the last nonzero byte of this exact digest-pinned
+fixture. Assertions establish that it changes only the captured CMS fingerprint,
+not the CDHash; it is not a general Mach-O parsing strategy. All native assertions
+pass on the existing arm64 Mac without executing the downloaded installer. These
+are sequential substitutions, not a concurrent path-swap or helper-cleanup proof.
+
+Process reuse review: the existing Unix lifecycle and bounded readers are private
+to version-probe, but still use its version-specific error types and deadline.
+Reuse the lifecycle with explicit closed-operation limits; do not route native
+inspection through `probe_version`, whose `--version` argument, shebang support,
+PATH and inherited home/temp environment are inappropriate for a verification
+helper. Helper executable trust and retained identity need their own checks before
+launch. No process allowlist or consumer readiness was changed in this test unit.
