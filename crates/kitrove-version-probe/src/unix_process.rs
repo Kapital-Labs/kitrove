@@ -32,20 +32,6 @@ impl ProbeProcess {
         })
     }
 
-    /// Test-only native prototype: the caller launches the child into this
-    /// retained anchor's group. The anchor never resumes or exposes readiness.
-    #[cfg(all(test, target_os = "macos"))]
-    pub(super) fn with_suspended_anchor(
-        child: Child,
-        anchor: kitrove_macos_process::SuspendedSelf,
-    ) -> Result<Self, InspectionFailure> {
-        let mut process = Self::new(child)?;
-        process.process_group =
-            rustix::process::Pid::from_raw(anchor.id()).ok_or(InspectionFailure::Failed)?;
-        process.suspended_anchor = Some(anchor);
-        Ok(process)
-    }
-
     pub(super) fn take_stdout(&mut self) -> Result<std::process::ChildStdout, InspectionFailure> {
         self.child.stdout.take().ok_or(InspectionFailure::Failed)
     }
@@ -156,18 +142,67 @@ mod tests {
     use std::process::{Command, Stdio};
 
     #[cfg(target_os = "macos")]
+    impl ProbeProcess {
+        /// Test-only launch boundary establishes group membership and cleanup
+        /// ownership together, never accepting an unrelated child/group pair.
+        pub(crate) fn spawn_anchored(command: &mut Command) -> Result<Self, InspectionFailure> {
+            let anchor = kitrove_macos_process::SuspendedSelf::spawn()
+                .map_err(|_| InspectionFailure::Failed)?;
+            let process_group =
+                rustix::process::Pid::from_raw(anchor.id()).ok_or(InspectionFailure::Failed)?;
+            let child = command
+                .process_group(anchor.id())
+                .spawn()
+                .map_err(|_| InspectionFailure::Failed)?;
+            // No fallible work between successful spawn and cleanup ownership.
+            // Spawn failure instead drops only the owned anchor.
+            Ok(Self {
+                child,
+                process_group,
+                group_armed: true,
+                reaped: false,
+                suspended_anchor: Some(anchor),
+            })
+        }
+    }
+
+    #[cfg(target_os = "macos")]
     fn anchored_sleep(seconds: &str) -> ProbeProcess {
-        let anchor = kitrove_macos_process::SuspendedSelf::spawn().unwrap();
-        let child = Command::new("/bin/sleep")
+        let mut command = Command::new("/bin/sleep");
+        command
             .arg(seconds)
             .env_clear()
-            .process_group(anchor.id())
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        ProbeProcess::with_suspended_anchor(child, anchor).unwrap()
+            .stderr(Stdio::null());
+        ProbeProcess::spawn_anchored(&mut command).unwrap()
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn anchored_launch_overrides_caller_group_selection() {
+        let mut command = Command::new("/bin/sleep");
+        command.arg("30").process_group(0);
+        let mut process = ProbeProcess::spawn_anchored(&mut command).unwrap();
+        let child_pid =
+            rustix::process::Pid::from_raw(i32::try_from(process.child.id()).unwrap()).unwrap();
+        assert_eq!(
+            rustix::process::getpgid(Some(child_pid)).unwrap(),
+            process.process_group
+        );
+        assert_ne!(child_pid, process.process_group);
+        process.terminate_group().unwrap();
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn anchored_launch_refuses_missing_executable() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut command = Command::new(directory.path().join("absent-verifier"));
+        assert!(matches!(
+            ProbeProcess::spawn_anchored(&mut command),
+            Err(InspectionFailure::Failed)
+        ));
     }
 
     #[test]

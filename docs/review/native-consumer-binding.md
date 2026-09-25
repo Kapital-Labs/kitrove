@@ -519,10 +519,10 @@ cleanup. The initial ownership/SIGCHLD contract remains necessary.
 The anchor constructor and storage are Mac test-only. Normal production probes do
 not acquire an anchor, so this does not claim the existing production race is fixed.
 Shared cleanup now has one idempotent entry point for explicit termination and Drop;
-output limits, deadlines and error mapping remain shared. The test-only constructor
-requires the caller to launch its child into the retained anchor's group. A production
-closed launcher must enforce that relationship by construction, not accept arbitrary
-children or groups.
+output limits, deadlines and error mapping remain shared. The initial test-only
+constructor required the caller to launch its child into the retained anchor's
+group; the launch-boundary consolidation below removes that requirement. Production
+integration must preserve that relationship, not accept arbitrary children or groups.
 
 Native tests verify the anchor's group ownership after verifier reaping, timeout
 cleanup, Drop reaping of both direct children, and SIGKILL delivery to another live
@@ -540,3 +540,13 @@ disarming a reaped PID. It does not wait indefinitely or accept `EPERM` as succe
 The regression confirms the dead anchor is reaped and its numeric group is not
 signaled again. A still-live child that the OS refuses to terminate remains a
 reported cleanup failure, not a successful or guaranteed cleanup.
+
+The test-only lifecycle boundary now creates the anchor, assigns the command to
+its group and immediately owns both children in one operation. The former
+constructor accepting an independently spawned child and anchor is removed.
+Group validation precedes launch; no fallible conversion follows a successful
+spawn before cleanup ownership is established. A failed spawn drops its anchor.
+Tests check that a caller's group selection is overridden and a missing executable
+is refused, alongside the existing timeout, Drop and lost-anchor regressions.
+This is ownership consolidation, not a public arbitrary-command API or production
+activation. The fixed native verifier runner still needs production integration.

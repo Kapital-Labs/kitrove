@@ -3,7 +3,6 @@
 use super::{InspectionFailure, ProbeProcess, receive_probe_output, spawn_output_reader};
 use kitrove_macos_process::{SuspendedSelf, SystemVerifier};
 use kitrove_release_policy::native_signature::AppleProcessIdentityCandidate;
-use std::os::unix::process::CommandExt as _;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
@@ -31,12 +30,10 @@ fn inspect(
         .revalidate()
         .map_err(|_| InspectionFailure::Failed)?;
     remaining(deadline)?;
-    let anchor = SuspendedSelf::spawn().map_err(|_| InspectionFailure::Failed)?;
     let mut command = Command::new(verifier.path());
     command
         .env_clear()
         .current_dir("/")
-        .process_group(anchor.id())
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -53,8 +50,7 @@ fn inspect(
                 .arg(pid.to_string());
         }
     }
-    let child = command.spawn().map_err(|_| InspectionFailure::Failed)?;
-    let mut process = ProbeProcess::with_suspended_anchor(child, anchor)?;
+    let mut process = ProbeProcess::spawn_anchored(&mut command)?;
     let stdout = spawn_output_reader(process.take_stdout()?, 4096)?;
     let stderr = spawn_output_reader(process.take_stderr()?, 4096)?;
     let status = process.wait_bounded(remaining(deadline)?)?;
