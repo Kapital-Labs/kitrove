@@ -20,8 +20,8 @@ use std::path::Path;
 
 mod protocol;
 pub use protocol::{
-    INSPECTION_SUCCESS_RESPONSE, InspectionResponse, MAX_INSPECTION_REQUEST_BYTES,
-    encode_inspection_request, inspect_request, serve_inspection,
+    INSPECTION_SUCCESS_RESPONSE, InspectionRequest, InspectionResponse,
+    MAX_INSPECTION_REQUEST_BYTES, encode_inspection_request, inspect_request, serve_inspection,
 };
 
 #[link(name = "Security", kind = "framework")]

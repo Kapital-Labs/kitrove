@@ -4,6 +4,7 @@ use std::ffi::OsStr;
 use std::io::{Read, Write};
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::Path;
+use std::time::Instant;
 
 const MAGIC: &[u8; 8] = b"KRVAM001";
 const HEADER_BYTES: usize = 8 + 2 + 20 + 32;
@@ -12,6 +13,75 @@ const MAX_PATH_BYTES: usize = 4096;
 pub const MAX_INSPECTION_REQUEST_BYTES: usize = HEADER_BYTES + MAX_PATH_BYTES;
 /// Exact acknowledgement; only meaningful with trusted child, clean exit and cleanup.
 pub const INSPECTION_SUCCESS_RESPONSE: &[u8] = b"kitrove-apple-inspection-v1:ok\n";
+
+/// One validated request with a monotonic offset and an absolute caller deadline.
+/// This records transport progress only; it neither writes nor resumes a helper.
+pub struct InspectionRequest {
+    bytes: Vec<u8>,
+    offset: usize,
+    deadline: Instant,
+    refused: bool,
+}
+
+impl InspectionRequest {
+    pub fn new(
+        path: &Path,
+        candidate: &AppleSignatureCandidate,
+        deadline: Instant,
+    ) -> Result<Self, SignatureRefused> {
+        Self::from_frame(encode_inspection_request(path, candidate)?, deadline)
+    }
+
+    fn from_frame(bytes: Vec<u8>, deadline: Instant) -> Result<Self, SignatureRefused> {
+        decode(&bytes)?;
+        let mut request = Self {
+            bytes,
+            offset: 0,
+            deadline,
+            refused: false,
+        };
+        request.check()?;
+        Ok(request)
+    }
+
+    /// An empty slice means all bytes were written, not that input was closed.
+    /// Pending writes leave the offset unchanged and must revisit this deadline.
+    pub fn remaining(&mut self) -> Result<&[u8], SignatureRefused> {
+        self.check()?;
+        Ok(&self.bytes[self.offset..])
+    }
+
+    /// Record only an observed successful write, never requested byte count.
+    pub fn written(&mut self, count: usize) -> Result<(), SignatureRefused> {
+        self.check()?;
+        if count == 0 || count > self.bytes.len() - self.offset {
+            self.refused = true;
+            return Err(SignatureRefused);
+        }
+        self.offset += count;
+        Ok(())
+    }
+
+    /// Consume only after closing transport input. This checks byte accounting,
+    /// not actual descriptor closure, response contents, child exit or cleanup.
+    pub fn finish_after_input_closed(mut self) -> Result<(), SignatureRefused> {
+        self.check()?;
+        if self.offset == self.bytes.len() {
+            Ok(())
+        } else {
+            Err(SignatureRefused)
+        }
+    }
+
+    fn check(&mut self) -> Result<(), SignatureRefused> {
+        self.refused |= Instant::now() >= self.deadline;
+        if self.refused {
+            Err(SignatureRefused)
+        } else {
+            Ok(())
+        }
+    }
+}
 
 /// Allocation-free response framing, not helper trust or execution authority.
 /// A driver must separately establish deadline, successful exit, cleanup and
@@ -169,6 +239,44 @@ pub fn inspect_request(bytes: &[u8]) -> Result<(), SignatureRefused> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn request_accounts_for_partial_writes_without_resetting_deadline() {
+        let frame = encode(Path::new("/private/payload"), &[7; 20], &[9; 32]).unwrap();
+        let deadline = Instant::now() + std::time::Duration::from_secs(5);
+        let mut request = InspectionRequest::from_frame(frame.clone(), deadline).unwrap();
+        for offset in 0..frame.len() {
+            assert_eq!(request.remaining().unwrap(), &frame[offset..]);
+            // A pending write makes no progress and does not refresh the deadline.
+            assert_eq!(request.remaining().unwrap(), &frame[offset..]);
+            assert_eq!(request.deadline, deadline);
+            request.written(1).unwrap();
+        }
+        assert!(request.remaining().unwrap().is_empty());
+        request.finish_after_input_closed().unwrap();
+    }
+
+    #[test]
+    fn request_refuses_bad_progress_expiry_and_incomplete_input() {
+        let frame = encode(Path::new("/private/payload"), &[7; 20], &[9; 32]).unwrap();
+        let deadline = Instant::now() + std::time::Duration::from_secs(5);
+        assert!(InspectionRequest::from_frame(frame.clone(), Instant::now()).is_err());
+        assert!(InspectionRequest::from_frame(b"bad frame".to_vec(), deadline).is_err());
+        for count in [0, frame.len() + 1, usize::MAX] {
+            let mut request = InspectionRequest::from_frame(frame.clone(), deadline).unwrap();
+            assert!(request.written(count).is_err());
+            assert!(request.remaining().is_err());
+            assert!(request.written(1).is_err());
+            assert!(request.finish_after_input_closed().is_err());
+        }
+        let request = InspectionRequest::from_frame(frame.clone(), deadline).unwrap();
+        assert!(request.finish_after_input_closed().is_err());
+        let mut request = InspectionRequest::from_frame(frame, deadline).unwrap();
+        request.deadline = Instant::now();
+        assert!(request.remaining().is_err());
+        assert!(request.written(1).is_err());
+        assert!(request.finish_after_input_closed().is_err());
+    }
 
     #[test]
     fn response_accepts_every_split_only_after_both_eofs() {

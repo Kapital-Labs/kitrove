@@ -767,3 +767,18 @@ This validates framing only. It is not yet connected to the transport driver and
 does not prove trusted execution, successful child exit, bounded lifetime, cleanup
 or retained payload identity. Those checks must accompany framing before native
 inspection can affect installer readiness. No helper is resumed by this change.
+
+### Request progress and deadline
+
+The same protocol module now owns one encoded request, its write offset and an
+absolute deadline. Construction reuses the existing encoder and frame validation;
+there is no second wire format or path parser. Reads of remaining bytes and progress
+updates check the unchanged deadline. Pending writes do not advance the offset.
+Zero, oversized or expired progress permanently refuses. Offset addition occurs
+only after checking the remaining length, including hostile `usize::MAX` input.
+
+Completion consumes the tracker and refuses partial input or expiry. Its name and
+contract require the caller to close transport input first, but it cannot prove a
+descriptor was closed. It is byte accounting, not a receipt for trusted execution.
+The driver must supply observed write counts and retain its deadline through output,
+exit and cleanup checks. No process or filesystem operation is introduced here.
