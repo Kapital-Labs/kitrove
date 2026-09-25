@@ -550,3 +550,34 @@ Tests check that a caller's group selection is overridden and a missing executab
 is refused, alongside the existing timeout, Drop and lost-anchor regressions.
 This is ownership consolidation, not a public arbitrary-command API or production
 activation. The fixed native verifier runner still needs production integration.
+
+## Closed native identity library integration
+
+The subsequent library checkpoint moves the tested native runner into
+`apple_process_identity`. Its two public operations capture and dynamically check
+the executing process's candidate, or check an owned `SuspendedSelf` against that
+candidate. Neither accepts an executable path, argument list, environment override
+or arbitrary PID. Native output stays private and errors are redacted. The native
+operator test now calls these same production functions rather than a duplicate
+runner. Correct identity passes; the wrong identity refuses. No child is resumed.
+
+Each public operation has a 15-second inspection budget, shared across candidate
+display and dynamic self validation where applicable. Shared output readers enforce
+4096-byte bounds per stream. Successful verification requires zero exit status,
+empty stdout and empty verification stderr, retained system-verifier revalidation
+and completed group cleanup. Cleanup retains its separate finite budget; this is
+not a strict whole-call wall-clock bound on synchronous filesystem or spawn calls.
+The internal anchored launcher now serves this production path. Ordinary harness
+probes still use their prior lifecycle; their group-reuse concern is not fixed here.
+
+The existing Mac process and release-policy dependencies move from test-only to
+Mac production dependencies, without changing the lockfile or adding third-party
+packages. Governance explicitly permits launch in the closed native-policy module
+and its private retained-lifecycle module, with adjacent-module rejection tests.
+This is a reviewed authority extension for those two files, not a blanket exception.
+
+The library is not yet connected to installer execution, a helper resume operation,
+transport or consumer readiness. A dynamically matching candidate does not prove
+provenance or independently trust the verifier's first execution. Retained input
+binding, concurrent substitution tests, native Windows acceptance and clean-Mac
+launch evidence remain separate requirements.

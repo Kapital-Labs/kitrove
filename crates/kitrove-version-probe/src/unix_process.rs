@@ -12,7 +12,7 @@ pub(super) struct ProbeProcess {
     process_group: rustix::process::Pid,
     group_armed: bool,
     reaped: bool,
-    #[cfg(all(test, target_os = "macos"))]
+    #[cfg(target_os = "macos")]
     suspended_anchor: Option<kitrove_macos_process::SuspendedSelf>,
 }
 
@@ -27,7 +27,7 @@ impl ProbeProcess {
             process_group,
             group_armed: true,
             reaped: false,
-            #[cfg(all(test, target_os = "macos"))]
+            #[cfg(target_os = "macos")]
             suspended_anchor: None,
         })
     }
@@ -64,7 +64,7 @@ impl ProbeProcess {
         if !self.group_armed {
             return Ok(());
         }
-        #[cfg(all(test, target_os = "macos"))]
+        #[cfg(target_os = "macos")]
         if let Some(anchor) = self.suspended_anchor.take() {
             // The anchor is alive and unreaped when its group is signaled. It is
             // consumed by termination, so no later path may signal its numeric ID.
@@ -135,36 +135,39 @@ impl Drop for ProbeProcess {
     }
 }
 
+#[cfg(target_os = "macos")]
+impl ProbeProcess {
+    /// Internal launch boundary establishes group membership and cleanup
+    /// ownership together. Launch policy belongs to the closed caller.
+    pub(super) fn spawn_anchored(
+        command: &mut std::process::Command,
+    ) -> Result<Self, InspectionFailure> {
+        use std::os::unix::process::CommandExt as _;
+        let anchor =
+            kitrove_macos_process::SuspendedSelf::spawn().map_err(|_| InspectionFailure::Failed)?;
+        let process_group =
+            rustix::process::Pid::from_raw(anchor.id()).ok_or(InspectionFailure::Failed)?;
+        let child = command
+            .process_group(anchor.id())
+            .spawn()
+            .map_err(|_| InspectionFailure::Failed)?;
+        // No fallible work between successful spawn and cleanup ownership.
+        // Spawn failure instead drops only the owned anchor.
+        Ok(Self {
+            child,
+            process_group,
+            group_armed: true,
+            reaped: false,
+            suspended_anchor: Some(anchor),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::os::unix::process::CommandExt as _;
     use std::process::{Command, Stdio};
-
-    #[cfg(target_os = "macos")]
-    impl ProbeProcess {
-        /// Test-only launch boundary establishes group membership and cleanup
-        /// ownership together, never accepting an unrelated child/group pair.
-        pub(crate) fn spawn_anchored(command: &mut Command) -> Result<Self, InspectionFailure> {
-            let anchor = kitrove_macos_process::SuspendedSelf::spawn()
-                .map_err(|_| InspectionFailure::Failed)?;
-            let process_group =
-                rustix::process::Pid::from_raw(anchor.id()).ok_or(InspectionFailure::Failed)?;
-            let child = command
-                .process_group(anchor.id())
-                .spawn()
-                .map_err(|_| InspectionFailure::Failed)?;
-            // No fallible work between successful spawn and cleanup ownership.
-            // Spawn failure instead drops only the owned anchor.
-            Ok(Self {
-                child,
-                process_group,
-                group_armed: true,
-                reaped: false,
-                suspended_anchor: Some(anchor),
-            })
-        }
-    }
 
     #[cfg(target_os = "macos")]
     fn anchored_sleep(seconds: &str) -> ProbeProcess {

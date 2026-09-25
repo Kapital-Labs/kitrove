@@ -42,7 +42,7 @@ kitrove-windows-security.workspace = true
 [dev-dependencies]
 tempfile.workspace = true
 
-[target.'cfg(target_os = "macos")'.dev-dependencies]
+[target.'cfg(target_os = "macos")'.dependencies]
 kitrove-macos-process = { path = "../kitrove-macos-process" }
 kitrove-release-policy.workspace = true
 

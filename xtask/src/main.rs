@@ -1269,7 +1269,13 @@ fn check_production_source(path: &Path, source: &str) -> Result<(), String> {
     .any(|allowed| path == Path::new(allowed));
     let network_allowed = path == Path::new("crates/kitrove-core/src/git_sync_backend.rs")
         || path == Path::new("crates/kitrove-core/src/ssh_git_transport.rs");
-    let process_launch_allowed = path == Path::new("crates/kitrove-version-probe/src/lib.rs");
+    let process_launch_allowed = [
+        "crates/kitrove-version-probe/src/lib.rs",
+        "crates/kitrove-version-probe/src/apple_process_identity.rs",
+        "crates/kitrove-version-probe/src/unix_process.rs",
+    ]
+    .into_iter()
+    .any(|allowed| path == Path::new(allowed));
     let suspended_self_launch_allowed =
         path == Path::new("crates/kitrove-macos-process/src/lib.rs");
     // This boundary writes only the fixed native-inspection acknowledgement to a
@@ -2049,6 +2055,18 @@ mod inline {}
     #[test]
     fn production_governance_limits_process_authority_to_version_probe_boundary() {
         let launch = "std::process::Command::new(\"pi\");";
+        for module in ["apple_process_identity.rs", "unix_process.rs"] {
+            check_production_source(
+                &Path::new("crates/kitrove-version-probe/src").join(module),
+                launch,
+            )
+            .expect("reviewed closed native policy and retained lifecycle own launch");
+        }
+        check_production_source(
+            Path::new("crates/kitrove-version-probe/src/apple_process_identities.rs"),
+            launch,
+        )
+        .expect_err("adjacent native modules receive no launch authority");
         check_production_source(Path::new("crates/kitrove-version-probe/src/lib.rs"), launch)
             .expect("the reviewed version probe boundary owns bounded process launch");
         check_production_source(

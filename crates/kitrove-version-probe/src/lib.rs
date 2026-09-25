@@ -52,6 +52,9 @@ use unix_process::ProbeProcess;
 #[path = "native_identity_tests.rs"]
 mod native_identity_tests;
 
+#[cfg(target_os = "macos")]
+pub mod apple_process_identity;
+
 #[cfg(any(unix, windows))]
 const MAX_PROBE_OUTPUT_BYTES: usize = 4096;
 #[cfg(any(unix, windows))]
