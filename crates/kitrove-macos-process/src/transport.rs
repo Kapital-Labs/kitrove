@@ -4,6 +4,8 @@ use rustix::fd::{AsFd, BorrowedFd, OwnedFd};
 use rustix::fs::{OFlags, fcntl_getfl, fcntl_setfl};
 use rustix::pipe::pipe;
 
+const IO_CHUNK_BYTES: usize = 1024;
+
 /// Retained parent endpoints for one fixed helper. Parent I/O is nonblocking.
 /// Creating these pipes neither resumes a child nor authorizes a protocol response.
 pub struct InspectionTransport {
@@ -19,7 +21,46 @@ pub enum InputProgress {
     Pending,
 }
 
+/// The helper's two output streams remain separate throughout inspection.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum InspectionStream {
+    Output,
+    Error,
+}
+
+/// EOF is distinct from a temporarily empty pipe and does not establish success.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum OutputProgress {
+    Read(usize),
+    Pending,
+    Eof,
+}
+
 impl InspectionTransport {
+    /// Read one bounded chunk without allocating or waiting. The caller must
+    /// enforce cumulative stream limits, a deadline and exact protocol contents.
+    /// An empty buffer refuses rather than reporting a misleading EOF.
+    pub fn read_output_chunk(
+        &self,
+        stream: InspectionStream,
+        buffer: &mut [u8],
+    ) -> Result<OutputProgress, ProcessRefused> {
+        let length = buffer.len().min(IO_CHUNK_BYTES);
+        if length == 0 {
+            return Err(ProcessRefused);
+        }
+        let fd = match stream {
+            InspectionStream::Output => self.output(),
+            InspectionStream::Error => self.error(),
+        };
+        match rustix::io::read(fd, &mut buffer[..length]) {
+            Ok(0) => Ok(OutputProgress::Eof),
+            Ok(count) => Ok(OutputProgress::Read(count)),
+            Err(rustix::io::Errno::AGAIN | rustix::io::Errno::INTR) => Ok(OutputProgress::Pending),
+            Err(_) => Err(ProcessRefused),
+        }
+    }
+
     /// Write at most 1024 bytes without blocking. Empty input and closed pipes
     /// refuse. SIGPIPE must remain ignored for the transport lifetime: this check
     /// never changes process signal handling and cannot control foreign changes.
@@ -29,7 +70,7 @@ impl InspectionTransport {
         }
         require_ignored_sigpipe()?;
         let input = self.input().ok_or(ProcessRefused)?;
-        match rustix::io::write(input, &bytes[..bytes.len().min(1024)]) {
+        match rustix::io::write(input, &bytes[..bytes.len().min(IO_CHUNK_BYTES)]) {
             Ok(0) => Err(ProcessRefused),
             Ok(count) => Ok(InputProgress::Written(count)),
             Err(rustix::io::Errno::AGAIN | rustix::io::Errno::INTR) => Ok(InputProgress::Pending),
@@ -116,6 +157,43 @@ fn private_pipe() -> Result<(OwnedFd, OwnedFd), ProcessRefused> {
 mod tests {
     use super::*;
     use rustix::io::{FdFlags, fcntl_getfd};
+
+    #[test]
+    fn output_reads_preserve_streams_bounds_and_eof_after_buffered_bytes() {
+        let launch = crate::acquire_launch_guard(std::time::Duration::from_secs(5)).unwrap();
+        let (parent, child) = create(&launch).unwrap();
+        let mut buffer = [0; 2048];
+        for stream in [InspectionStream::Output, InspectionStream::Error] {
+            assert!(parent.read_output_chunk(stream, &mut []).is_err());
+            assert_eq!(
+                parent.read_output_chunk(stream, &mut buffer).unwrap(),
+                OutputProgress::Pending
+            );
+        }
+        assert_eq!(rustix::io::write(&child.output, &[7; 1025]).unwrap(), 1025);
+        assert_eq!(rustix::io::write(&child.error, &[9]).unwrap(), 1);
+        drop(child);
+        assert_eq!(
+            parent
+                .read_output_chunk(InspectionStream::Output, &mut buffer)
+                .unwrap(),
+            OutputProgress::Read(1024)
+        );
+        assert_eq!(&buffer[..1024], &[7; 1024]);
+        assert_eq!(&buffer[1024..], &[0; 1024]);
+        for (stream, expected) in [(InspectionStream::Output, 7), (InspectionStream::Error, 9)] {
+            let mut byte = [0];
+            assert_eq!(
+                parent.read_output_chunk(stream, &mut byte).unwrap(),
+                OutputProgress::Read(1)
+            );
+            assert_eq!(byte, [expected]);
+            assert_eq!(
+                parent.read_output_chunk(stream, &mut byte).unwrap(),
+                OutputProgress::Eof
+            );
+        }
+    }
 
     #[test]
     fn sigpipe_policy_refuses_default_and_custom_handlers() {

@@ -737,3 +737,18 @@ contract, not signal-race safety for arbitrary embeddings.
 Tests cover the policy without modifying global handlers, bounded partial input,
 closed-peer refusal and nonblocking backpressure. The primitive remains disconnected
 from verified-owner request execution. No protocol success or resume is added.
+
+### Nonblocking response-read primitive
+
+One shared reader handles stdout and stderr without combining them. Each call reads
+at most 1024 bytes into caller-owned storage, distinguishing bytes, pending input
+and EOF. Empty buffers refuse so a zero-length read cannot masquerade as EOF.
+Neither EOF nor a successful read establishes protocol success. Cumulative limits,
+exact acknowledgement, an empty stderr, deadline, successful exit and confirmed
+cleanup remain the driver's responsibility. The verified owner still exposes no
+transport access or resume method.
+
+Native pipe tests cover pending input on both streams, distinct stream contents,
+bounded reads with untouched buffer tails, small buffers and draining bytes before
+EOF after peer closure. No allocation, threads, launch authority or signal handling
+is added by the reader.

@@ -11,7 +11,7 @@ pub use system_verifier::SystemVerifier;
 mod launch_gate;
 pub use launch_gate::{LaunchGuard, acquire_launch_guard};
 mod transport;
-pub use transport::{InputProgress, InspectionTransport};
+pub use transport::{InputProgress, InspectionStream, InspectionTransport, OutputProgress};
 
 // Public spawn.h signature, available starting with macOS 10.15. Resolve it
 // without a strong import so unavailable hosts can refuse before creating a child.
