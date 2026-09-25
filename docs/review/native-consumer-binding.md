@@ -228,3 +228,24 @@ inspection through `probe_version`, whose `--version` argument, shebang support,
 PATH and inherited home/temp environment are inappropriate for a verification
 helper. Helper executable trust and retained identity need their own checks before
 launch. No process allowlist or consumer readiness was changed in this test unit.
+
+## Closed Apple request framing
+
+The native crate now encodes and decodes one binary request version: eight-byte
+`KRVAM001` discriminator, two-byte big-endian path length, 20-byte CDHash, 32-byte
+CMS SHA-256, then native Unix path bytes. Total input is capped at 4158 bytes;
+decoding borrows the validated buffer and requires exact length with no suffix.
+Paths must be absolute, nonempty, NUL-free, at most 4096 bytes, and contain no empty,
+dot or parent components. Non-UTF-8 names round-trip without lossy conversion.
+
+There are no caller-selected operations, tools, arguments, environment settings or
+publisher overrides. Decoded fingerprints remain claims, not verified candidates
+or readiness receipts. The direct and framed APIs share the same native validation
+implementation. Tests cover every truncation of a valid frame, malformed version
+and length fields, trailing/oversized input, ambiguous paths and exact bounds.
+
+The operator RC2 test exercises native positive and sequential-substitution cases
+through this framing. This is still an in-process operator call, not production
+helper isolation. A transport must enforce the exported bound before collecting
+input, bound writes and native execution time, and establish trusted helper identity
+and cleanup. No launcher, helper CLI entry point or installer authority is added.

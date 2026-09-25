@@ -18,6 +18,9 @@ use security_framework::os::macos::code_signing::{Flags, SecRequirement, SecStat
 use sha2::{Digest as _, Sha256};
 use std::path::Path;
 
+mod protocol;
+pub use protocol::{MAX_INSPECTION_REQUEST_BYTES, encode_inspection_request, inspect_request};
+
 #[link(name = "Security", kind = "framework")]
 unsafe extern "C" {
     fn SecCodeCopySigningInformation(
@@ -48,6 +51,14 @@ pub fn inspect_captured_signature(
     path: &Path,
     candidate: &AppleSignatureCandidate,
 ) -> Result<(), SignatureRefused> {
+    inspect_fingerprints(path, candidate.cdhash(), candidate.cms_sha256())
+}
+
+fn inspect_fingerprints(
+    path: &Path,
+    cdhash: &[u8; 20],
+    cms_sha256: &[u8; 32],
+) -> Result<(), SignatureRefused> {
     if !path.is_absolute() {
         return Err(SignatureRefused);
     }
@@ -61,7 +72,7 @@ pub fn inspect_captured_signature(
     code.check_validity(Flags::STRICT_VALIDATE, &requirement)
         .map_err(|_| SignatureRefused)?;
     let fields = signing_information(&code)?;
-    validate_fields(&fields, candidate.cdhash(), candidate.cms_sha256())
+    validate_fields(&fields, cdhash, cms_sha256)
 }
 
 fn signing_information(
