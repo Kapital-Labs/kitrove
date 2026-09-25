@@ -598,3 +598,33 @@ operator-only native test confirms dropping a successfully verified owner reaps
 that same child. These checks do not establish transport, readiness, authenticated
 payload binding or clean-machine acceptance. The first executing verifier still
 requires independent trust. Helper transport and conditional resume remain absent.
+
+## Withdrawn pipe transport experiment
+
+A local pipe prototype passed nine native tests, including nonblocking parent I/O,
+blocking child I/O, close-on-exec flags, input EOF and output EOF after suspended
+child termination. Review nevertheless found a construction-time inheritance race:
+temporary `pipe()` descriptors existed before close-on-exec duplication. Duplicating
+above stdio also fixed an independent collision with initially closed descriptors
+0 through 2, but did not eliminate the inheritance window.
+
+The installed public SDK exposes `pipe`, not `pipe2`, and rustix 1.1.4 excludes
+`pipe_with` on Apple. Apple's current [Swift System source](https://github.com/apple/swift-system/blob/main/Sources/System/FileDescriptor.swift)
+marks its new pipe options API as macOS 27+, which is not a justification for
+silently raising this project's platform requirements. The reviewed
+[Rust 1.85 launch implementation](https://github.com/rust-lang/rust/blob/1.85.0/library/std/src/sys/pal/unix/process/process_unix.rs)
+does not establish a universal close-all-descriptors contract for other concurrent
+launches. Our suspended child's close-on-exec-default flag covers that child only.
+
+The prototype was withdrawn, including its rustix feature change and public pipe
+API. Previously validated identity and verified-child ownership code is unchanged.
+There is no pipe transport in the current implementation and no request was sent
+to a resumed helper. Passing final-descriptor tests was insufficient acceptance.
+
+Before retrying, design and test a launch-synchronization boundary that covers every
+Kitrove launch site and pipe-construction failure, with bounded lock acquisition
+and no nested-lock deadlock. A mutex local to pipe creation is insufficient. Account
+explicitly for foreign-library or embedding-runtime launches outside that boundary;
+do not claim that a cooperative application lock controls arbitrary process code.
+Alternatively use a supported atomic primitive without silently dropping support
+for existing targets. Private Apple APIs and a best-effort flag fallback are excluded.
