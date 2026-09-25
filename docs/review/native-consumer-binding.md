@@ -113,6 +113,15 @@ valid CMS signature: this API captures bytes, not trust. The public RC2 test sti
 authenticates provenance first and never executes the installer. Native validation,
 special-slot checks, timestamp policy and retained-object binding remain open.
 
+After PR #36 merged the separately reviewed faster-hex advisory fix, the combined
+lockfile differs from that main revision only by the reviewed object 0.40.0 addition.
+Its reviewed BLAKE3 is now
+`929142b0a98de214b042913d1f083ddd9e93fcddf18cf1d5d86c70ac8b3578f1`.
+The earlier d0223b11 digest above records the pre-advisory-fix evaluation, not the
+current graph. Six candidate tests, strict focused Clippy and the independently
+authenticated RC2 test pass with CMS capture; no native readiness is inferred.
+Rerun canonical validation against the combined graph before pushing this branch.
+
 Dependency identity/license review: Cargo.lock adds only `object` 0.40.0 from
 crates.io, checksum `dd229a0361b9d0d4396176e02d65897f487eebeab7caa6d443855ee152ca0b9c`.
 Package metadata points to `gimli-rs/object`, declares Rust 1.85 and
