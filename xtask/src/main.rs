@@ -1226,6 +1226,7 @@ fn check_production_source(path: &Path, source: &str) -> Result<(), String> {
         ("Command::new(", "process launch"),
         ("tokio::process", "process launch"),
         ("posix_spawn(", "native suspended launch"),
+        ("dlsym(", "native spawn availability"),
         ("std::process::exit(", "process termination"),
         ("std::net::", "network access"),
         ("TcpStream", "network access"),
@@ -1278,6 +1279,7 @@ fn check_production_source(path: &Path, source: &str) -> Result<(), String> {
     if let Some((token, category)) = forbidden.into_iter().find(|(token, category)| {
         production.contains(token)
             && !(*category == "native suspended launch" && suspended_self_launch_allowed)
+            && !(*category == "native spawn availability" && suspended_self_launch_allowed)
             && !(*token == "write_all(" && inspection_stream_write_allowed)
             && !(*category == "filesystem mutation" && filesystem_mutation_allowed)
             && !(*category == "network access" && network_allowed)
@@ -1888,12 +1890,15 @@ x86_64-pc-windows-msvc = ["kitrove"]
         let path = Path::new("crates/kitrove-macos-process/src/lib.rs");
         let spawn = "libc::posix_spawn(&mut pid, executable, actions, attrs, args, env);";
         assert!(check_production_source(path, spawn).is_ok());
+        let lookup = "libc::dlsym(libc::RTLD_DEFAULT, fixed_symbol);";
+        assert!(check_production_source(path, lookup).is_ok());
         for adjacent in [
             "crates/kitrove-macos-process/src/other.rs",
             "crates/kitrove-installer/src/lib.rs",
             "crates/kitrove-version-probe/src/lib.rs",
         ] {
             assert!(check_production_source(Path::new(adjacent), spawn).is_err());
+            assert!(check_production_source(Path::new(adjacent), lookup).is_err());
         }
         for source in [
             "Command::new(path);",

@@ -374,10 +374,10 @@ are implemented. The native primitive exists because Rust's `Child` cannot be
 constructed from a raw `posix_spawn` PID; shared parent stream/error policy remains
 separate rather than pretending the handles are interchangeable.
 
-The only missing public libc binding is `posix_spawn_file_actions_addchdir_np`,
-declared in the installed SDK for macOS 10.15+. Before linking this crate into release
-binaries, deployment minimums must explicitly support it or the implementation must
-refuse safely on older hosts. No current release executable depends on this crate.
+The initial missing public libc binding was `posix_spawn_file_actions_addchdir_np`,
+declared in the installed SDK for macOS 10.15+. The availability checkpoint below
+replaces the initial strong import. No current release executable depends on this
+crate, and older-host runtime acceptance remains unobserved.
 Governance recognizes the native spawn token and permits it only in this exact
 reviewed source; adjacent files and generic process/network/filesystem operations
 remain refused by regression tests.
@@ -472,3 +472,31 @@ end-to-end transport and retained installer readiness remain unproved.
 The lock adds only a macOS test edge to existing workspace release policy; no new
 third-party packages, versions or checksums. Reviewed lockfile BLAKE3:
 `96622894b7e98bb60e15b72742ac97005ff12e9e43321d8976dfe43fe91ef2b0`.
+
+## Optional native spawn action availability
+
+The Mac primitive now resolves only the fixed public
+`posix_spawn_file_actions_addchdir_np` symbol through `dlsym(RTLD_DEFAULT, ...)`,
+instead of importing it unconditionally. The null result refuses before native
+attributes or a child are created; a nonnull result is converted to the exact
+installed SDK C ABI inside the isolated unsafe boundary. No library is loaded,
+no caller-selected symbol or path is accepted, and no minimum OS version changes.
+Governance permits the lookup token only in the existing reviewed spawn source.
+
+Apple's [dlsym manual](https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/dlsym.3.html)
+documents fixed-name lookup among loaded images and a null result for absence.
+This assumes the initial process and loaded runtime are already trusted, as the
+other native calls do; it does not authenticate loader state or defeat in-process
+interposition. The primitive still cannot resume a child.
+
+Tests cover null-symbol refusal and actual suspended spawn/cleanup on this Mac.
+The linked local test executable's undefined-symbol inspection found `_dlsym` and
+no import of the optional spawn action. This validates the build shape and simulated
+missing-symbol path, not operation on a real older Mac or clean-machine acceptance.
+
+Apple's [public spawn-flags manual](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/man/man3/posix_spawnattr_setflags.3)
+documents that `POSIX_SPAWN_START_SUSPENDED` stops the child before user-space
+execution, including early dyld work. It also specifies that `CLOEXEC_DEFAULT`
+leaves only explicitly created file-action descriptors available. This establishes
+the documented API contract for the chosen flags, not adversarial native acceptance
+or permission to resume before exact identity verification.

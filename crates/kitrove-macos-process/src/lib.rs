@@ -9,14 +9,35 @@ use std::time::{Duration, Instant};
 mod system_verifier;
 pub use system_verifier::SystemVerifier;
 
-unsafe extern "C" {
-    // Public spawn.h API (macOS 10.15+), absent from the pinned libc wrapper.
-    // This crate is not yet linked into a released executable; integration must
-    // explicitly account for that deployment minimum.
-    fn posix_spawn_file_actions_addchdir_np(
-        actions: *mut libc::posix_spawn_file_actions_t,
-        path: *const libc::c_char,
-    ) -> libc::c_int;
+// Public spawn.h signature, available starting with macOS 10.15. Resolve it
+// without a strong import so unavailable hosts can refuse before creating a child.
+type AddChdir =
+    unsafe extern "C" fn(*mut libc::posix_spawn_file_actions_t, *const libc::c_char) -> libc::c_int;
+
+fn resolve_add_chdir() -> Result<AddChdir, ProcessRefused> {
+    // SAFETY: fixed NUL-terminated public symbol, searched only in already loaded
+    // process images. This does not load a library or accept a caller override.
+    let symbol = unsafe {
+        libc::dlsym(
+            libc::RTLD_DEFAULT,
+            c"posix_spawn_file_actions_addchdir_np".as_ptr(),
+        )
+    };
+    // SAFETY: the exact SDK-declared symbol has the AddChdir ABI; the loaded system
+    // implementation remains available for the process lifetime. As with the other
+    // native calls, this assumes an already-trusted process and loader state; this
+    // availability query does not establish runtime trust. Missing is refused.
+    unsafe { decode_add_chdir(symbol) }
+}
+
+/// The nonnull pointer must name the public AddChdir function with process lifetime.
+unsafe fn decode_add_chdir(symbol: *mut libc::c_void) -> Result<AddChdir, ProcessRefused> {
+    if symbol.is_null() {
+        return Err(ProcessRefused);
+    }
+    // SAFETY: Darwin's dlsym function-address representation and the caller's exact
+    // symbol/ABI contract permit this conversion, only after the null check.
+    Ok(unsafe { std::mem::transmute::<*mut libc::c_void, AddChdir>(symbol) })
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -84,6 +105,7 @@ impl SuspendedSelf {
     /// this checkpoint never resumes it. No downloaded installer is selected here.
     pub fn spawn() -> Result<Self, ProcessRefused> {
         require_retained_child_policy()?;
+        let add_chdir = resolve_add_chdir()?;
         let executable = std::env::current_exe().map_err(|_| ProcessRefused)?;
         if !executable.is_absolute() {
             return Err(ProcessRefused);
@@ -111,7 +133,7 @@ impl SuspendedSelf {
                 && libc::posix_spawnattr_setpgroup(&mut attributes.0, 0) == 0
                 && libc::posix_spawnattr_setsigmask(&mut attributes.0, &mask) == 0
                 && libc::posix_spawnattr_setsigdefault(&mut attributes.0, &defaults) == 0
-                && posix_spawn_file_actions_addchdir_np(&mut actions.0, c"/".as_ptr()) == 0
+                && add_chdir(&mut actions.0, c"/".as_ptr()) == 0
                 && libc::posix_spawn_file_actions_addopen(
                     &mut actions.0,
                     0,
@@ -234,6 +256,13 @@ impl Drop for SuspendedSelf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unavailable_spawn_action_is_refused_without_calling_it() {
+        // SAFETY: null is the documented missing-symbol input, never converted
+        // into a function pointer or invoked.
+        assert!(unsafe { decode_add_chdir(std::ptr::null_mut()) }.is_err());
+    }
 
     #[test]
     fn automatic_or_custom_child_reapers_are_refused_without_changing_signals() {
