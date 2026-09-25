@@ -13,6 +13,62 @@ pub const MAX_INSPECTION_REQUEST_BYTES: usize = HEADER_BYTES + MAX_PATH_BYTES;
 /// Exact acknowledgement; only meaningful with trusted child, clean exit and cleanup.
 pub const INSPECTION_SUCCESS_RESPONSE: &[u8] = b"kitrove-apple-inspection-v1:ok\n";
 
+/// Allocation-free response framing, not helper trust or execution authority.
+/// A driver must separately establish deadline, successful exit, cleanup and
+/// retained authenticated payload identity. Any framing refusal is permanent.
+#[derive(Default)]
+pub struct InspectionResponse {
+    matched: usize,
+    output_eof: bool,
+    error_eof: bool,
+    refused: bool,
+}
+
+impl InspectionResponse {
+    /// Consume nonempty stdout bytes, refusing any mismatch or excess immediately.
+    pub fn output_chunk(&mut self, bytes: &[u8]) -> Result<(), SignatureRefused> {
+        let remaining = &INSPECTION_SUCCESS_RESPONSE[self.matched..];
+        self.require(!self.output_eof && !bytes.is_empty() && remaining.starts_with(bytes))?;
+        self.matched += bytes.len();
+        Ok(())
+    }
+
+    /// Any stderr bytes refuse. Empty chunks are not valid transport events.
+    pub fn error_chunk(&mut self, _bytes: &[u8]) -> Result<(), SignatureRefused> {
+        self.require(false)
+    }
+
+    pub fn output_eof(&mut self) -> Result<(), SignatureRefused> {
+        self.require(!self.output_eof && self.matched == INSPECTION_SUCCESS_RESPONSE.len())?;
+        self.output_eof = true;
+        Ok(())
+    }
+
+    pub fn error_eof(&mut self) -> Result<(), SignatureRefused> {
+        self.require(!self.error_eof)?;
+        self.error_eof = true;
+        Ok(())
+    }
+
+    /// Confirms framing only. Exact bytes without both EOFs are incomplete.
+    pub fn finish(self) -> Result<(), SignatureRefused> {
+        if !self.refused && self.output_eof && self.error_eof {
+            Ok(())
+        } else {
+            Err(SignatureRefused)
+        }
+    }
+
+    fn require(&mut self, valid: bool) -> Result<(), SignatureRefused> {
+        self.refused |= !valid;
+        if self.refused {
+            Err(SignatureRefused)
+        } else {
+            Ok(())
+        }
+    }
+}
+
 /// Serve one request, emitting no success bytes until native inspection succeeds.
 /// This does not impose a wall-clock deadline: invoke only in a contained child.
 /// The parent must close input after one frame and require exact acknowledgement,
@@ -113,6 +169,86 @@ pub fn inspect_request(bytes: &[u8]) -> Result<(), SignatureRefused> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn response_accepts_every_split_only_after_both_eofs() {
+        for split in 0..=INSPECTION_SUCCESS_RESPONSE.len() {
+            let mut response = InspectionResponse::default();
+            response.error_eof().unwrap();
+            for chunk in [
+                &INSPECTION_SUCCESS_RESPONSE[..split],
+                &INSPECTION_SUCCESS_RESPONSE[split..],
+            ] {
+                if !chunk.is_empty() {
+                    response.output_chunk(chunk).unwrap();
+                }
+            }
+            response.output_eof().unwrap();
+            response.finish().unwrap();
+        }
+        let mut response = InspectionResponse::default();
+        for byte in INSPECTION_SUCCESS_RESPONSE {
+            response.output_chunk(&[*byte]).unwrap();
+        }
+        response.output_eof().unwrap();
+        assert!(response.finish().is_err());
+        let mut response = InspectionResponse::default();
+        response.output_chunk(INSPECTION_SUCCESS_RESPONSE).unwrap();
+        response.error_eof().unwrap();
+        assert!(response.finish().is_err());
+    }
+
+    #[test]
+    fn response_refuses_corruption_truncation_and_trailing_bytes_permanently() {
+        for index in 0..INSPECTION_SUCCESS_RESPONSE.len() {
+            let mut bytes = INSPECTION_SUCCESS_RESPONSE.to_vec();
+            bytes[index] ^= 1;
+            let mut response = InspectionResponse::default();
+            assert!(response.output_chunk(&bytes).is_err());
+            assert!(response.output_chunk(INSPECTION_SUCCESS_RESPONSE).is_err());
+            assert!(response.finish().is_err());
+
+            let mut response = InspectionResponse::default();
+            if index != 0 {
+                response
+                    .output_chunk(&INSPECTION_SUCCESS_RESPONSE[..index])
+                    .unwrap();
+            }
+            assert!(response.output_eof().is_err());
+            assert!(response.finish().is_err());
+        }
+        let mut response = InspectionResponse::default();
+        response.output_chunk(INSPECTION_SUCCESS_RESPONSE).unwrap();
+        assert!(response.output_chunk(b"x").is_err());
+        assert!(response.finish().is_err());
+        let mut response = InspectionResponse::default();
+        assert!(response.output_chunk(&[]).is_err());
+        assert!(response.finish().is_err());
+    }
+
+    #[test]
+    fn response_refuses_stderr_and_events_after_eof() {
+        for bytes in [b"private detail".as_slice(), b""] {
+            let mut response = InspectionResponse::default();
+            assert!(response.error_chunk(bytes).is_err());
+            assert!(response.error_eof().is_err());
+            assert!(response.finish().is_err());
+        }
+        let mut response = InspectionResponse::default();
+        response.output_chunk(INSPECTION_SUCCESS_RESPONSE).unwrap();
+        response.output_eof().unwrap();
+        assert!(response.output_chunk(b"x").is_err());
+        assert!(response.finish().is_err());
+        let mut response = InspectionResponse::default();
+        response.output_chunk(INSPECTION_SUCCESS_RESPONSE).unwrap();
+        response.output_eof().unwrap();
+        assert!(response.output_eof().is_err());
+        assert!(response.finish().is_err());
+        let mut response = InspectionResponse::default();
+        response.error_eof().unwrap();
+        assert!(response.error_eof().is_err());
+        assert!(response.finish().is_err());
+    }
 
     #[test]
     fn transport_bounds_reads_and_never_acknowledges_refused_input() {

@@ -752,3 +752,18 @@ Native pipe tests cover pending input on both streams, distinct stream contents,
 bounded reads with untouched buffer tails, small buffers and draining bytes before
 EOF after peer closure. No allocation, threads, launch authority or signal handling
 is added by the reader.
+
+### Shared response framing
+
+The signature protocol now owns an allocation-free incremental response validator
+beside its existing acknowledgement constant. It accepts only an exact prefix at
+each step, so mismatches and excess bytes refuse without accumulating output.
+Any stderr bytes, empty data events, premature or repeated EOF, and data after EOF
+refuse permanently. Completion consumes the validator and requires both streams
+to have reached EOF. Tests cover every acknowledgement split, bytewise input,
+corruption at every byte, every truncated prefix, missing EOF and sticky refusal.
+
+This validates framing only. It is not yet connected to the transport driver and
+does not prove trusted execution, successful child exit, bounded lifetime, cleanup
+or retained payload identity. Those checks must accompany framing before native
+inspection can affect installer readiness. No helper is resumed by this change.
