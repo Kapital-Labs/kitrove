@@ -581,3 +581,20 @@ transport or consumer readiness. A dynamically matching candidate does not prove
 provenance or independently trust the verifier's first execution. Retained input
 binding, concurrent substitution tests, native Windows acceptance and clean-Mac
 launch evidence remain separate requirements.
+
+## Retained verified-child ownership
+
+`prepare_verified_suspended_self` now captures and checks self identity, spawns the
+fixed suspended self, and dynamically verifies that child under one shared inspection
+deadline. Success returns an opaque owner of that exact child, not a boolean that
+could be applied to another PID. There is no public constructor, child extraction,
+clone or resume method. Explicit termination reports cleanup failure; dropping the
+owner uses the existing best-effort cleanup. Refusal during binding also drops the
+owned child. Shared private identity routines serve both borrowed inspection and
+owned preparation, with no duplicate native verification implementation.
+
+An expired-deadline regression confirms the refused child is reaped, and an
+operator-only native test confirms dropping a successfully verified owner reaps
+that same child. These checks do not establish transport, readiness, authenticated
+payload binding or clean-machine acceptance. The first executing verifier still
+requires independent trust. Helper transport and conditional resume remain absent.

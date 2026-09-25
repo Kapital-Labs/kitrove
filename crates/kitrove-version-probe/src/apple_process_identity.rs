@@ -19,6 +19,32 @@ impl std::fmt::Display for IdentityRefused {
 }
 impl std::error::Error for IdentityRefused {}
 
+/// Owns the exact suspended child whose identity matched the executing verifier.
+/// Private ownership prevents substituting another child after verification.
+/// This does not authenticate first execution and deliberately offers no resume.
+pub struct VerifiedSuspendedSelf {
+    child: SuspendedSelf,
+}
+
+impl VerifiedSuspendedSelf {
+    /// Terminate the retained child and confirm reaping; failure stays redacted.
+    pub fn terminate(self) -> Result<(), IdentityRefused> {
+        self.child.terminate().map_err(|_| IdentityRefused)
+    }
+}
+
+/// Capture and check self identity, then spawn and check the retained child under
+/// one inspection deadline. Refusal drops the child and attempts bounded cleanup.
+/// The caller must independently trust this process before calling this function.
+pub fn prepare_verified_suspended_self() -> Result<VerifiedSuspendedSelf, IdentityRefused> {
+    let deadline = Instant::now() + DEADLINE;
+    let verifier = SystemVerifier::open().map_err(|_| IdentityRefused)?;
+    let identity = capture_candidate(&verifier, deadline).map_err(|_| IdentityRefused)?;
+    remaining(deadline).map_err(|_| IdentityRefused)?;
+    let child = SuspendedSelf::spawn().map_err(|_| IdentityRefused)?;
+    bind_child(&verifier, child, &identity, deadline).map_err(|_| IdentityRefused)
+}
+
 enum Operation<'a> {
     DisplaySelf,
     Verify {
@@ -32,19 +58,24 @@ enum Operation<'a> {
 pub fn capture_self_candidate() -> Result<AppleProcessIdentityCandidate, IdentityRefused> {
     let deadline = Instant::now() + DEADLINE;
     let verifier = SystemVerifier::open().map_err(|_| IdentityRefused)?;
-    let detail =
-        inspect(&verifier, Operation::DisplaySelf, deadline).map_err(|_| IdentityRefused)?;
+    capture_candidate(&verifier, deadline).map_err(|_| IdentityRefused)
+}
+
+fn capture_candidate(
+    verifier: &SystemVerifier,
+    deadline: Instant,
+) -> Result<AppleProcessIdentityCandidate, InspectionFailure> {
+    let detail = inspect(verifier, Operation::DisplaySelf, deadline)?;
     let identity = AppleProcessIdentityCandidate::from_display(detail.as_bytes())
-        .map_err(|_| IdentityRefused)?;
+        .map_err(|_| InspectionFailure::InvalidOutput)?;
     inspect(
-        &verifier,
+        verifier,
         Operation::Verify {
             pid: std::process::id(),
             identity: &identity,
         },
         deadline,
-    )
-    .map_err(|_| IdentityRefused)?;
+    )?;
     Ok(identity)
 }
 
@@ -57,10 +88,7 @@ pub fn verify_suspended_child(
 ) -> Result<(), IdentityRefused> {
     let deadline = Instant::now() + DEADLINE;
     let verifier = SystemVerifier::open().map_err(|_| IdentityRefused)?;
-    let pid = u32::try_from(child.id()).map_err(|_| IdentityRefused)?;
-    inspect(&verifier, Operation::Verify { pid, identity }, deadline)
-        .map_err(|_| IdentityRefused)?;
-    Ok(())
+    inspect_child(&verifier, child, identity, deadline).map_err(|_| IdentityRefused)
 }
 
 fn remaining(deadline: Instant) -> Result<Duration, InspectionFailure> {
@@ -68,6 +96,27 @@ fn remaining(deadline: Instant) -> Result<Duration, InspectionFailure> {
         .checked_duration_since(Instant::now())
         .filter(|duration| !duration.is_zero())
         .ok_or(InspectionFailure::Timeout)
+}
+
+fn bind_child(
+    verifier: &SystemVerifier,
+    child: SuspendedSelf,
+    identity: &AppleProcessIdentityCandidate,
+    deadline: Instant,
+) -> Result<VerifiedSuspendedSelf, InspectionFailure> {
+    inspect_child(verifier, &child, identity, deadline)?;
+    Ok(VerifiedSuspendedSelf { child })
+}
+
+fn inspect_child(
+    verifier: &SystemVerifier,
+    child: &SuspendedSelf,
+    identity: &AppleProcessIdentityCandidate,
+    deadline: Instant,
+) -> Result<(), InspectionFailure> {
+    let pid = u32::try_from(child.id()).map_err(|_| InspectionFailure::Failed)?;
+    inspect(verifier, Operation::Verify { pid, identity }, deadline)?;
+    Ok(())
 }
 
 fn inspect(
@@ -120,6 +169,37 @@ fn inspect(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn expired_binding_reaps_the_owned_suspended_child() {
+        let verifier = SystemVerifier::open().unwrap();
+        let child = SuspendedSelf::spawn().unwrap();
+        let pid = rustix::process::Pid::from_raw(child.id()).unwrap();
+        let identity = AppleProcessIdentityCandidate::from_display(
+            b"CDHash=0000000000000000000000000000000000000000\n",
+        )
+        .unwrap();
+        assert!(matches!(
+            bind_child(&verifier, child, &identity, Instant::now()),
+            Err(InspectionFailure::Timeout)
+        ));
+        assert_eq!(
+            rustix::process::waitpid(Some(pid), rustix::process::WaitOptions::NOHANG).unwrap_err(),
+            rustix::io::Errno::CHILD
+        );
+    }
+
+    #[test]
+    #[ignore = "operator-only: requires native signed source-built test executable"]
+    fn verified_owner_drop_reaps_the_exact_suspended_child() {
+        let verified = prepare_verified_suspended_self().unwrap();
+        let pid = rustix::process::Pid::from_raw(verified.child.id()).unwrap();
+        drop(verified);
+        assert_eq!(
+            rustix::process::waitpid(Some(pid), rustix::process::WaitOptions::NOHANG).unwrap_err(),
+            rustix::io::Errno::CHILD
+        );
+    }
 
     #[test]
     fn expired_deadline_refuses_before_launch() {
