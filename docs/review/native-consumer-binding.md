@@ -679,3 +679,26 @@ participating launch attempts with pipe creation, holds the gate through tempora
 descriptor closure, and verifies failure cleanup without nested acquisition.
 The general library must continue to state that uncoordinated foreign launches
 are outside this contract. No pipe or resume path is enabled by this audit.
+
+### Guarded pipe preparation checkpoint
+
+The revised pipe preparation now acquires the shared launch guard before creating
+any descriptors. Both pipe creation and the private suspended spawn require a
+borrowed guard. The private spawn does not reacquire the mutex. Temporary original
+pipe ends close during close-on-exec duplication, and child-side parent handles
+close before the guard is released. RAII preserves this ordering on failures.
+The ordinary null-stdio suspended spawn uses the same private implementation.
+
+Parent endpoints are nonblocking, child endpoints remain blocking, all retained
+sources are close-on-exec and above stdio, and request input closes independently
+of retained stdout/stderr. Tests cover those flags, byte delivery, EOF and native
+suspended-child cleanup. A competing native launch test remains pending while the
+preparation guard is held, then completes after endpoints close and the guard drops.
+Abandoning prepared pipes produces EOF without leaking child-side parent handles.
+
+This API is only for the reviewed standalone cooperative-launch contract described
+above, not arbitrary embedding code. It does not stop foreign launches, impose
+protocol byte limits or provide a strict spawn wall-clock bound. The verified-owner
+API, bounded protocol loop and resume step are still disconnected. No child was
+resumed and no downloaded installer executed. The existing rustix pipe feature is
+enabled again; the lockfile and third-party package set are unchanged.

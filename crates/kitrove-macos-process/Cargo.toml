@@ -11,7 +11,7 @@ publish = false
 
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2"
-rustix.workspace = true
+rustix = { workspace = true, features = ["pipe"] }
 calcifer-macos-acl.workspace = true
 
 [lints.rust]

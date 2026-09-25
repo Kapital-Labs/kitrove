@@ -1,4 +1,4 @@
-//! Suspended-self development boundary. No resume, transport or readiness API.
+//! Suspended-self lifecycle and cooperative stdio preparation. No resume/readiness.
 #![cfg(target_os = "macos")]
 #![deny(unsafe_op_in_unsafe_fn)]
 
@@ -10,6 +10,8 @@ mod system_verifier;
 pub use system_verifier::SystemVerifier;
 mod launch_gate;
 pub use launch_gate::{LaunchGuard, acquire_launch_guard};
+mod transport;
+pub use transport::InspectionTransport;
 
 // Public spawn.h signature, available starting with macOS 10.15. Resolve it
 // without a strong import so unavailable hosts can refuse before creating a child.
@@ -106,7 +108,26 @@ impl SuspendedSelf {
     /// The selected path remains untrusted until separate dynamic validation;
     /// this checkpoint never resumes it. No downloaded installer is selected here.
     pub fn spawn() -> Result<Self, ProcessRefused> {
-        let _launch = acquire_launch_guard(Duration::from_secs(5))?;
+        let launch = acquire_launch_guard(Duration::from_secs(5))?;
+        Self::spawn_guarded(&launch, None)
+    }
+
+    /// Prepare fixed suspended-self stdio within the cooperative Kitrove gate.
+    /// Only for a reviewed standalone caller where every concurrent launch uses
+    /// that gate. Foreign/embedding-runtime launches are not covered. No resume.
+    pub fn spawn_with_transport() -> Result<(Self, InspectionTransport), ProcessRefused> {
+        let launch = acquire_launch_guard(Duration::from_secs(5))?;
+        let (parent, child) = transport::create(&launch)?;
+        let process = Self::spawn_guarded(&launch, Some(&child))?;
+        // Close child-side parent handles before releasing the launch guard.
+        drop(child);
+        Ok((process, parent))
+    }
+
+    fn spawn_guarded(
+        _launch: &LaunchGuard<'_>,
+        transport: Option<&transport::ChildTransport>,
+    ) -> Result<Self, ProcessRefused> {
         require_retained_child_policy()?;
         let add_chdir = resolve_add_chdir()?;
         let executable = std::env::current_exe().map_err(|_| ProcessRefused)?;
@@ -161,6 +182,27 @@ impl SuspendedSelf {
         };
         if !configured {
             return Err(ProcessRefused);
+        }
+        if let Some(transport) = transport {
+            use std::os::fd::AsRawFd as _;
+            for (source, destination) in [
+                (&transport.input, 0),
+                (&transport.output, 1),
+                (&transport.error, 2),
+            ] {
+                // SAFETY: owned pipe ends survive spawn. Only fixed stdio targets
+                // are duplicated; sources are above stdio and close-on-exec.
+                if unsafe {
+                    libc::posix_spawn_file_actions_adddup2(
+                        &mut actions.0,
+                        source.as_raw_fd(),
+                        destination,
+                    )
+                } != 0
+                {
+                    return Err(ProcessRefused);
+                }
+            }
         }
         let args = [
             executable.as_ptr().cast_mut(),
@@ -308,5 +350,57 @@ mod tests {
             std::io::Error::last_os_error().raw_os_error(),
             Some(libc::ECHILD)
         );
+    }
+
+    #[test]
+    fn guarded_transport_retains_outputs_until_suspended_child_cleanup() {
+        let (child, mut transport) = SuspendedSelf::spawn_with_transport().unwrap();
+        let mut byte = [0];
+        for output in [transport.output(), transport.error()] {
+            assert_eq!(
+                rustix::io::read(output, &mut byte),
+                Err(rustix::io::Errno::AGAIN)
+            );
+        }
+        assert_eq!(
+            rustix::io::write(transport.input().unwrap(), b"x").unwrap(),
+            1
+        );
+        transport.close_input();
+        child.terminate().unwrap();
+        for output in [transport.output(), transport.error()] {
+            assert_eq!(rustix::io::read(output, &mut byte).unwrap(), 0);
+        }
+    }
+
+    #[test]
+    fn competing_native_launch_waits_until_pipe_preparation_guard_is_released() {
+        let launch = acquire_launch_guard(Duration::from_secs(5)).unwrap();
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        let competing = std::thread::spawn(move || {
+            started_tx.send(()).unwrap();
+            let result = SuspendedSelf::spawn().and_then(SuspendedSelf::terminate);
+            done_tx.send(result).unwrap();
+        });
+        started_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        let (parent, child) = transport::create(&launch).unwrap();
+        assert!(matches!(
+            done_rx.recv_timeout(Duration::from_millis(20)),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+        ));
+        // Simulate refusal after pipe preparation: endpoints close while still
+        // holding the same gate that blocks the participating native launch.
+        drop(child);
+        let mut byte = [0];
+        assert_eq!(rustix::io::read(parent.output(), &mut byte).unwrap(), 0);
+        assert_eq!(rustix::io::read(parent.error(), &mut byte).unwrap(), 0);
+        drop(parent);
+        drop(launch);
+        done_rx
+            .recv_timeout(Duration::from_secs(5))
+            .unwrap()
+            .unwrap();
+        competing.join().unwrap();
     }
 }
