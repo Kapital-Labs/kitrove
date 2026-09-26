@@ -424,6 +424,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d52eff69cd5e647efe296129160853a42795992097e8af39800e1060caeea9b"
 
 [[package]]
+name = "core-foundation"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2a6cd9ae233e7f62ba4e9353e81a88df7fc8a5987b8d445b4d90c879bd156f6"
+dependencies = [
+ "core-foundation-sys",
+ "libc",
+]
+
+[[package]]
 name = "core-foundation-sys"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1792,6 +1802,7 @@ dependencies = [
  "cap-std",
  "fs2",
  "getrandom 0.3.4",
+ "kitrove-macos-signature",
  "kitrove-model",
  "kitrove-release-policy",
  "kitrove-release-provenance",
@@ -1818,6 +1829,26 @@ dependencies = [
  "kitrove-model",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "kitrove-macos-process"
+version = "0.1.0-rc.2"
+dependencies = [
+ "calcifer-macos-acl",
+ "libc",
+ "rustix",
+]
+
+[[package]]
+name = "kitrove-macos-signature"
+version = "0.1.0-rc.2"
+dependencies = [
+ "core-foundation",
+ "kitrove-macos-process",
+ "kitrove-release-policy",
+ "security-framework",
+ "sha2 0.11.0",
 ]
 
 [[package]]
@@ -1863,6 +1894,7 @@ version = "0.1.0-rc.2"
 dependencies = [
  "kitrove-windows-names",
  "lzma-rust2",
+ "object",
  "semver",
  "serde",
  "serde_json",
@@ -1929,13 +1961,15 @@ version = "0.1.0-rc.2"
 dependencies = [
  "blake3",
  "kitrove-adapter-api",
+ "kitrove-macos-process",
+ "kitrove-macos-signature",
  "kitrove-model",
+ "kitrove-release-policy",
  "kitrove-windows-process",
  "kitrove-windows-security",
  "rustix",
  "semver",
  "tempfile",
- "wait-timeout",
 ]
 
 [[package]]
@@ -2108,6 +2142,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "object"
+version = "0.40.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd229a0361b9d0d4396176e02d65897f487eebeab7caa6d443855ee152ca0b9c"
+dependencies = [
+ "memchr",
 ]
 
 [[package]]
@@ -2778,6 +2821,29 @@ dependencies = [
  "hybrid-array",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "security-framework"
+version = "3.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7f4bc775c73d9a02cde8bf7b2ec4c9d12743edf609006c7facc23998404cd1d"
+dependencies = [
+ "bitflags 2.13.1",
+ "core-foundation",
+ "core-foundation-sys",
+ "libc",
+ "security-framework-sys",
+]
+
+[[package]]
+name = "security-framework-sys"
+version = "2.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ce2691df843ecc5d231c0b14ece2acc3efb62c0a398c7e1d875f3983ce020e3"
+dependencies = [
+ "core-foundation-sys",
+ "libc",
 ]
 
 [[package]]
@@ -3576,15 +3642,6 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
-
-[[package]]
-name = "wait-timeout"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09ac3b126d3914f9849036f826e054cbabdc8519970b8998ddaf3b5bd3c65f11"
-dependencies = [
- "libc",
-]
 
 [[package]]
 name = "wasi"

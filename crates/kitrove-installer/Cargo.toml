@@ -40,6 +40,7 @@ rustix = { workspace = true, features = ["fs", "thread"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 calcifer-macos-acl.workspace = true
+kitrove-macos-signature.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 cap-std.workspace = true

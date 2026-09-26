@@ -1,0 +1,25 @@
+[package]
+name = "kitrove-macos-signature"
+description = "Narrow public Apple signature inspection boundary for Kitrove"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+publish = false
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation.workspace = true
+security-framework.workspace = true
+kitrove-release-policy.workspace = true
+kitrove-macos-process = { path = "../kitrove-macos-process" }
+sha2.workspace = true
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"

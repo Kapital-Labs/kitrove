@@ -1,0 +1,23 @@
+[package]
+name = "kitrove-macos-process"
+description = "Closed suspended-self lifecycle for Kitrove Mac inspection"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+publish = false
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2"
+rustix = { workspace = true, features = ["pipe"] }
+calcifer-macos-acl.workspace = true
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"

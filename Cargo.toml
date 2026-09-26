@@ -15,6 +15,8 @@ members = [
   "crates/kitrove-mcp",
   "crates/kitrove-risk",
   "crates/kitrove-windows-security",
+  "crates/kitrove-macos-signature",
+  "crates/kitrove-macos-process",
   "crates/kitrove-windows-process",
   "crates/kitrove-windows-names",
   "crates/kitrove-release-policy",
@@ -43,6 +45,8 @@ repository = "https://github.com/Kapital-Labs/kitrove"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
+core-foundation = "=0.10.1"
+security-framework = { version = "=3.7.0", default-features = false }
 blake3 = "1.8.2"
 const-oid = "=0.9.6"
 cap-std = "4.0.3"
@@ -63,6 +67,7 @@ jsonc-parser = { version = "=0.32.1", features = ["serde_json"] }
 kitrove-model = { path = "crates/kitrove-model" }
 kitrove-adapter-api = { path = "crates/kitrove-adapter-api" }
 kitrove-core = { path = "crates/kitrove-core" }
+kitrove-macos-signature = { path = "crates/kitrove-macos-signature" }
 kitrove-version-probe = { path = "crates/kitrove-version-probe" }
 kitrove-testkit = { path = "crates/kitrove-testkit" }
 kitrove-agent-skills = { path = "crates/kitrove-agent-skills" }
@@ -76,6 +81,7 @@ lzma-rust2 = { version = "=0.20.1", default-features = false, features = ["std",
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.143"
 sha2 = { version = "=0.11.0", default-features = false }
+object = { version = "=0.40.0", default-features = false, features = ["read_core", "macho", "std"] }
 tar = { version = "=0.4.46", default-features = false }
 xz4rust = { version = "=0.2.3", default-features = false, features = ["std", "bcj", "crc64", "delta", "no_unsafe"] }
 semver = "=1.0.28"
@@ -87,7 +93,6 @@ toml = "0.9.5"
 toml_edit = "=0.25.13"
 yaml_serde = "0.10.7"
 tempfile = "3.27.0"
-wait-timeout = "=0.2.1"
 unicase = "=2.9.0"
 unicode-normalization = "=0.1.25"
 rustix = { version = "1.1.4", features = ["fs", "process"] }

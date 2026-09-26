@@ -15,11 +15,30 @@ pub use installer_payload::{StagedInstallerPayload, stage_authenticated_installe
 
 #[cfg(any(unix, windows))]
 mod command;
+#[cfg(target_os = "macos")]
+mod internal_inspection;
 
 /// Runs the offline installer command line without downloading artifacts.
 #[cfg(any(unix, windows))]
 pub fn main_entry() -> std::process::ExitCode {
-    match command::run(std::env::args_os().skip(1)) {
+    let args = std::env::args_os().skip(1);
+    #[cfg(target_os = "macos")]
+    let args = {
+        let mut args = args.peekable();
+        if args
+            .peek()
+            .is_some_and(|arg| internal_inspection::is_internal(arg))
+        {
+            args.next();
+            return internal_inspection::run(
+                args,
+                std::io::stdin().lock(),
+                std::io::stdout().lock(),
+            );
+        }
+        args
+    };
+    match command::run(args) {
         Ok(message) => {
             println!("{message}");
             std::process::ExitCode::SUCCESS

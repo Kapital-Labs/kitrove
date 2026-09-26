@@ -11,7 +11,7 @@ mod release_archive;
 mod release_staging;
 
 const REVIEWED_CARGO_LOCK_BLAKE3: &str =
-    "4a447417235b0423ded20451233f3b82a423b0c3f1132c285c889977bd98349c";
+    "e157733bd5152187209354d3294822867ba9a4e8d3bcf8de48bd3c0112090985";
 const REVIEWED_SIGSTORE_REKOR_TREE_BLAKE3: &str =
     "898ca8f9c61bd79c3ef16bcc22650249eb4f32872540d281660f07b1c828c355";
 const REVIEWED_SIGSTORE_TSA_TREE_BLAKE3: &str =
@@ -1225,6 +1225,8 @@ fn check_production_source(path: &Path, source: &str) -> Result<(), String> {
         ("process::Command", "process launch"),
         ("Command::new(", "process launch"),
         ("tokio::process", "process launch"),
+        ("posix_spawn(", "native suspended launch"),
+        ("dlsym(", "native spawn availability"),
         ("std::process::exit(", "process termination"),
         ("std::net::", "network access"),
         ("TcpStream", "network access"),
@@ -1267,9 +1269,24 @@ fn check_production_source(path: &Path, source: &str) -> Result<(), String> {
     .any(|allowed| path == Path::new(allowed));
     let network_allowed = path == Path::new("crates/kitrove-core/src/git_sync_backend.rs")
         || path == Path::new("crates/kitrove-core/src/ssh_git_transport.rs");
-    let process_launch_allowed = path == Path::new("crates/kitrove-version-probe/src/lib.rs");
+    let process_launch_allowed = [
+        "crates/kitrove-version-probe/src/lib.rs",
+        "crates/kitrove-version-probe/src/apple_process_identity.rs",
+        "crates/kitrove-version-probe/src/unix_process.rs",
+    ]
+    .into_iter()
+    .any(|allowed| path == Path::new(allowed));
+    let suspended_self_launch_allowed =
+        path == Path::new("crates/kitrove-macos-process/src/lib.rs");
+    // This boundary writes only the fixed native-inspection acknowledgement to a
+    // supplied stream. Do not grant it the broader filesystem-mutation exception.
+    let inspection_stream_write_allowed =
+        path == Path::new("crates/kitrove-macos-signature/src/protocol.rs");
     if let Some((token, category)) = forbidden.into_iter().find(|(token, category)| {
         production.contains(token)
+            && !(*category == "native suspended launch" && suspended_self_launch_allowed)
+            && !(*category == "native spawn availability" && suspended_self_launch_allowed)
+            && !(*token == "write_all(" && inspection_stream_write_allowed)
             && !(*category == "filesystem mutation" && filesystem_mutation_allowed)
             && !(*category == "network access" && network_allowed)
             && !(*category == "process launch" && process_launch_allowed)
@@ -1866,10 +1883,57 @@ x86_64-pc-windows-msvc = ["kitrove"]
             "std::fs::File::create(\"result\");",
             "options.write(true);",
             "writer.write_all(b\"changed\");",
+            "libc::posix_spawn(&mut pid, executable, actions, attrs, args, env);",
         ] {
             let error = check_production_source(Path::new("fixture.rs"), source)
                 .expect_err("compiled production source must reject side-effect APIs");
             assert!(error.contains("fixture.rs"));
+        }
+    }
+
+    #[test]
+    fn suspended_launch_exception_does_not_enable_arbitrary_command_runners() {
+        let path = Path::new("crates/kitrove-macos-process/src/lib.rs");
+        let spawn = "libc::posix_spawn(&mut pid, executable, actions, attrs, args, env);";
+        assert!(check_production_source(path, spawn).is_ok());
+        let lookup = "libc::dlsym(libc::RTLD_DEFAULT, fixed_symbol);";
+        assert!(check_production_source(path, lookup).is_ok());
+        for adjacent in [
+            "crates/kitrove-macos-process/src/other.rs",
+            "crates/kitrove-installer/src/lib.rs",
+            "crates/kitrove-version-probe/src/lib.rs",
+        ] {
+            assert!(check_production_source(Path::new(adjacent), spawn).is_err());
+            assert!(check_production_source(Path::new(adjacent), lookup).is_err());
+        }
+        for source in [
+            "Command::new(path);",
+            "std::fs::write(path, bytes);",
+            "std::net::TcpStream::connect(path);",
+        ] {
+            assert!(check_production_source(path, source).is_err());
+        }
+    }
+
+    #[test]
+    fn inspection_stream_exception_is_exact_and_not_filesystem_authority() {
+        let protocol = Path::new("crates/kitrove-macos-signature/src/protocol.rs");
+        assert!(check_production_source(protocol, "output.write_all(ACK)?;").is_ok());
+        for path in [
+            "crates/kitrove-macos-signature/src/lib.rs",
+            "crates/kitrove-macos-signature/src/adjacent.rs",
+            "crates/kitrove-installer/src/protocol.rs",
+        ] {
+            assert!(check_production_source(Path::new(path), "output.write_all(ACK)?;").is_err());
+        }
+        for source in [
+            "std::fs::write(path, ACK);",
+            "File::create(path);",
+            "options.write(true);",
+            "Command::new(path);",
+            "std::net::TcpStream::connect(path);",
+        ] {
+            assert!(check_production_source(protocol, source).is_err());
         }
     }
 
@@ -1991,6 +2055,18 @@ mod inline {}
     #[test]
     fn production_governance_limits_process_authority_to_version_probe_boundary() {
         let launch = "std::process::Command::new(\"pi\");";
+        for module in ["apple_process_identity.rs", "unix_process.rs"] {
+            check_production_source(
+                &Path::new("crates/kitrove-version-probe/src").join(module),
+                launch,
+            )
+            .expect("reviewed closed native policy and retained lifecycle own launch");
+        }
+        check_production_source(
+            Path::new("crates/kitrove-version-probe/src/apple_process_identities.rs"),
+            launch,
+        )
+        .expect_err("adjacent native modules receive no launch authority");
         check_production_source(Path::new("crates/kitrove-version-probe/src/lib.rs"), launch)
             .expect("the reviewed version probe boundary owns bounded process launch");
         check_production_source(
