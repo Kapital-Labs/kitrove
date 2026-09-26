@@ -145,6 +145,15 @@ struct RetainedPayload {
     file_identity: NativeFileIdentity,
 }
 
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy, PartialEq)]
+enum PublicationBoundary {
+    BeforeRename,
+    Renamed,
+    Executable,
+    Synced,
+}
+
 impl RetainedPayload {
     fn revalidate(&self, bytes: &[u8]) -> Result<(), InstallerStageError> {
         self.revalidate_named(bytes, PAYLOAD, 0o600)
@@ -167,7 +176,17 @@ impl RetainedPayload {
 
     #[cfg(target_os = "macos")]
     fn publish(&self, bytes: &[u8]) -> Result<(), InstallerStageError> {
+        self.publish_with(bytes, |_| Ok(()))
+    }
+
+    #[cfg(target_os = "macos")]
+    fn publish_with(
+        &self,
+        bytes: &[u8],
+        mut boundary: impl FnMut(PublicationBoundary) -> Result<(), InstallerStageError>,
+    ) -> Result<(), InstallerStageError> {
         self.revalidate(bytes)?;
+        boundary(PublicationBoundary::BeforeRename)?;
         crate::unix_install::rename_noreplace(
             &self.directory,
             OsStr::new(PAYLOAD),
@@ -176,6 +195,7 @@ impl RetainedPayload {
         )?;
         // All errors after namespace mutation preserve evidence for inspection.
         let complete = (|| {
+            boundary(PublicationBoundary::Renamed)?;
             self.revalidate_named(bytes, EXECUTABLE, 0o600)?;
             native::make_retained_file_executable(
                 &self.directory,
@@ -184,9 +204,11 @@ impl RetainedPayload {
                 self.file_identity,
                 bytes.len() as u64,
             )?;
+            boundary(PublicationBoundary::Executable)?;
             self.revalidate_named(bytes, EXECUTABLE, 0o700)?;
             native::sync_directory(&self.directory)?;
             native::sync_directory(self.parent.directory())?;
+            boundary(PublicationBoundary::Synced)?;
             self.revalidate_named(bytes, EXECUTABLE, 0o700)
         })();
         complete.map_err(|_: InstallerStageError| InstallerStageError::RecoveryRequired)
@@ -280,7 +302,94 @@ fn stage(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(target_os = "macos")]
+    use cap_std::fs::PermissionsExt as _;
     use std::os::unix::fs::{PermissionsExt as _, symlink};
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn publication_failures_preserve_exact_phase_without_success() {
+        for failure in [
+            PublicationBoundary::BeforeRename,
+            PublicationBoundary::Renamed,
+            PublicationBoundary::Executable,
+            PublicationBoundary::Synced,
+        ] {
+            let root = crate::test_support::private_tempdir();
+            let bytes = b"synthetic publication failure evidence";
+            let retained = stage(root.path(), bytes, |_| Ok(())).unwrap();
+            assert!(
+                retained
+                    .publish_with(bytes, |at| {
+                        if at == failure {
+                            Err(InstallerStageError::WriteFailed)
+                        } else {
+                            Ok(())
+                        }
+                    })
+                    .is_err()
+            );
+            let (name, mode) = match failure {
+                PublicationBoundary::BeforeRename => (PAYLOAD, 0o600),
+                PublicationBoundary::Renamed => (EXECUTABLE, 0o600),
+                _ => (EXECUTABLE, 0o700),
+            };
+            retained.revalidate_named(bytes, name, mode).unwrap();
+            drop(retained);
+            assert_eq!(
+                std::fs::read(root.path().join(DIRECTORY).join(name)).unwrap(),
+                bytes
+            );
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn publication_refuses_late_occupied_name_and_postrename_symlink() {
+        for replace_after_rename in [false, true] {
+            let root = crate::test_support::private_tempdir();
+            let bytes = b"synthetic private payload";
+            let retained = stage(root.path(), bytes, |_| Ok(())).unwrap();
+            let directory = root.path().join(DIRECTORY);
+            let unrelated = root.path().join("unrelated");
+            std::fs::write(&unrelated, b"unmanaged").unwrap();
+            std::fs::set_permissions(&unrelated, std::fs::Permissions::from_mode(0o600)).unwrap();
+            assert!(
+                retained
+                    .publish_with(bytes, |at| {
+                        if !replace_after_rename && at == PublicationBoundary::BeforeRename {
+                            std::fs::write(directory.join(EXECUTABLE), b"occupied").unwrap();
+                        }
+                        if replace_after_rename && at == PublicationBoundary::Renamed {
+                            std::fs::rename(
+                                directory.join(EXECUTABLE),
+                                directory.join("retained-evidence"),
+                            )
+                            .unwrap();
+                            symlink(&unrelated, directory.join(EXECUTABLE)).unwrap();
+                        }
+                        Ok(())
+                    })
+                    .is_err()
+            );
+            assert_eq!(std::fs::read(&unrelated).unwrap(), b"unmanaged");
+            assert_eq!(
+                std::fs::metadata(&unrelated).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+            assert_eq!(
+                retained.file.metadata().unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+            if !replace_after_rename {
+                assert_eq!(
+                    std::fs::read(directory.join(EXECUTABLE)).unwrap(),
+                    b"occupied"
+                );
+                assert_eq!(std::fs::read(directory.join(PAYLOAD)).unwrap(), bytes);
+            }
+        }
+    }
 
     #[cfg(target_os = "macos")]
     #[test]

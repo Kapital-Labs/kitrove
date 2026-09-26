@@ -998,3 +998,12 @@ completion record. Reopening/recovery still requires a separate reviewed boundar
 with fresh authentication and native checks. No application installation, rollback,
 PATH update, elevation or stable release is performed. Filesystem-only tests are
 distinct from the operator-only production-artifact acceptance exercise.
+
+Private publication hooks now exercise refusal before rename, after rename, after
+the executable permission change and after directory synchronization. Each synthetic
+failure preserves the expected owned bytes, name and mode without returning success.
+A late occupied final name is not overwritten; replacing the renamed entry with a
+symlink refuses before permissions change and leaves the unrelated target untouched.
+These deterministic error/namespace tests are not fresh-process crash recovery or
+proof against arbitrary same-user concurrent mutation. Reopening acceptance remains
+required before an interrupted publication can be treated as complete.
