@@ -20,6 +20,46 @@ use crate::{InstallerStageError, NativeFileIdentity};
 
 const DIRECTORY: &str = ".kitrove-installer-bootstrap";
 const PAYLOAD: &str = "installer.payload";
+#[cfg(target_os = "macos")]
+const EXECUTABLE: &str = "kitrove-installer";
+
+/// Retained published installer, never application replacement authority.
+/// No automatic execution occurs. Dropping it preserves the published files.
+#[cfg(target_os = "macos")]
+pub struct PublishedInstallerPayload {
+    staged: StagedInstallerPayload,
+}
+
+#[cfg(target_os = "macos")]
+impl PublishedInstallerPayload {
+    /// Reopen only the exact completed inventory using freshly authenticated bytes.
+    /// Performs fresh native verification without changing permissions or repairing
+    /// interrupted data. The running verifier still needs independent trust.
+    pub fn reopen(
+        parent: &Path,
+        authenticated: AuthenticatedInstallerExecutable,
+    ) -> Result<Self, InstallerStageError> {
+        if crate::compiled_release_target()? != authenticated.spec().target() {
+            return Err(InstallerStageError::TargetMismatch);
+        }
+        native::require_unprivileged_process()?;
+        let retained = RetainedPayload::reopen_published(parent, authenticated.bytes())?;
+        let staged = StagedInstallerPayload {
+            retained,
+            authenticated,
+        };
+        staged.verify_native_named(EXECUTABLE, 0o700)?;
+        Ok(Self { staged })
+    }
+
+    /// Freshly check the retained namespace, permissions and authenticated bytes.
+    /// This does not make later pathname execution race-free or authenticate a new process.
+    pub fn revalidate(&self) -> Result<(), InstallerStageError> {
+        self.staged
+            .retained
+            .revalidate_named(self.staged.authenticated.bytes(), EXECUTABLE, 0o700)
+    }
+}
 
 /// Retains authenticated installer data, not a runnable installer or install permit.
 /// Dropping this value closes handles but preserves all staged files.
@@ -36,6 +76,19 @@ pub struct StagedInstallerPayload {
 }
 
 impl StagedInstallerPayload {
+    /// Fresh native verification followed by no-overwrite publication in the owned
+    /// private directory. Consumes staging authority; does not execute the result.
+    /// Failure preserves partial evidence, which may already have executable mode.
+    /// Never infer completion from the filename after a failure or interruption.
+    #[cfg(target_os = "macos")]
+    pub fn publish_native(self) -> Result<PublishedInstallerPayload, InstallerStageError> {
+        self.verify_native_signature()?;
+        self.retained.publish(self.authenticated.bytes())?;
+        let published = PublishedInstallerPayload { staged: self };
+        published.revalidate()?;
+        Ok(published)
+    }
+
     /// Rechecks retained ancestry, names, private permissions, identities and bytes.
     /// Success grants no permission to execute, publish or replace a binary.
     pub fn revalidate(&self) -> Result<(), InstallerStageError> {
@@ -49,11 +102,17 @@ impl StagedInstallerPayload {
     /// private mode-0600 data and retained handles are unchanged.
     #[cfg(target_os = "macos")]
     pub fn verify_native_signature(&self) -> Result<(), InstallerStageError> {
+        self.verify_native_named(PAYLOAD, 0o600)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn verify_native_named(&self, name: &str, mode: u32) -> Result<(), InstallerStageError> {
         use kitrove_release_policy::apple_code_directory::candidate_signature;
         use kitrove_version_probe::apple_process_identity::prepare_verified_suspended_self;
         use std::os::unix::ffi::OsStrExt as _;
 
-        self.revalidate()?;
+        self.retained
+            .revalidate_named(self.authenticated.bytes(), name, mode)?;
         let candidate = candidate_signature(
             self.authenticated.bytes(),
             self.authenticated.spec().target(),
@@ -61,16 +120,19 @@ impl StagedInstallerPayload {
         .map_err(|_| InstallerStageError::VerificationFailed)?;
         let path = Path::new(OsStr::from_bytes(self.retained.parent.path_bytes()))
             .join(DIRECTORY)
-            .join(PAYLOAD);
+            .join(name);
         let prepared = prepare_verified_suspended_self()
             .and_then(|owner| owner.bind_inspection(&path, &candidate))
             .map_err(|_| InstallerStageError::VerificationFailed)?;
-        self.revalidate()?;
+        self.retained
+            .revalidate_named(self.authenticated.bytes(), name, mode)?;
         let inspected = prepared
             .inspect_native()
             .map_err(|_| InstallerStageError::VerificationFailed);
         // Revalidate even when native inspection refuses. Never cache path success.
-        let retained = self.revalidate();
+        let retained = self
+            .retained
+            .revalidate_named(self.authenticated.bytes(), name, mode);
         retained.and(inspected)
     }
 }
@@ -112,18 +174,104 @@ struct RetainedPayload {
     file_identity: NativeFileIdentity,
 }
 
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy, PartialEq)]
+enum PublicationBoundary {
+    BeforeRename,
+    Renamed,
+    Executable,
+    Synced,
+}
+
 impl RetainedPayload {
+    #[cfg(target_os = "macos")]
+    fn reopen_published(parent: &Path, bytes: &[u8]) -> Result<Self, InstallerStageError> {
+        let parent = native::open_destination(parent)?;
+        let directory = native::open_private_child(parent.directory(), OsStr::new(DIRECTORY))?;
+        let directory_identity = native::directory_identity(&directory)?;
+        native::require_exact_inventory(&directory, &[OsStr::new(EXECUTABLE)])?;
+        let leaf = crate::unix_recovery::open_exact_private_file(
+            &directory,
+            EXECUTABLE,
+            0o700,
+            bytes.len() as u64,
+        )?;
+        let retained = Self {
+            parent,
+            directory,
+            directory_identity,
+            file: leaf.file,
+            file_identity: leaf.identity,
+        };
+        retained.revalidate_named(bytes, EXECUTABLE, 0o700)?;
+        Ok(retained)
+    }
+
     fn revalidate(&self, bytes: &[u8]) -> Result<(), InstallerStageError> {
-        self.require_namespace(bytes.len())?;
+        self.revalidate_named(bytes, PAYLOAD, 0o600)
+    }
+
+    fn revalidate_named(
+        &self,
+        bytes: &[u8],
+        name: &str,
+        mode: u32,
+    ) -> Result<(), InstallerStageError> {
+        self.require_namespace(bytes.len(), name, mode)?;
         native::verify_sha256_contents(
             &self.file,
             bytes.len() as u64,
             Sha256::digest(bytes).into(),
         )?;
-        self.require_namespace(bytes.len())
+        self.require_namespace(bytes.len(), name, mode)
     }
 
-    fn require_namespace(&self, size: usize) -> Result<(), InstallerStageError> {
+    #[cfg(target_os = "macos")]
+    fn publish(&self, bytes: &[u8]) -> Result<(), InstallerStageError> {
+        self.publish_with(bytes, |_| Ok(()))
+    }
+
+    #[cfg(target_os = "macos")]
+    fn publish_with(
+        &self,
+        bytes: &[u8],
+        mut boundary: impl FnMut(PublicationBoundary) -> Result<(), InstallerStageError>,
+    ) -> Result<(), InstallerStageError> {
+        self.revalidate(bytes)?;
+        boundary(PublicationBoundary::BeforeRename)?;
+        crate::unix_install::rename_noreplace(
+            &self.directory,
+            OsStr::new(PAYLOAD),
+            &self.directory,
+            OsStr::new(EXECUTABLE),
+        )?;
+        // All errors after namespace mutation preserve evidence for inspection.
+        let complete = (|| {
+            boundary(PublicationBoundary::Renamed)?;
+            self.revalidate_named(bytes, EXECUTABLE, 0o600)?;
+            native::make_retained_file_executable(
+                &self.directory,
+                EXECUTABLE,
+                &self.file,
+                self.file_identity,
+                bytes.len() as u64,
+            )?;
+            boundary(PublicationBoundary::Executable)?;
+            self.revalidate_named(bytes, EXECUTABLE, 0o700)?;
+            native::sync_directory(&self.directory)?;
+            native::sync_directory(self.parent.directory())?;
+            boundary(PublicationBoundary::Synced)?;
+            self.revalidate_named(bytes, EXECUTABLE, 0o700)
+        })();
+        complete.map_err(|_: InstallerStageError| InstallerStageError::RecoveryRequired)
+    }
+
+    fn require_namespace(
+        &self,
+        size: usize,
+        name: &str,
+        mode: u32,
+    ) -> Result<(), InstallerStageError> {
         native::revalidate_destination(&self.parent)?;
         native::require_named_directory_identity(
             self.parent.directory(),
@@ -131,13 +279,13 @@ impl RetainedPayload {
             &self.directory,
             self.directory_identity,
         )?;
-        native::require_exact_inventory(&self.directory, &[OsStr::new(PAYLOAD)])?;
+        native::require_exact_inventory(&self.directory, &[OsStr::new(name)])?;
         native::require_named_file_identity(
             &self.directory,
-            PAYLOAD,
+            name,
             &self.file,
             self.file_identity,
-            0o600,
+            mode,
             size as u64,
         )
     }
@@ -206,7 +354,193 @@ fn stage(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(target_os = "macos")]
+    use cap_std::fs::PermissionsExt as _;
     use std::os::unix::fs::{PermissionsExt as _, symlink};
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn reopening_refuses_partial_or_changed_publication_without_repair() {
+        for case in [
+            "valid",
+            "data",
+            "mode",
+            "bytes",
+            "symlink",
+            "inventory",
+            "hardlink",
+        ] {
+            let root = crate::test_support::private_tempdir();
+            let bytes = b"synthetic reopening data";
+            let retained = stage(root.path(), bytes, |_| Ok(())).unwrap();
+            let directory = root.path().join(DIRECTORY);
+            let path = directory.join(EXECUTABLE);
+            if case != "data" {
+                retained.publish(bytes).unwrap();
+            }
+            drop(retained);
+            match case {
+                "mode" => {
+                    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap()
+                }
+                "bytes" => std::fs::write(&path, b"changed").unwrap(),
+                "symlink" => {
+                    std::fs::rename(&path, root.path().join("evidence")).unwrap();
+                    symlink(root.path().join("evidence"), &path).unwrap();
+                }
+                "inventory" => std::fs::write(directory.join("extra"), b"unmanaged").unwrap(),
+                "hardlink" => std::fs::hard_link(&path, root.path().join("alias")).unwrap(),
+                _ => {}
+            }
+            let result = RetainedPayload::reopen_published(root.path(), bytes);
+            assert_eq!(result.is_ok(), case == "valid");
+            if case == "data" {
+                assert!(directory.join(PAYLOAD).is_file());
+                assert!(!path.exists());
+            }
+            if case == "mode" {
+                assert_eq!(
+                    std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+                    0o600
+                );
+            }
+            if case == "bytes" {
+                assert_eq!(std::fs::read(&path).unwrap(), b"changed");
+            }
+            if case == "symlink" {
+                assert!(
+                    std::fs::symlink_metadata(&path)
+                        .unwrap()
+                        .file_type()
+                        .is_symlink()
+                );
+            }
+            if case == "inventory" {
+                assert_eq!(
+                    std::fs::read(directory.join("extra")).unwrap(),
+                    b"unmanaged"
+                );
+            }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn publication_failures_preserve_exact_phase_without_success() {
+        for failure in [
+            PublicationBoundary::BeforeRename,
+            PublicationBoundary::Renamed,
+            PublicationBoundary::Executable,
+            PublicationBoundary::Synced,
+        ] {
+            let root = crate::test_support::private_tempdir();
+            let bytes = b"synthetic publication failure evidence";
+            let retained = stage(root.path(), bytes, |_| Ok(())).unwrap();
+            assert!(
+                retained
+                    .publish_with(bytes, |at| {
+                        if at == failure {
+                            Err(InstallerStageError::WriteFailed)
+                        } else {
+                            Ok(())
+                        }
+                    })
+                    .is_err()
+            );
+            let (name, mode) = match failure {
+                PublicationBoundary::BeforeRename => (PAYLOAD, 0o600),
+                PublicationBoundary::Renamed => (EXECUTABLE, 0o600),
+                _ => (EXECUTABLE, 0o700),
+            };
+            retained.revalidate_named(bytes, name, mode).unwrap();
+            drop(retained);
+            assert_eq!(
+                std::fs::read(root.path().join(DIRECTORY).join(name)).unwrap(),
+                bytes
+            );
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn publication_refuses_late_occupied_name_and_postrename_symlink() {
+        for replace_after_rename in [false, true] {
+            let root = crate::test_support::private_tempdir();
+            let bytes = b"synthetic private payload";
+            let retained = stage(root.path(), bytes, |_| Ok(())).unwrap();
+            let directory = root.path().join(DIRECTORY);
+            let unrelated = root.path().join("unrelated");
+            std::fs::write(&unrelated, b"unmanaged").unwrap();
+            std::fs::set_permissions(&unrelated, std::fs::Permissions::from_mode(0o600)).unwrap();
+            assert!(
+                retained
+                    .publish_with(bytes, |at| {
+                        if !replace_after_rename && at == PublicationBoundary::BeforeRename {
+                            std::fs::write(directory.join(EXECUTABLE), b"occupied").unwrap();
+                        }
+                        if replace_after_rename && at == PublicationBoundary::Renamed {
+                            std::fs::rename(
+                                directory.join(EXECUTABLE),
+                                directory.join("retained-evidence"),
+                            )
+                            .unwrap();
+                            symlink(&unrelated, directory.join(EXECUTABLE)).unwrap();
+                        }
+                        Ok(())
+                    })
+                    .is_err()
+            );
+            assert_eq!(std::fs::read(&unrelated).unwrap(), b"unmanaged");
+            assert_eq!(
+                std::fs::metadata(&unrelated).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+            assert_eq!(
+                retained.file.metadata().unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+            if !replace_after_rename {
+                assert_eq!(
+                    std::fs::read(directory.join(EXECUTABLE)).unwrap(),
+                    b"occupied"
+                );
+                assert_eq!(std::fs::read(directory.join(PAYLOAD)).unwrap(), bytes);
+            }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn publication_retains_inode_and_refuses_occupied_or_changed_data() {
+        for case in ["valid", "occupied", "changed"] {
+            let root = crate::test_support::private_tempdir();
+            let bytes = b"synthetic data, never executed";
+            let retained = stage(root.path(), bytes, |_| Ok(())).unwrap();
+            let directory = root.path().join(DIRECTORY);
+            if case == "occupied" {
+                std::fs::write(directory.join(EXECUTABLE), b"unmanaged").unwrap();
+            } else if case == "changed" {
+                std::fs::write(directory.join(PAYLOAD), b"changed").unwrap();
+            }
+            // Filesystem-only seam, not native signature acceptance.
+            let result = retained.publish(bytes);
+            if case == "valid" {
+                result.unwrap();
+                retained.revalidate_named(bytes, EXECUTABLE, 0o700).unwrap();
+                assert!(!directory.join(PAYLOAD).exists());
+                assert_eq!(std::fs::read(directory.join(EXECUTABLE)).unwrap(), bytes);
+            } else {
+                assert!(result.is_err());
+                assert!(directory.join(PAYLOAD).is_file());
+                if case == "occupied" {
+                    assert_eq!(
+                        std::fs::read(directory.join(EXECUTABLE)).unwrap(),
+                        b"unmanaged"
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn stages_exact_nonexecutable_data_and_preserves_it_on_drop() {

@@ -981,3 +981,45 @@ payload authority. This method does not enable a public bootstrap command or pro
 Windows native signature verification. The public-artifact fixture exercises this
 method for the authentic payload and changed-byte refusal, while its lower-level
 tests still distinguish native CMS/code validation from retained-byte mismatches.
+
+### Mac installer executable publication boundary
+
+The consuming `publish_native` operation freshly verifies the authenticated retained
+payload, then revalidates it before a fixed-name no-overwrite rename within the owned
+private directory. The retained inode remains mode 0600 until the renamed inventory
+and bytes pass validation. A shared descriptor-based permission primitive changes
+only that retained inode to mode 0700, syncs it and rechecks its named identity.
+Directory synchronization and final authenticated-byte/namespace checks precede
+returning the distinct published-installer owner. No payload is automatically run.
+
+Failures preserve evidence. A failure or interruption after the permission change
+can leave an executable file without a returned owner; its name alone is never a
+completion record. Reopening/recovery still requires a separate reviewed boundary
+with fresh authentication and native checks. No application installation, rollback,
+PATH update, elevation or stable release is performed. Filesystem-only tests are
+distinct from the operator-only production-artifact acceptance exercise.
+
+Private publication hooks now exercise refusal before rename, after rename, after
+the executable permission change and after directory synchronization. Each synthetic
+failure preserves the expected owned bytes, name and mode without returning success.
+A late occupied final name is not overwritten; replacing the renamed entry with a
+symlink refuses before permissions change and leaves the unrelated target untouched.
+These deterministic error/namespace tests are not fresh-process crash recovery or
+proof against arbitrary same-user concurrent mutation. Reopening acceptance remains
+required before an interrupted publication can be treated as complete.
+
+### Read-only published-installer reopening
+
+The distinct published owner can be reopened only with freshly authenticated installer
+bytes for the compiled target. Reuse the retained destination/private-directory checks
+and the existing nonblocking, no-follow exact-file opener, requiring one mode-0700
+leaf with a single link and matching authenticated bytes. Perform fresh bounded native
+inspection through the same helper path before returning the owner. No stored boolean,
+sidecar or filename authenticates completion. The read-only operation neither repairs
+partial mode-0600 publication nor changes names/permissions, and does not execute it.
+
+Synthetic cases cover partial staging, changed mode/bytes, symlinks, extra inventory
+and hardlinks without repair. The operator fixture separately drops the original
+published owner, independently reauthenticates the archive and reopens the published
+data with fresh native checks. Same-process reopening is not fresh-process interruption
+recovery or clean-machine launch evidence. Public bootstrap command wiring remains open.

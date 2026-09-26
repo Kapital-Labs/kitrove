@@ -46,16 +46,24 @@ Private authenticated installer-data staging is implemented on Unix and Windows.
 passed the native Windows suite and an explicitly unelevated retained-payload test;
 merged main validation also passed in
 [run 36040431645](https://github.com/Kapital-Labs/kitrove/actions/runs/36040431645).
-This is data staging only: native-signature-gated executable publication, reopening
-and a consumer bootstrap command remain unimplemented.
+That checkpoint covers data staging only. The Mac library now also supports
+native-signature-gated publication and reopening, as described below; a consumer
+bootstrap command remains unimplemented.
 
 The Mac retained-payload library now provides bounded native signature inspection
 using an independently trusted source-built self helper. It derives the candidate
 from authenticated installer bytes, checks retained file identity and bytes around
 inspection, and leaves the payload non-executable. The pinned RC2 arm64 fixture
 passed the authentic case and rejected changed CMS/code on the existing Mac through
-the real helper dispatch. This is not executable publication, downloaded-installer
-bootstrap, Windows signature acceptance or clean-machine/offline launch evidence.
+the real helper dispatch. The separate consuming publication operation freshly
+verifies the payload before a no-overwrite rename and retained-inode mode change
+to 0700. A distinct owner retains the authenticated bytes and file handles. Read-only
+reopening requires fresh authentication and native verification; incomplete or
+altered state is refused without repair. The pinned RC2 fixture passed publication,
+owner drop and same-process reopening without launching the downloaded installer.
+Synthetic tests cover failure boundaries and namespace substitutions. This is not
+fresh-process interruption recovery, downloaded-installer bootstrap, Windows
+signature acceptance or clean-machine/offline launch evidence.
 The operator-only test is explicitly selected with
 `cargo test -p kitrove-installer --test public_installer_payload -- --run-native-acceptance`
 and requires `KITROVE_TEST_INSTALLER_ARCHIVE` and `KITROVE_TEST_INSTALLER_BUNDLE` to

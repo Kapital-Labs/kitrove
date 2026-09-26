@@ -10,6 +10,8 @@ use kitrove_release_provenance::AuthenticatedApplicationExecutable;
 
 #[cfg(any(unix, windows))]
 mod installer_payload;
+#[cfg(target_os = "macos")]
+pub use installer_payload::PublishedInstallerPayload;
 #[cfg(any(unix, windows))]
 pub use installer_payload::{StagedInstallerPayload, stage_authenticated_installer_payload};
 
