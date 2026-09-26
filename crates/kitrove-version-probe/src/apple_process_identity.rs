@@ -1,8 +1,10 @@
-//! Bounded native identity checks, not provenance or permission to resume a child.
+//! Bounded owned native inspection, not provenance or installer readiness.
 //! The caller must already trust this executing verifier and the system runtime.
 use super::{InspectionFailure, ProbeProcess, receive_probe_output, spawn_output_reader};
-use kitrove_macos_process::{InspectionTransport, SuspendedSelf, SystemVerifier};
-use kitrove_macos_signature::InspectionExchange;
+use kitrove_macos_process::{
+    AnchoredSuspendedSelf, InspectionTransport, SuspendedSelf, SystemVerifier,
+};
+use kitrove_macos_signature::{ExchangeProgress, InspectionExchange};
 use kitrove_release_policy::apple_code_directory::AppleSignatureCandidate;
 use kitrove_release_policy::native_signature::AppleProcessIdentityCandidate;
 use std::process::{Command, Stdio};
@@ -23,9 +25,10 @@ impl std::error::Error for IdentityRefused {}
 
 /// Owns the exact suspended child whose identity matched the executing verifier.
 /// Private ownership prevents substituting another child after verification.
-/// This does not authenticate first execution and deliberately offers no resume.
+/// A separate suspended anchor retains its group independently of worker exit.
+/// This does not authenticate first execution. Only a bound request can be run.
 pub struct VerifiedSuspendedSelf {
-    child: SuspendedSelf,
+    child: AnchoredSuspendedSelf,
     transport: InspectionTransport,
     deadline: Instant,
 }
@@ -65,17 +68,67 @@ impl VerifiedSuspendedSelf {
         drop(transport);
         child.terminate().map_err(|_| IdentityRefused)
     }
+
+    fn run_operation(
+        mut self,
+        mut poll: impl FnMut(&mut InspectionTransport) -> Result<ExchangeProgress, IdentityRefused>,
+    ) -> Result<(), IdentityRefused> {
+        let result = self.drive_operation(&mut poll);
+        // Cleanup is required even after framing, exit, deadline or transport refusal.
+        let cleanup = self.terminate();
+        result.and(cleanup)
+    }
+
+    fn drive_operation(
+        &mut self,
+        poll: &mut impl FnMut(&mut InspectionTransport) -> Result<ExchangeProgress, IdentityRefused>,
+    ) -> Result<(), IdentityRefused> {
+        remaining(self.deadline).map_err(|_| IdentityRefused)?;
+        self.child
+            .resume_owned_worker_once()
+            .map_err(|_| IdentityRefused)?;
+        let mut framed = false;
+        loop {
+            remaining(self.deadline).map_err(|_| IdentityRefused)?;
+            if !framed {
+                framed = poll(&mut self.transport)? == ExchangeProgress::Framed;
+            }
+            let exit = self.child.poll_exit().map_err(|_| IdentityRefused)?;
+            let budget = remaining(self.deadline).map_err(|_| IdentityRefused)?;
+            if let Some(status) = exit {
+                if !status.success() {
+                    return Err(IdentityRefused);
+                }
+                if framed {
+                    return Ok(());
+                }
+            }
+            std::thread::sleep(budget.min(Duration::from_millis(5)));
+        }
+    }
 }
 
 /// Request, exact verified child and transport are retained behind one owner.
-/// No descriptor, child substitution, polling or resume interface is exposed yet.
-/// Payload authentication/revalidation and confirmed successful exit remain open.
+/// No descriptor or child substitution interface is exposed.
+/// Payload authentication and retained-file revalidation remain caller obligations.
 pub struct PreparedInspection {
     verified: VerifiedSuspendedSelf,
     exchange: InspectionExchange,
 }
 
 impl PreparedInspection {
+    /// Run the fixed request, requiring exact framing, successful worker exit and
+    /// confirmed cleanup. Uses the original identity-check deadline; cleanup has
+    /// its own bounded budget. Success is native inspection only, not provenance,
+    /// authenticated payload binding, executable publication or installer readiness.
+    pub fn inspect_native(self) -> Result<(), IdentityRefused> {
+        let Self {
+            verified,
+            mut exchange,
+        } = self;
+        verified.run_operation(|transport| exchange.poll(transport).map_err(|_| IdentityRefused))
+    }
+
     pub fn terminate(self) -> Result<(), IdentityRefused> {
         let Self { verified, exchange } = self;
         drop(exchange);
@@ -93,7 +146,8 @@ pub fn prepare_verified_suspended_self() -> Result<VerifiedSuspendedSelf, Identi
     let verifier = SystemVerifier::open().map_err(|_| IdentityRefused)?;
     let identity = capture_candidate(&verifier, deadline).map_err(|_| IdentityRefused)?;
     remaining(deadline).map_err(|_| IdentityRefused)?;
-    let (child, transport) = SuspendedSelf::spawn_with_transport().map_err(|_| IdentityRefused)?;
+    let (child, transport) =
+        AnchoredSuspendedSelf::spawn_with_transport().map_err(|_| IdentityRefused)?;
     bind_child(&verifier, child, transport, &identity, deadline).map_err(|_| IdentityRefused)
 }
 
@@ -140,7 +194,7 @@ pub fn verify_suspended_child(
 ) -> Result<(), IdentityRefused> {
     let deadline = Instant::now() + DEADLINE;
     let verifier = SystemVerifier::open().map_err(|_| IdentityRefused)?;
-    inspect_child(&verifier, child, identity, deadline).map_err(|_| IdentityRefused)
+    inspect_child_id(&verifier, child.id(), identity, deadline).map_err(|_| IdentityRefused)
 }
 
 fn remaining(deadline: Instant) -> Result<Duration, InspectionFailure> {
@@ -152,12 +206,12 @@ fn remaining(deadline: Instant) -> Result<Duration, InspectionFailure> {
 
 fn bind_child(
     verifier: &SystemVerifier,
-    child: SuspendedSelf,
+    child: AnchoredSuspendedSelf,
     transport: InspectionTransport,
     identity: &AppleProcessIdentityCandidate,
     deadline: Instant,
 ) -> Result<VerifiedSuspendedSelf, InspectionFailure> {
-    inspect_child(verifier, &child, identity, deadline)?;
+    inspect_child_id(verifier, child.id(), identity, deadline)?;
     Ok(VerifiedSuspendedSelf {
         child,
         transport,
@@ -165,13 +219,13 @@ fn bind_child(
     })
 }
 
-fn inspect_child(
+fn inspect_child_id(
     verifier: &SystemVerifier,
-    child: &SuspendedSelf,
+    owned_child_id: i32,
     identity: &AppleProcessIdentityCandidate,
     deadline: Instant,
 ) -> Result<(), InspectionFailure> {
-    let pid = u32::try_from(child.id()).map_err(|_| InspectionFailure::Failed)?;
+    let pid = u32::try_from(owned_child_id).map_err(|_| InspectionFailure::Failed)?;
     inspect(verifier, Operation::Verify { pid, identity }, deadline)?;
     Ok(())
 }
@@ -241,7 +295,7 @@ mod tests {
     #[test]
     fn request_binding_refusal_preserves_deadline_and_cleans_owned_resources() {
         for expired in [false, true] {
-            let (child, transport) = SuspendedSelf::spawn_with_transport().unwrap();
+            let (child, transport) = AnchoredSuspendedSelf::spawn_with_transport().unwrap();
             let pid = rustix::process::Pid::from_raw(child.id()).unwrap();
             let outputs = retain_outputs(&transport);
             let deadline = if expired {
@@ -275,7 +329,7 @@ mod tests {
     #[test]
     fn expired_binding_reaps_the_owned_suspended_child() {
         let verifier = SystemVerifier::open().unwrap();
-        let (child, transport) = SuspendedSelf::spawn_with_transport().unwrap();
+        let (child, transport) = AnchoredSuspendedSelf::spawn_with_transport().unwrap();
         let outputs = retain_outputs(&transport);
         let pid = rustix::process::Pid::from_raw(child.id()).unwrap();
         let identity = AppleProcessIdentityCandidate::from_display(
@@ -291,6 +345,34 @@ mod tests {
             rustix::io::Errno::CHILD
         );
         assert_outputs_closed(outputs);
+    }
+
+    #[test]
+    #[ignore = "operator-only: requires native signed source-built test executable"]
+    fn wrong_identity_binding_cleans_the_anchored_worker() {
+        let verifier = SystemVerifier::open().unwrap();
+        let (child, transport) = AnchoredSuspendedSelf::spawn_with_transport().unwrap();
+        let outputs = retain_outputs(&transport);
+        let pid = rustix::process::Pid::from_raw(child.id()).unwrap();
+        let identity = AppleProcessIdentityCandidate::from_display(
+            b"CDHash=0000000000000000000000000000000000000000\n",
+        )
+        .unwrap();
+        assert!(
+            bind_child(
+                &verifier,
+                child,
+                transport,
+                &identity,
+                Instant::now() + DEADLINE
+            )
+            .is_err()
+        );
+        assert_outputs_closed(outputs);
+        assert_eq!(
+            rustix::process::waitpid(Some(pid), rustix::process::WaitOptions::NOHANG).unwrap_err(),
+            rustix::io::Errno::CHILD
+        );
     }
 
     #[test]
@@ -325,6 +407,54 @@ mod tests {
             rustix::process::waitpid(Some(pid), rustix::process::WaitOptions::NOHANG).unwrap_err(),
             rustix::io::Errno::CHILD
         );
+    }
+
+    #[test]
+    fn expired_operation_never_polls_and_reaps_worker() {
+        let (child, transport) = AnchoredSuspendedSelf::spawn_with_transport().unwrap();
+        let pid = rustix::process::Pid::from_raw(child.id()).unwrap();
+        let outputs = retain_outputs(&transport);
+        // Ownership-only fixture; expiration must refuse before continuation.
+        let fixture = VerifiedSuspendedSelf {
+            child,
+            transport,
+            deadline: Instant::now(),
+        };
+        assert_eq!(
+            fixture.run_operation(|_| panic!("expired operation must not poll")),
+            Err(IdentityRefused)
+        );
+        assert_outputs_closed(outputs);
+        assert_eq!(
+            rustix::process::waitpid(Some(pid), rustix::process::WaitOptions::NOHANG).unwrap_err(),
+            rustix::io::Errno::CHILD
+        );
+    }
+
+    #[test]
+    #[ignore = "operator-only: requires native signed source-built test executable"]
+    fn verified_operation_refusal_and_failed_exit_both_reap_worker() {
+        for transport_refuses in [true, false] {
+            let verified = prepare_verified_suspended_self().unwrap();
+            let pid = rustix::process::Pid::from_raw(verified.child.id()).unwrap();
+            // The source-built libtest executable rejects the fixed helper flag.
+            // Even simulated complete framing cannot turn its failure into success.
+            assert_eq!(
+                verified.run_operation(|_| {
+                    if transport_refuses {
+                        Err(IdentityRefused)
+                    } else {
+                        Ok(ExchangeProgress::Framed)
+                    }
+                }),
+                Err(IdentityRefused)
+            );
+            assert_eq!(
+                rustix::process::waitpid(Some(pid), rustix::process::WaitOptions::NOHANG)
+                    .unwrap_err(),
+                rustix::io::Errno::CHILD
+            );
+        }
     }
 
     #[test]

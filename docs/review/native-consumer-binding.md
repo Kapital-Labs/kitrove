@@ -844,3 +844,103 @@ verifier; the parent must enforce containment and lifetime before it is used.
 The installer moves its existing Mac signature dependency from test-only to normal
 use. Cargo.lock identities remain unchanged. No credential or downloaded executable
 is used, and no process-launch governance allowance is expanded.
+
+### Separate retained group anchor
+
+A new suspended owner pairs the fixed inspection child with a separate suspended
+group leader. The private spawn implementation accepts only that retained owner,
+not a caller-supplied group number. The worker joins the anchor's group but owns
+only exact-child signaling; the anchor retains group signaling authority. Existing
+public suspended-self launches still own a fresh group and preserve their behavior.
+
+Explicit cleanup reaps the worker while the anchor remains live, then kills the
+group and reaps the anchor. Both cleanup attempts run even if the first refuses.
+Implicit field drop also attempts bounded cleanup without claiming a verified
+result. This does not reinterpret EPERM as success. Native tests confirm group
+membership, the live group after worker reaping, output EOF, and reaping of both
+children through explicit termination and drop. They kill suspended workers, so
+they do not prove successful helper execution or its exit-status handling.
+
+The new owner exposes only the exact child ID and termination, with no extraction
+or resume. It is not yet connected to verified request ownership. Cooperative launch
+and retained SIGCHLD contracts still apply. No additional dependency or launch
+allowance is introduced; future resume/exit integration requires separate review.
+
+### Verified ownership uses the retained anchor
+
+The verified inspection owner now holds the anchored worker rather than a lone
+group leader. Dynamic identity verification targets the worker's exact owned PID,
+not the anchor, and the existing fixed verifier policy remains shared with the
+standalone suspended-child check. The numeric-ID helper is private; public callers
+still cannot supply arbitrary PIDs or replace an owned child after verification.
+
+Request binding retains the original operation deadline and the complete anchored
+owner. Expired binding and request-construction refusal therefore clean both child
+ownership scopes. Native identity tests exercise successful verification followed
+by explicit termination/drop and wrong-identity refusal with worker reaping and pipe
+EOF. The process crate separately checks reaping of both children. No resume, helper
+exit-status success or installer readiness is inferred from these tests.
+
+### Nonblocking worker exit observation
+
+The anchored owner can now observe the exact worker with one nonblocking wait.
+Pending/interrupted waits return no status. A terminal status is cached and disarms
+worker signaling before it is returned, while the independent group anchor remains
+owned. Repeated observations never wait on or signal the reaped worker ID. Unexpected
+wait failures permanently refuse and disarm uncertain worker ownership; termination
+still attempts anchor cleanup but does not turn the refusal into success.
+
+Native tests kill a suspended worker, observe its signal exit, confirm cached status
+and a still-live group anchor, and then clean up. A controlled lost-wait-ownership
+fixture confirms sticky refusal and anchor reaping. This is not successful helper
+execution evidence. No resume method exists yet, and a cached status proves neither
+protocol success nor completed group cleanup. Deadline and polling cadence remain
+the owning driver's responsibility.
+
+An additional native regression test continues only the source-built Rust test
+executable through a test-only signal. Its test runner rejects the fixed helper
+argument and exits normally with a failure code. The test distinguishes that exit
+from signal termination, observes the cached status, verifies the still-live anchor
+and confirms both children were reaped after cleanup. This is normal-exit lifecycle
+evidence, not successful inspection or permission to execute downloaded content.
+Production APIs still expose no resume method. Both native exit tests share a bounded
+test wait helper instead of duplicating polling logic.
+
+### One-shot owned-worker continuation primitive
+
+The native lifecycle crate now offers one continuation attempt against the exact
+retained worker, never a supplied PID or group. It marks the attempt before checking
+child policy and exit state, refuses reaped/uncertain workers, and never retries a
+failed attempt. It does not continue the anchor. Native tests use the source-built
+test executable to verify ordinary failure exit, repeat refusal, and refusal after
+reaping or lost ownership.
+
+This low-level method is not a cryptographic authorization capability. Across the
+crate boundary, identity checking remains the reviewed product caller's obligation;
+arbitrary Rust callers could violate that contract just as they could call native
+signals themselves. Repository governance restricts the named continuation API to
+its native implementation and the exact verified-owner module, with adjacent-file
+negative tests. This is a review guard, not a security sandbox or Rust privacy proof.
+No product caller invokes it yet. The future prepared-owner operation must check its
+original deadline and retain verified identity, request, transport and payload
+evidence before continuation, then require framing, successful exit and cleanup.
+
+### Prepared-owner inspection driver
+
+The prepared verified owner now consumes its exact request and transport in one
+bounded operation. It checks the original identity deadline before the one-shot
+worker continuation, polls the shared exchange and exact worker exit, and requires
+both complete framing and successful exit. Once framing completes it is not polled
+again. Nonzero or signaled exit refuses. A retained anchor preserves group ownership
+while exit and pipe completion arrive independently. Every returned outcome performs
+explicit bounded cleanup; cleanup refusal cannot produce success. Cleanup uses its
+separate finite budget, so the operation is not a total 15-second wall-clock promise.
+
+The polling seam is private and used only for negative lifecycle tests. Expiration
+refuses before continuation or polling. An operator-only source-built native test
+checks immediate transport refusal and simulated complete framing followed by the
+test executable's actual nonzero exit. Both refuse and reap the worker. This does
+not establish successful helper inspection. No installer consumer call site or
+downloaded executable is enabled. Independent first execution, authenticated payload
+binding and retained-file revalidation remain separate requirements; a native
+inspection result is not an installer readiness token.
