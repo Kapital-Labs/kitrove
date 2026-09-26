@@ -805,3 +805,23 @@ Dependency review: the lockfile adds only the existing workspace macos-process e
 to macos-signature. No package versions, registry identities or third-party packages
 change. The reviewed lock digest is updated for that single edge. Existing process
 launch and side-effect governance allowances remain unchanged.
+
+### Prepared inspection ownership
+
+The verified suspended owner now retains its original identity-check deadline.
+Binding a request consumes that owner and places it alongside the exchange state
+inside `PreparedInspection`. No child, descriptor, request-state substitution or
+resume interface is exposed. Binding checks the original deadline before and after
+request preparation; it does not grant another time budget. Explicit termination
+uses the existing verified-owner cleanup. Implicit drop retains its bounded
+best-effort behavior and is not proof of successful cleanup.
+
+Ownership-only native tests deliberately bypass identity verification inside the
+private test module, then prove that expiry prevents request construction and that
+construction refusal closes pipes and reaps the child. They do not establish a
+successful native inspection. Candidate signature data remains untrusted until the
+future executed operation, exit/cleanup checks and retained payload revalidation.
+
+The dependency delta is one existing workspace edge from version-probe to
+macos-signature. Reviewed lock identity changes reflect only that edge, with no new
+third-party packages or versions. Process-launch allowances remain unchanged.

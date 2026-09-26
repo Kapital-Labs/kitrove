@@ -2,6 +2,8 @@
 //! The caller must already trust this executing verifier and the system runtime.
 use super::{InspectionFailure, ProbeProcess, receive_probe_output, spawn_output_reader};
 use kitrove_macos_process::{InspectionTransport, SuspendedSelf, SystemVerifier};
+use kitrove_macos_signature::InspectionExchange;
+use kitrove_release_policy::apple_code_directory::AppleSignatureCandidate;
 use kitrove_release_policy::native_signature::AppleProcessIdentityCandidate;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -25,14 +27,59 @@ impl std::error::Error for IdentityRefused {}
 pub struct VerifiedSuspendedSelf {
     child: SuspendedSelf,
     transport: InspectionTransport,
+    deadline: Instant,
 }
 
 impl VerifiedSuspendedSelf {
+    /// Bind one fixed inspection request to this exact owned child and transport.
+    /// Preserves the identity-check deadline, rather than starting a fresh budget.
+    /// The candidate remains untrusted; this neither resumes nor grants readiness.
+    pub fn bind_inspection(
+        self,
+        path: &std::path::Path,
+        candidate: &AppleSignatureCandidate,
+    ) -> Result<PreparedInspection, IdentityRefused> {
+        self.bind_exchange(|deadline| {
+            InspectionExchange::new(path, candidate, deadline).map_err(|_| IdentityRefused)
+        })
+    }
+
+    fn bind_exchange(
+        self,
+        build: impl FnOnce(Instant) -> Result<InspectionExchange, IdentityRefused>,
+    ) -> Result<PreparedInspection, IdentityRefused> {
+        remaining(self.deadline).map_err(|_| IdentityRefused)?;
+        let exchange = build(self.deadline)?;
+        remaining(self.deadline).map_err(|_| IdentityRefused)?;
+        Ok(PreparedInspection {
+            verified: self,
+            exchange,
+        })
+    }
+
     /// Terminate the retained child and confirm reaping; failure stays redacted.
     pub fn terminate(self) -> Result<(), IdentityRefused> {
-        let Self { child, transport } = self;
+        let Self {
+            child, transport, ..
+        } = self;
         drop(transport);
         child.terminate().map_err(|_| IdentityRefused)
+    }
+}
+
+/// Request, exact verified child and transport are retained behind one owner.
+/// No descriptor, child substitution, polling or resume interface is exposed yet.
+/// Payload authentication/revalidation and confirmed successful exit remain open.
+pub struct PreparedInspection {
+    verified: VerifiedSuspendedSelf,
+    exchange: InspectionExchange,
+}
+
+impl PreparedInspection {
+    pub fn terminate(self) -> Result<(), IdentityRefused> {
+        let Self { verified, exchange } = self;
+        drop(exchange);
+        verified.terminate()
     }
 }
 
@@ -111,7 +158,11 @@ fn bind_child(
     deadline: Instant,
 ) -> Result<VerifiedSuspendedSelf, InspectionFailure> {
     inspect_child(verifier, &child, identity, deadline)?;
-    Ok(VerifiedSuspendedSelf { child, transport })
+    Ok(VerifiedSuspendedSelf {
+        child,
+        transport,
+        deadline,
+    })
 }
 
 fn inspect_child(
@@ -184,6 +235,40 @@ mod tests {
     fn assert_outputs_closed(outputs: [rustix::fd::OwnedFd; 2]) {
         for output in outputs {
             assert_eq!(rustix::io::read(&output, &mut [0]).unwrap(), 0);
+        }
+    }
+
+    #[test]
+    fn request_binding_refusal_preserves_deadline_and_cleans_owned_resources() {
+        for expired in [false, true] {
+            let (child, transport) = SuspendedSelf::spawn_with_transport().unwrap();
+            let pid = rustix::process::Pid::from_raw(child.id()).unwrap();
+            let outputs = retain_outputs(&transport);
+            let deadline = if expired {
+                Instant::now()
+            } else {
+                Instant::now() + DEADLINE
+            };
+            // Ownership-only fixture: deliberately does not claim native verification.
+            let fixture = VerifiedSuspendedSelf {
+                child,
+                transport,
+                deadline,
+            };
+            let mut called = false;
+            let result = fixture.bind_exchange(|observed| {
+                called = true;
+                assert_eq!(observed, deadline);
+                Err(IdentityRefused)
+            });
+            assert!(result.is_err());
+            assert_eq!(called, !expired);
+            assert_outputs_closed(outputs);
+            assert_eq!(
+                rustix::process::waitpid(Some(pid), rustix::process::WaitOptions::NOHANG)
+                    .unwrap_err(),
+                rustix::io::Errno::CHILD
+            );
         }
     }
 
