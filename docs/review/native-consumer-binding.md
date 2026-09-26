@@ -865,3 +865,18 @@ The new owner exposes only the exact child ID and termination, with no extractio
 or resume. It is not yet connected to verified request ownership. Cooperative launch
 and retained SIGCHLD contracts still apply. No additional dependency or launch
 allowance is introduced; future resume/exit integration requires separate review.
+
+### Verified ownership uses the retained anchor
+
+The verified inspection owner now holds the anchored worker rather than a lone
+group leader. Dynamic identity verification targets the worker's exact owned PID,
+not the anchor, and the existing fixed verifier policy remains shared with the
+standalone suspended-child check. The numeric-ID helper is private; public callers
+still cannot supply arbitrary PIDs or replace an owned child after verification.
+
+Request binding retains the original operation deadline and the complete anchored
+owner. Expired binding and request-construction refusal therefore clean both child
+ownership scopes. Native identity tests exercise successful verification followed
+by explicit termination/drop and wrong-identity refusal with worker reaping and pipe
+EOF. The process crate separately checks reaping of both children. No resume, helper
+exit-status success or installer readiness is inferred from these tests.
