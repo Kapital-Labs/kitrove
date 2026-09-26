@@ -47,8 +47,10 @@ passed the native Windows suite and an explicitly unelevated retained-payload te
 merged main validation also passed in
 [run 36040431645](https://github.com/Kapital-Labs/kitrove/actions/runs/36040431645).
 That checkpoint covers data staging only. The Mac library now also supports
-native-signature-gated publication and reopening, as described below; a consumer
-bootstrap command remains unimplemented.
+native-signature-gated publication and reopening, as described below. The explicit
+`prepare-installer` and `verify-prepared-installer` commands connect those boundaries
+to exact retained release intake and a private destination. They require an already
+trusted verifier, do not launch their output, and do not establish first-download trust.
 
 The Mac retained-payload library now provides bounded native signature inspection
 using an independently trusted source-built self helper. It derives the candidate
@@ -64,6 +66,10 @@ owner drop and same-process reopening without launching the downloaded installer
 Synthetic tests cover failure boundaries and namespace substitutions. This is not
 fresh-process interruption recovery, downloaded-installer bootstrap, Windows
 signature acceptance or clean-machine/offline launch evidence.
+The source-built CLI also passed preparation and separate-process reopening of the
+pinned RC2 arm64 installer in a fresh private destination on the existing Mac. The
+published output was inspected as data only, not executed. This clean-completion
+reopening does not substitute for interrupted-publication recovery testing.
 The operator-only test is explicitly selected with
 `cargo test -p kitrove-installer --test public_installer_payload -- --run-native-acceptance`
 and requires `KITROVE_TEST_INSTALLER_ARCHIVE` and `KITROVE_TEST_INSTALLER_BUNDLE` to
