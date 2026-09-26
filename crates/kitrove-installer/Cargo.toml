@@ -9,6 +9,10 @@ repository.workspace = true
 license.workspace = true
 publish = false
 
+[[test]]
+name = "public_installer_payload"
+harness = false
+
 [package.metadata.dist]
 dist = true
 

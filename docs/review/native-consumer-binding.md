@@ -944,3 +944,22 @@ not establish successful helper inspection. No installer consumer call site or
 downloaded executable is enabled. Independent first execution, authenticated payload
 binding and retained-file revalidation remain separate requirements; a native
 inspection result is not an installer readiness token.
+
+### Source-built helper integration acceptance
+
+The existing pinned RC2 installer-payload acceptance fixture now uses a custom
+test entry point. Ordinary test runs report a skip; an arm64 Mac operator must
+explicitly pass `--run-native-acceptance` with the archive and selected attestation
+bundle paths. Other platforms cannot report an explicit acceptance run as success.
+The source-built test executable routes the exact internal helper argument through
+the real installer dispatch. Its parent authenticates the pinned archive first,
+stages mode-0600 data, then uses the prepared verified-owner inspection driver.
+No downloaded executable is launched and no signing credentials are used.
+
+On the existing arm64 Mac, this path passed the authentic payload case, refused a
+different captured CMS fingerprint, refused altered CMS bytes even with matching
+captured fingerprints, and refused changed code pages. Retained payload revalidation
+passed around unchanged inspection and refused altered bytes. The test reuses the
+same archive, provenance, staging, protocol and native verifier implementations.
+This establishes bounded source-built helper integration for those cases, not
+consumer command wiring, executable publication or clean-machine launch acceptance.
