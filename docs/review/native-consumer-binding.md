@@ -844,3 +844,24 @@ verifier; the parent must enforce containment and lifetime before it is used.
 The installer moves its existing Mac signature dependency from test-only to normal
 use. Cargo.lock identities remain unchanged. No credential or downloaded executable
 is used, and no process-launch governance allowance is expanded.
+
+### Separate retained group anchor
+
+A new suspended owner pairs the fixed inspection child with a separate suspended
+group leader. The private spawn implementation accepts only that retained owner,
+not a caller-supplied group number. The worker joins the anchor's group but owns
+only exact-child signaling; the anchor retains group signaling authority. Existing
+public suspended-self launches still own a fresh group and preserve their behavior.
+
+Explicit cleanup reaps the worker while the anchor remains live, then kills the
+group and reaps the anchor. Both cleanup attempts run even if the first refuses.
+Implicit field drop also attempts bounded cleanup without claiming a verified
+result. This does not reinterpret EPERM as success. Native tests confirm group
+membership, the live group after worker reaping, output EOF, and reaping of both
+children through explicit termination and drop. They kill suspended workers, so
+they do not prove successful helper execution or its exit-status handling.
+
+The new owner exposes only the exact child ID and termination, with no extraction
+or resume. It is not yet connected to verified request ownership. Cooperative launch
+and retained SIGCHLD contracts still apply. No additional dependency or launch
+allowance is introduced; future resume/exit integration requires separate review.
