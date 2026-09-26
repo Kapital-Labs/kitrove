@@ -924,3 +924,23 @@ negative tests. This is a review guard, not a security sandbox or Rust privacy p
 No product caller invokes it yet. The future prepared-owner operation must check its
 original deadline and retain verified identity, request, transport and payload
 evidence before continuation, then require framing, successful exit and cleanup.
+
+### Prepared-owner inspection driver
+
+The prepared verified owner now consumes its exact request and transport in one
+bounded operation. It checks the original identity deadline before the one-shot
+worker continuation, polls the shared exchange and exact worker exit, and requires
+both complete framing and successful exit. Once framing completes it is not polled
+again. Nonzero or signaled exit refuses. A retained anchor preserves group ownership
+while exit and pipe completion arrive independently. Every returned outcome performs
+explicit bounded cleanup; cleanup refusal cannot produce success. Cleanup uses its
+separate finite budget, so the operation is not a total 15-second wall-clock promise.
+
+The polling seam is private and used only for negative lifecycle tests. Expiration
+refuses before continuation or polling. An operator-only source-built native test
+checks immediate transport refusal and simulated complete framing followed by the
+test executable's actual nonzero exit. Both refuse and reap the worker. This does
+not establish successful helper inspection. No installer consumer call site or
+downloaded executable is enabled. Independent first execution, authenticated payload
+binding and retained-file revalidation remain separate requirements; a native
+inspection result is not an installer readiness token.
