@@ -110,7 +110,7 @@ mod native {
             .path()
             .join(".kitrove-installer-bootstrap/installer.payload");
         // Only the independently source-built verifier runs; payload stays mode 0600.
-        inspect_framed(&payload, &signature).unwrap();
+        staged.verify_native_signature().unwrap();
         staged.revalidate().unwrap();
         assert_eq!(
             std::fs::metadata(&payload).unwrap().permissions().mode() & 0o777,
@@ -137,6 +137,7 @@ mod native {
         // Matching fingerprints of corrupted CMS are not cryptographic authority.
         std::fs::write(&payload, &changed_cms).unwrap();
         assert!(inspect_framed(&payload, &changed_signature).is_err());
+        assert!(staged.verify_native_signature().is_err());
         assert!(staged.revalidate().is_err());
 
         // Code-page substitution must fail independently of captured signature data.
@@ -146,6 +147,7 @@ mod native {
         assert!(candidate_signature(&changed_code, "aarch64-apple-darwin").is_err());
         std::fs::write(&payload, &changed_code).unwrap();
         assert!(inspect_framed(&payload, &signature).is_err());
+        assert!(staged.verify_native_signature().is_err());
         assert!(staged.revalidate().is_err());
         drop(staged);
         assert!(payload.is_file());

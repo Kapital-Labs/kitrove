@@ -41,6 +41,38 @@ impl StagedInstallerPayload {
     pub fn revalidate(&self) -> Result<(), InstallerStageError> {
         self.retained.revalidate(self.authenticated.bytes())
     }
+
+    /// Inspect the authenticated Mac payload through a bounded, verified self helper.
+    /// The executing verifier must already be independently trusted and implement
+    /// the installer's fixed helper dispatch. No downloaded payload is executed.
+    /// Success is a point-in-time check, not publication or execution authority;
+    /// private mode-0600 data and retained handles are unchanged.
+    #[cfg(target_os = "macos")]
+    pub fn verify_native_signature(&self) -> Result<(), InstallerStageError> {
+        use kitrove_release_policy::apple_code_directory::candidate_signature;
+        use kitrove_version_probe::apple_process_identity::prepare_verified_suspended_self;
+        use std::os::unix::ffi::OsStrExt as _;
+
+        self.revalidate()?;
+        let candidate = candidate_signature(
+            self.authenticated.bytes(),
+            self.authenticated.spec().target(),
+        )
+        .map_err(|_| InstallerStageError::VerificationFailed)?;
+        let path = Path::new(OsStr::from_bytes(self.retained.parent.path_bytes()))
+            .join(DIRECTORY)
+            .join(PAYLOAD);
+        let prepared = prepare_verified_suspended_self()
+            .and_then(|owner| owner.bind_inspection(&path, &candidate))
+            .map_err(|_| InstallerStageError::VerificationFailed)?;
+        self.revalidate()?;
+        let inspected = prepared
+            .inspect_native()
+            .map_err(|_| InstallerStageError::VerificationFailed);
+        // Revalidate even when native inspection refuses. Never cache path success.
+        let retained = self.revalidate();
+        retained.and(inspected)
+    }
 }
 
 /// Stage authenticated installer bytes as private data, without executable publication.
