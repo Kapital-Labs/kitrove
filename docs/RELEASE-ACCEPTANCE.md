@@ -204,6 +204,19 @@ online/offline launch, Intel execution, Windows/Linux lifecycle behavior, applic
 data or canary preservation, or real-artifact interruption recovery. Those acceptance
 gates remain open; no stable platform support is asserted.
 
+A separate existing-arm64-Mac run on 2026-09-26 used the source-built installer at
+`6b539852fa90fe74d668beaefb35d6cdb89ee975` and the same independently pinned A/B
+application archives. First install, upgrade, rollback and each terminal retirement
+passed with two explicitly selected private synthetic state roots. Both schema-v1
+state documents, empty lifecycle locks, a fake credential canary in retained removal
+quarantine and an unmanaged destination file retained their exact SHA-256 values.
+Rollback restored A's executable digest shown above. The fake credential value did
+not appear in command logs or destination/history files. Evidence is preserved in
+`state-canary-lifecycle-0DVIac` in the maintainer's durable release evidence directory.
+This is limited fixture-preservation evidence, not real credential access, populated
+deployment/sync-state coverage, concurrent-state mutation, interruption recovery,
+another native target or clean-machine/offline launch.
+
 Prepare each version in its own reviewed worktree/PR. Update the
 shared workspace version, locked workspace package records and compatibility
 catalog together, and review the resulting lock/catalog guard digests. A declares
