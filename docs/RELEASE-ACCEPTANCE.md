@@ -217,6 +217,27 @@ This is limited fixture-preservation evidence, not real credential access, popul
 deployment/sync-state coverage, concurrent-state mutation, interruption recovery,
 another native target or clean-machine/offline launch.
 
+The operator-only `public_lifecycle_refusal` integration test also passed eight
+real-artifact refusal cases on the existing arm64 Mac. After installing and retiring
+A, valid B preflight passed. Both B preflight and upgrade then refused a shared-locked
+second state root, malformed state, schema v2 and an unknown state field. Exact
+destination and state inventories, inodes, permissions, link counts and content
+hashes were unchanged across each refusal. The first root's lock was available
+afterward, fake credential text did not leak into command output, and valid
+preflight passed again after restoring the synthetic fixture. The source-built
+installer authenticated the pinned A/B inputs; no downloaded installer was run.
+Evidence is preserved in `lifecycle-refusal-T3aNaL`. This does not test concurrent
+mutation, interrupted replacement or populated deployment/sync state.
+Run explicitly with `KITROVE_TEST_RELEASE_EVIDENCE` pointing to the durable directory
+containing the recorded RC1/RC2 archives and bundles:
+
+```sh
+cargo test -p kitrove-installer --test public_lifecycle_refusal -- --ignored --nocapture
+```
+
+Ordinary CI skips this external-artifact test; native operator results must be
+recorded separately from compiled test coverage.
+
 Prepare each version in its own reviewed worktree/PR. Update the
 shared workspace version, locked workspace package records and compatibility
 catalog together, and review the resulting lock/catalog guard digests. A declares
