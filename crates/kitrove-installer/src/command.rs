@@ -34,6 +34,14 @@ Read-only Mac image command: verify-installer-container
   and --bundle to one Sigstore bundle (not JSONL). Verifies provenance only;
   never mounts, installs or executes. Native signature/payload checks remain required.
 
+Mac installer preparation: prepare-installer, verify-prepared-installer
+  Require the five exact release options plus --destination EXISTING_PRIVATE_DIRECTORY.
+  Use an installer archive, not an application archive or DMG. No state options.
+  prepare-installer publishes a verified executable in .kitrove-installer-bootstrap;
+  verify-prepared-installer reopens and freshly verifies it without repairs.
+  Neither command executes it or changes PATH. Run only an independently trusted
+  or reviewed-source-built verifier; this does not authenticate its own first download.
+
 Every installation/replacement/history command requires:
   --archive PATH --bundle PATH --tag vVERSION --commit FULL_COMMIT
   --sha256 ARCHIVE_SHA256 --destination EXISTING_DIRECTORY
@@ -79,6 +87,11 @@ enum Parsed {
     Version,
     BundleSelection(BundleArtifactKind, ReleaseInput),
     VerifyContainer(ReleaseInput),
+    PrepareInstaller {
+        reopen: bool,
+        release: ReleaseInput,
+        destination: PathBuf,
+    },
     Request(Box<Request>),
 }
 
@@ -106,6 +119,7 @@ fn parse(arguments: impl IntoIterator<Item = OsString>) -> Result<Parsed, String
             | "select-installer-container-bundle"
             | "verify-installer-container",
         ) => (Action::Status, None),
+        Some("prepare-installer" | "verify-prepared-installer") => (Action::Status, None),
         Some(command) => {
             let (action, direction) = replacement::command(command).ok_or("invalid command")?;
             (action, Some(direction))
@@ -154,6 +168,23 @@ fn parse(arguments: impl IntoIterator<Item = OsString>) -> Result<Parsed, String
         } else if values.insert(option.to_owned(), value).is_some() {
             return Err("duplicate installer option".into());
         }
+    }
+    if command == "prepare-installer" || command == "verify-prepared-installer" {
+        if no_roots || !roots.is_empty() {
+            return Err("installer preparation does not accept state selection".into());
+        }
+        let release = ReleaseInput::parse(&mut values, "")?;
+        let destination = PathBuf::from(release::take(&mut values, "--destination")?);
+        if !values.is_empty() {
+            return Err(
+                "installer preparation accepts only exact release inputs and destination".into(),
+            );
+        }
+        return Ok(Parsed::PrepareInstaller {
+            reopen: command == "verify-prepared-installer",
+            release,
+            destination,
+        });
     }
     if bundle_kind.is_some() || command == "verify-installer-container" {
         if no_roots || !roots.is_empty() {
@@ -227,11 +258,47 @@ pub(crate) fn run(arguments: impl IntoIterator<Item = OsString>) -> Result<Strin
                 .verify_container()
                 .map_err(|error| error.to_string());
         }
+        Parsed::PrepareInstaller {
+            reopen,
+            release,
+            destination,
+        } => {
+            return prepare_installer(reopen, &release, &destination);
+        }
         Parsed::Request(request) => request,
     };
     crate::require_current_user_installation().map_err(|error| error.to_string())?;
     let material = request.release.authenticate()?;
     execute(&request, &material)
+}
+
+fn prepare_installer(
+    reopen: bool,
+    release: &ReleaseInput,
+    destination: &std::path::Path,
+) -> Result<String, String> {
+    #[cfg(target_os = "macos")]
+    {
+        crate::require_current_user_installation().map_err(|error| error.to_string())?;
+        let authenticated = release
+            .local_request()
+            .authenticate_installer()
+            .map_err(|error| error.to_string())?;
+        let published = if reopen {
+            crate::PublishedInstallerPayload::reopen(destination, authenticated)
+        } else {
+            crate::stage_authenticated_installer_payload(destination, authenticated)
+                .and_then(|staged| staged.publish_native())
+        }
+        .map_err(|error| error.to_string())?;
+        published.revalidate().map_err(|error| error.to_string())?;
+        Ok("Installer verified at .kitrove-installer-bootstrap/kitrove-installer beneath the selected destination. Nothing executed; PATH unchanged. Verification is point-in-time only.".into())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (reopen, release, destination);
+        Err("native installer preparation is currently supported only on macOS".into())
+    }
 }
 
 // Only production-authenticated material reaches this dispatcher from run(). Tests

@@ -45,6 +45,27 @@ The offline provenance library supports installer-specific verification under th
 selection is implemented; first-download trust and signed bootstrap acceptance remain
 release gates.
 
+## Prepare a Mac installer without running it
+
+From an independently trusted or reviewed-source-built verifier, use
+`prepare-installer` with `--archive`, `--bundle`, `--tag`, `--commit`, `--sha256`
+and `--destination`. Select the exact installer archive for the verifier's compiled
+Mac architecture, one matching production attestation bundle, and independently
+chosen release pins. The destination must already be a private ordinary-user
+directory; its `.kitrove-installer-bootstrap` child must not exist.
+
+The command authenticates the archive, performs bounded native signature checks
+and publishes `.kitrove-installer-bootstrap/kitrove-installer` with private executable
+permissions. It does not run it, change PATH, select application state or download
+anything. `verify-prepared-installer` takes the same inputs and freshly authenticates
+and checks an existing publication without repairing it. Other platforms refuse
+these commands until native verification support is implemented.
+
+On failure, preserve the destination and exact inputs. Partial output may already
+have executable permissions; a filename or prior successful message is not fresh
+execution authority. These commands do not let an untrusted downloaded installer
+authenticate its own first execution, and do not establish clean-Mac offline launch.
+
 ## Select one downloaded attestation bundle
 
 An independently trusted installer (or one built from reviewed source with

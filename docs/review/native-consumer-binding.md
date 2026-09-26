@@ -1023,3 +1023,15 @@ and hardlinks without repair. The operator fixture separately drops the original
 published owner, independently reauthenticates the archive and reopens the published
 data with fresh native checks. Same-process reopening is not fresh-process interruption
 recovery or clean-machine launch evidence. Public bootstrap command wiring remains open.
+
+### Explicit Mac installer preparation commands
+
+`prepare-installer` and `verify-prepared-installer` accept only the existing exact
+release inputs and an existing private destination. They use installer archive
+authentication through shared retained local intake, not application recovery
+authority. State roots, operation IDs, prior-release options and duplicate or missing
+inputs refuse. Other platforms refuse without mutation until native verification
+support is implemented there. Preparation calls the consuming publication boundary;
+verification performs read-only reopening with fresh authentication and native checks.
+Neither command downloads, launches, updates PATH or infers first-execution trust.
+The executing installer must already be independently trusted or source-built.

@@ -32,6 +32,58 @@ pub(super) fn arguments(command: &str) -> Vec<OsString> {
 }
 
 #[test]
+fn installer_preparation_requires_exact_release_and_destination_only() {
+    for command in ["prepare-installer", "verify-prepared-installer"] {
+        assert!(
+            matches!(parse(arguments(command)), Ok(Parsed::PrepareInstaller { reopen, .. })
+            if reopen == (command == "verify-prepared-installer"))
+        );
+        for extra in [
+            vec!["--no-state-roots"],
+            vec!["--state-root", "state"],
+            vec!["--operation", "00000000000000000000000000000000"],
+            vec!["--prior-tag", "v1.0.0"],
+            vec!["--destination", "duplicate"],
+        ] {
+            let mut args = arguments(command);
+            args.extend(extra.into_iter().map(OsString::from));
+            assert!(parse(args).is_err());
+        }
+        for missing in [
+            "--archive",
+            "--bundle",
+            "--tag",
+            "--commit",
+            "--sha256",
+            "--destination",
+        ] {
+            let mut args = arguments(command);
+            let index = args.iter().position(|arg| arg == missing).unwrap();
+            args.drain(index..index + 2);
+            assert!(parse(args).is_err());
+        }
+    }
+}
+
+#[test]
+fn installer_preparation_missing_input_never_creates_output() {
+    let root = tempfile::tempdir().unwrap();
+    for command in ["prepare-installer", "verify-prepared-installer"] {
+        let mut args = arguments(command);
+        for (option, path) in [
+            ("--archive", root.path().join("missing.tar.xz")),
+            ("--bundle", root.path().join("missing.bundle")),
+            ("--destination", root.path().to_path_buf()),
+        ] {
+            let index = args.iter().position(|arg| arg == option).unwrap();
+            args[index + 1] = path.into_os_string();
+        }
+        assert!(run(args).is_err());
+        assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 0);
+    }
+}
+
+#[test]
 fn bundle_selection_accepts_only_exact_release_inputs() {
     for (command, expected_kind) in [
         (

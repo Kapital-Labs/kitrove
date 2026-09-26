@@ -54,6 +54,31 @@ pub(crate) enum BundleArtifactKind {
 }
 
 impl LocalReleaseRequest<'_> {
+    #[cfg(target_os = "macos")]
+    pub(crate) fn authenticate_installer(
+        &self,
+    ) -> Result<kitrove_release_provenance::AuthenticatedInstallerExecutable, ReleaseIntakeError>
+    {
+        let target = crate::compiled_release_target()
+            .map_err(|_| ReleaseIntakeError::UnsupportedPlatform)?;
+        let spec = kitrove_release_policy::installer_archive_for_target(target)
+            .map_err(|_| ReleaseIntakeError::UnsupportedPlatform)?;
+        self.with_inputs(
+            spec.archive_name(),
+            APPLICATION_ATTESTATION_BUNDLE_MAX_BYTES,
+            |archive, bundle| {
+                let inspected = kitrove_release_policy::extract_installer_release(spec, archive)
+                    .map_err(|_| ReleaseIntakeError::VerificationFailed)?;
+                kitrove_release_provenance::verify_installer_archive_attestation(
+                    inspected,
+                    self.expected,
+                    bundle,
+                )
+                .map_err(|_| ReleaseIntakeError::VerificationFailed)
+            },
+        )
+    }
+
     pub(crate) fn verify_container(&self) -> Result<String, ReleaseIntakeError> {
         let target = crate::compiled_release_target()
             .map_err(|_| ReleaseIntakeError::UnsupportedPlatform)?;
