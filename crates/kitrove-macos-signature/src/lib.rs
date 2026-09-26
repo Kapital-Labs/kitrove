@@ -10,6 +10,7 @@ use core_foundation::dictionary::{CFDictionary, CFDictionaryRef};
 use core_foundation::number::CFNumber;
 use core_foundation::string::{CFString, CFStringRef};
 use core_foundation::url::CFURL;
+pub use kitrove_macos_process::INSPECTION_ARGUMENT;
 use kitrove_release_policy::apple_code_directory::AppleSignatureCandidate;
 use kitrove_release_policy::native_signature::{
     APPLE_HARDENED_RUNTIME_FLAG, APPLE_REQUIREMENT, APPLE_SIGNATURE_MAX_BYTES,

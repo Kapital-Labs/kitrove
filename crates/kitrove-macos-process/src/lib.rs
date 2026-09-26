@@ -13,6 +13,9 @@ pub use launch_gate::{LaunchGuard, acquire_launch_guard};
 mod transport;
 pub use transport::{InputProgress, InspectionStream, InspectionTransport, OutputProgress};
 
+/// Exact internal operation selected by suspended-self launch and helper dispatch.
+pub const INSPECTION_ARGUMENT: &std::ffi::CStr = c"--internal-native-inspection-v1";
+
 // Public spawn.h signature, available starting with macOS 10.15. Resolve it
 // without a strong import so unavailable hosts can refuse before creating a child.
 type AddChdir =
@@ -136,7 +139,7 @@ impl SuspendedSelf {
         }
         let executable =
             CString::new(executable.as_os_str().as_bytes()).map_err(|_| ProcessRefused)?;
-        let operation = c"--internal-native-inspection-v1";
+        let operation = INSPECTION_ARGUMENT;
         let mut attributes = Attributes::new()?;
         let mut actions = Actions::new()?;
         let mut mask: libc::sigset_t = 0;

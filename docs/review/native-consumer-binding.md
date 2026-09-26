@@ -825,3 +825,22 @@ future executed operation, exit/cleanup checks and retained payload revalidation
 The dependency delta is one existing workspace edge from version-probe to
 macos-signature. Reviewed lock identity changes reflect only that edge, with no new
 third-party packages or versions. Process-launch allowances remain unchanged.
+
+### Internal helper dispatch
+
+The source-built Mac installer recognizes exactly the same internal operation
+argument used by suspended-self launch. That argument is now a shared C-string
+constant, not two independent spellings. The helper accepts no additional arguments
+and serves the existing bounded request protocol on stdin/stdout. It emits no normal
+CLI success text or diagnostics; refusal produces only a failed exit. Ordinary
+arguments continue to the existing command parser. Other platforms are unchanged.
+
+Tests cover exact argument selection, non-UTF-8 and suffixed variants, extra-argument
+refusal before any input read, and malformed-frame refusal without output. This
+does not establish successful native inspection or enable parent resume. Native
+framework calls can block, so the helper entry point is not a standalone bounded
+verifier; the parent must enforce containment and lifetime before it is used.
+
+The installer moves its existing Mac signature dependency from test-only to normal
+use. Cargo.lock identities remain unchanged. No credential or downloaded executable
+is used, and no process-launch governance allowance is expanded.
