@@ -896,3 +896,12 @@ fixture confirms sticky refusal and anchor reaping. This is not successful helpe
 execution evidence. No resume method exists yet, and a cached status proves neither
 protocol success nor completed group cleanup. Deadline and polling cadence remain
 the owning driver's responsibility.
+
+An additional native regression test continues only the source-built Rust test
+executable through a test-only signal. Its test runner rejects the fixed helper
+argument and exits normally with a failure code. The test distinguishes that exit
+from signal termination, observes the cached status, verifies the still-live anchor
+and confirms both children were reaped after cleanup. This is normal-exit lifecycle
+evidence, not successful inspection or permission to execute downloaded content.
+Production APIs still expose no resume method. Both native exit tests share a bounded
+test wait helper instead of duplicating polling logic.

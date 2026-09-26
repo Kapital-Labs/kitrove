@@ -420,6 +420,47 @@ impl AnchoredSuspendedSelf {
 mod tests {
     use super::*;
 
+    fn observed_exit(owner: &mut AnchoredSuspendedSelf) -> std::process::ExitStatus {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Some(status) = owner.poll_exit().unwrap() {
+                return status;
+            }
+            assert!(Instant::now() < deadline, "worker exit was not observed");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    #[test]
+    fn normal_worker_exit_retains_anchor_until_confirmed_cleanup() {
+        use std::os::unix::process::ExitStatusExt as _;
+        let (mut owner, _transport) = AnchoredSuspendedSelf::spawn_with_transport().unwrap();
+        let anchor_pid = rustix::process::Pid::from_raw(owner.anchor.id()).unwrap();
+        let child_pid = rustix::process::Pid::from_raw(owner.id()).unwrap();
+        // Test-only continuation of this source-built test executable. libtest
+        // refuses our fixed internal operation and exits normally with failure.
+        // This does not expose production resume or execute a downloaded payload.
+        rustix::process::kill_process(child_pid, rustix::process::Signal::CONT).unwrap();
+        let status = observed_exit(&mut owner);
+        assert_eq!(status.signal(), None);
+        assert!(status.code().is_some());
+        assert!(!status.success());
+        assert_eq!(owner.poll_exit().unwrap(), Some(status));
+        // SAFETY: only a query of the exact retained suspended group leader.
+        assert_eq!(
+            unsafe { libc::getpgid(anchor_pid.as_raw_nonzero().get()) },
+            anchor_pid.as_raw_nonzero().get()
+        );
+        owner.terminate().unwrap();
+        for pid in [child_pid, anchor_pid] {
+            assert_eq!(
+                rustix::process::waitpid(Some(pid), rustix::process::WaitOptions::NOHANG)
+                    .unwrap_err(),
+                rustix::io::Errno::CHILD
+            );
+        }
+    }
+
     #[test]
     fn nonblocking_exit_observation_reaps_worker_but_retains_live_group() {
         use std::os::unix::process::ExitStatusExt as _;
@@ -428,14 +469,7 @@ mod tests {
         let anchor_pid = owner.anchor.id();
         let pid = rustix::process::Pid::from_raw(owner.id()).unwrap();
         rustix::process::kill_process(pid, rustix::process::Signal::KILL).unwrap();
-        let deadline = Instant::now() + Duration::from_secs(5);
-        let status = loop {
-            if let Some(status) = owner.poll_exit().unwrap() {
-                break status;
-            }
-            assert!(Instant::now() < deadline, "worker exit was not observed");
-            std::thread::sleep(Duration::from_millis(5));
-        };
+        let status = observed_exit(&mut owner);
         assert!(!status.success());
         assert_eq!(status.signal(), Some(libc::SIGKILL));
         assert!(!owner.child.owned);
