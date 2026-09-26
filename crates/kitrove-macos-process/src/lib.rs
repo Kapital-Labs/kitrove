@@ -327,6 +327,14 @@ impl Drop for SuspendedSelf {
 pub struct AnchoredSuspendedSelf {
     anchor: SuspendedSelf,
     child: SuspendedSelf,
+    exit: ExitObservation,
+}
+
+#[derive(Clone, Copy)]
+enum ExitObservation {
+    Pending,
+    Exited(std::process::ExitStatus),
+    Refused,
 }
 
 impl AnchoredSuspendedSelf {
@@ -339,26 +347,125 @@ impl AnchoredSuspendedSelf {
             drop(pipes);
             (child, parent)
         };
-        Ok((Self { anchor, child }, parent))
+        Ok((
+            Self {
+                anchor,
+                child,
+                exit: ExitObservation::Pending,
+            },
+            parent,
+        ))
     }
 
     pub fn id(&self) -> libc::pid_t {
         self.child.id()
     }
 
+    /// Observe/reap only the exact worker without waiting, retaining the live group
+    /// anchor. A status is not group-cleanup or protocol evidence. The caller owns
+    /// the deadline and must not busy-spin. Repeated observations use cached state.
+    pub fn poll_exit(&mut self) -> Result<Option<std::process::ExitStatus>, ProcessRefused> {
+        use std::os::unix::process::ExitStatusExt as _;
+        match self.exit {
+            ExitObservation::Exited(status) => return Ok(Some(status)),
+            ExitObservation::Refused => return Err(ProcessRefused),
+            ExitObservation::Pending => {}
+        }
+        if !self.child.owned {
+            self.exit = ExitObservation::Refused;
+            return Err(ProcessRefused);
+        }
+        let mut status = 0;
+        // SAFETY: exact retained worker PID, writable status, nonblocking wait.
+        // The independent anchor continues to pin the group after worker reaping.
+        let waited = unsafe { libc::waitpid(self.child.pid, &mut status, libc::WNOHANG) };
+        if waited == 0
+            || (waited < 0 && std::io::Error::last_os_error().raw_os_error() == Some(libc::EINTR))
+        {
+            return Ok(None);
+        }
+        if waited == self.child.pid && (libc::WIFEXITED(status) || libc::WIFSIGNALED(status)) {
+            self.child.owned = false;
+            let status = std::process::ExitStatus::from_raw(status);
+            self.exit = ExitObservation::Exited(status);
+            return Ok(Some(status));
+        }
+        if waited < 0 {
+            // Ownership is uncertain; never signal a possibly reused worker PID.
+            // Its independent anchor still owns group cleanup.
+            self.child.owned = false;
+        }
+        self.exit = ExitObservation::Refused;
+        Err(ProcessRefused)
+    }
+
     /// Reap the exact child while the anchor still pins the group, then terminate
     /// the group and reap its anchor. Always attempt both; any failure refuses.
     pub fn terminate(self) -> Result<(), ProcessRefused> {
-        let Self { anchor, child } = self;
+        let Self {
+            anchor,
+            child,
+            exit,
+        } = self;
         let child_result = child.terminate();
         let group_result = anchor.terminate();
-        child_result.and(group_result)
+        child_result.and(group_result).and(match exit {
+            ExitObservation::Refused => Err(ProcessRefused),
+            _ => Ok(()),
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nonblocking_exit_observation_reaps_worker_but_retains_live_group() {
+        use std::os::unix::process::ExitStatusExt as _;
+        let (mut owner, _transport) = AnchoredSuspendedSelf::spawn_with_transport().unwrap();
+        assert_eq!(owner.poll_exit().unwrap(), None);
+        let anchor_pid = owner.anchor.id();
+        let pid = rustix::process::Pid::from_raw(owner.id()).unwrap();
+        rustix::process::kill_process(pid, rustix::process::Signal::KILL).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let status = loop {
+            if let Some(status) = owner.poll_exit().unwrap() {
+                break status;
+            }
+            assert!(Instant::now() < deadline, "worker exit was not observed");
+            std::thread::sleep(Duration::from_millis(5));
+        };
+        assert!(!status.success());
+        assert_eq!(status.signal(), Some(libc::SIGKILL));
+        assert!(!owner.child.owned);
+        assert_eq!(owner.poll_exit().unwrap(), Some(status));
+        // SAFETY: the anchor remains owned and suspended after worker reaping.
+        assert_eq!(unsafe { libc::getpgid(anchor_pid) }, anchor_pid);
+        owner.terminate().unwrap();
+        assert_eq!(
+            rustix::process::waitpid(Some(pid), rustix::process::WaitOptions::NOHANG).unwrap_err(),
+            rustix::io::Errno::CHILD
+        );
+    }
+
+    #[test]
+    fn lost_worker_wait_ownership_is_sticky_but_anchor_cleanup_still_runs() {
+        let (mut owner, _transport) = AnchoredSuspendedSelf::spawn_with_transport().unwrap();
+        let anchor_pid = rustix::process::Pid::from_raw(owner.anchor.id()).unwrap();
+        owner.child.cleanup().unwrap();
+        // Model an outside reaper: the wrapper has not learned of the reaping yet.
+        owner.child.owned = true;
+        assert!(owner.poll_exit().is_err());
+        assert!(!owner.child.owned);
+        assert!(owner.poll_exit().is_err());
+        assert!(owner.terminate().is_err());
+        assert_eq!(
+            rustix::process::waitpid(Some(anchor_pid), rustix::process::WaitOptions::NOHANG)
+                .unwrap_err(),
+            rustix::io::Errno::CHILD
+        );
+    }
 
     #[test]
     fn anchor_retains_group_after_worker_reaping_and_cleanup_closes_outputs() {
@@ -368,7 +475,7 @@ mod tests {
         assert_ne!(anchor_pid, child_pid);
         // SAFETY: query only, both exact children remain owned and suspended.
         assert_eq!(unsafe { libc::getpgid(child_pid) }, anchor_pid);
-        let AnchoredSuspendedSelf { anchor, child } = owner;
+        let AnchoredSuspendedSelf { anchor, child, .. } = owner;
         child.terminate().unwrap();
         // SAFETY: retained live anchor must still own its original process group.
         assert_eq!(unsafe { libc::getpgid(anchor_pid) }, anchor_pid);

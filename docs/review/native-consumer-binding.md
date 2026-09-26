@@ -880,3 +880,19 @@ ownership scopes. Native identity tests exercise successful verification followe
 by explicit termination/drop and wrong-identity refusal with worker reaping and pipe
 EOF. The process crate separately checks reaping of both children. No resume, helper
 exit-status success or installer readiness is inferred from these tests.
+
+### Nonblocking worker exit observation
+
+The anchored owner can now observe the exact worker with one nonblocking wait.
+Pending/interrupted waits return no status. A terminal status is cached and disarms
+worker signaling before it is returned, while the independent group anchor remains
+owned. Repeated observations never wait on or signal the reaped worker ID. Unexpected
+wait failures permanently refuse and disarm uncertain worker ownership; termination
+still attempts anchor cleanup but does not turn the refusal into success.
+
+Native tests kill a suspended worker, observe its signal exit, confirm cached status
+and a still-live group anchor, and then clean up. A controlled lost-wait-ownership
+fixture confirms sticky refusal and anchor reaping. This is not successful helper
+execution evidence. No resume method exists yet, and a cached status proves neither
+protocol success nor completed group cleanup. Deadline and polling cadence remain
+the owning driver's responsibility.
