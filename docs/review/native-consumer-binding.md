@@ -1052,3 +1052,21 @@ These are synthetic filesystem interruption tests. They do not authenticate a re
 release, exercise fresh native signatures, simulate power loss or establish
 clean-machine acceptance. Pinned real-artifact interrupted publication remains a
 separate acceptance requirement.
+
+### Real-artifact owner interruption
+
+The existing source-built public-payload harness separately accepts
+`--run-interruption-acceptance`, with the pinned RC2 archive/bundle inputs and a
+`KITROVE_TEST_INTERRUPTION_EVIDENCE` directory. It authenticates independently in
+the parent and each child. The parent kills the exact child after either verified
+mode-0600 staging or complete native-gated mode-0700 publication, with the retained
+owner still alive. Native inspection has returned and its helpers are cleaned up
+before either readiness marker. A fresh process reauthenticates, refuses staged
+data or performs fresh native reopening of the completed publication, and rejects
+duplicate staging. Bytes, inode, mode and exact inventory remain unchanged.
+
+Both cases passed on the existing arm64 Mac without executing downloaded bytes.
+Private evidence directories are preserved, including on failure. This covers
+abrupt owner death at public API boundaries, not interruption inside rename/mode
+transitions, power loss, or clean-machine/offline launch. Internal publication cuts
+still have synthetic coverage only. No production runtime hook was introduced.

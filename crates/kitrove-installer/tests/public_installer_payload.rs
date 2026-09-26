@@ -64,13 +64,21 @@ mod native {
             println!("native public-artifact acceptance skipped; requires --run-native-acceptance");
             return std::process::ExitCode::SUCCESS;
         }
+        if args == [std::ffi::OsString::from("--run-interruption-acceptance")] {
+            interruption_acceptance();
+            return std::process::ExitCode::SUCCESS;
+        }
+        if args == [std::ffi::OsString::from("--interruption-child")] {
+            interruption_child();
+            return std::process::ExitCode::SUCCESS;
+        }
         assert_eq!(args, [std::ffi::OsString::from("--run-native-acceptance")]);
         published_rc2_installer_crosses_the_distinct_payload_boundary();
         println!("bounded native public-artifact acceptance passed");
         std::process::ExitCode::SUCCESS
     }
 
-    fn published_rc2_installer_crosses_the_distinct_payload_boundary() {
+    fn pinned_inputs() -> (Vec<u8>, Vec<u8>, ExpectedReleaseIdentity) {
         let archive_path =
             std::env::var_os("KITROVE_TEST_INSTALLER_ARCHIVE").expect("archive path");
         let bundle_path =
@@ -88,6 +96,22 @@ mod native {
         let expected =
             ExpectedReleaseIdentity::new("v0.1.0-rc.2", "11f2d7b7daa1115e23d95121a6f7c923153b3190")
                 .unwrap();
+        (archive, bundle, expected)
+    }
+
+    fn authenticate_pinned() -> kitrove_release_provenance::AuthenticatedInstallerExecutable {
+        let (archive, bundle, expected) = pinned_inputs();
+        let spec = installer_archive_for_target("aarch64-apple-darwin").unwrap();
+        verify_installer_archive_attestation(
+            extract_installer_release(spec, &archive).unwrap(),
+            &expected,
+            &bundle,
+        )
+        .unwrap()
+    }
+
+    fn published_rc2_installer_crosses_the_distinct_payload_boundary() {
+        let (archive, bundle, expected) = pinned_inputs();
         let spec = installer_archive_for_target("aarch64-apple-darwin").unwrap();
         let authenticated = verify_installer_archive_attestation(
             extract_installer_release(spec, &archive).unwrap(),
@@ -199,5 +223,157 @@ mod native {
         drop(staged);
         assert!(payload.is_file());
         // TempDir removes only this test-owned fixture after retained handles close.
+    }
+
+    struct OwnedChild(std::process::Child);
+
+    impl OwnedChild {
+        fn spawn(root: &Path, phase: &str, action: &str) -> Self {
+            Self(
+                std::process::Command::new(std::env::current_exe().unwrap())
+                    .arg("--interruption-child")
+                    .env("KITROVE_TEST_INTERRUPTION_ROOT", root)
+                    .env("KITROVE_TEST_INTERRUPTION_PHASE", phase)
+                    .env("KITROVE_TEST_INTERRUPTION_ACTION", action)
+                    .spawn()
+                    .unwrap(),
+            )
+        }
+
+        fn wait(&mut self) -> std::process::ExitStatus {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+            loop {
+                if let Some(status) = self.0.try_wait().unwrap() {
+                    return status;
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "acceptance child timed out"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+        }
+    }
+
+    impl Drop for OwnedChild {
+        fn drop(&mut self) {
+            if !matches!(self.0.try_wait(), Ok(Some(_))) {
+                let _ = self.0.kill();
+                let _ = self.0.wait();
+            }
+        }
+    }
+
+    fn interruption_child() {
+        let root =
+            std::path::PathBuf::from(std::env::var_os("KITROVE_TEST_INTERRUPTION_ROOT").unwrap());
+        let phase = std::env::var("KITROVE_TEST_INTERRUPTION_PHASE").unwrap();
+        assert!(matches!(phase.as_str(), "verified-data" | "published"));
+        let authenticated = authenticate_pinned();
+        match std::env::var("KITROVE_TEST_INTERRUPTION_ACTION")
+            .unwrap()
+            .as_str()
+        {
+            "prepare" => {
+                let staged = stage_authenticated_installer_payload(&root, authenticated).unwrap();
+                // No helper is alive when readiness is reported. Both public calls
+                // require explicit bounded native-helper cleanup before returning.
+                let _retained_owner = if phase == "published" {
+                    Some(staged.publish_native().unwrap())
+                } else {
+                    staged.verify_native_signature().unwrap();
+                    staged.revalidate().unwrap();
+                    // Keep the staged owner alive until SIGKILL, not just its files.
+                    std::fs::write(root.join("ready"), b"verified-data").unwrap();
+                    std::thread::sleep(std::time::Duration::from_secs(60));
+                    drop(staged);
+                    panic!("parent did not interrupt staged owner");
+                };
+                std::fs::write(root.join("ready"), b"published").unwrap();
+                std::thread::sleep(std::time::Duration::from_secs(60));
+                panic!("parent did not interrupt published owner");
+            }
+            "reopen" => {
+                let result =
+                    kitrove_installer::PublishedInstallerPayload::reopen(&root, authenticated);
+                assert_eq!(result.is_ok(), phase == "published");
+                if let Ok(owner) = result {
+                    owner.revalidate().unwrap();
+                }
+                assert!(
+                    stage_authenticated_installer_payload(&root, authenticate_pinned()).is_err()
+                );
+                std::fs::write(
+                    root.join("checked"),
+                    b"fresh authentication and reopening checked",
+                )
+                .unwrap();
+            }
+            _ => panic!("unknown interruption action"),
+        }
+    }
+
+    fn interruption_acceptance() {
+        use std::os::unix::{fs::MetadataExt, process::ExitStatusExt};
+        // Authenticate independently in the parent before interpreting any output.
+        let expected_digest = Sha256::digest(authenticate_pinned().bytes());
+        let evidence = std::env::var_os("KITROVE_TEST_INTERRUPTION_EVIDENCE")
+            .expect("durable evidence directory");
+        for phase in ["verified-data", "published"] {
+            let root = tempfile::Builder::new()
+                .prefix("native-owner-interruption-")
+                .tempdir_in(&evidence)
+                .unwrap();
+            // Preserve output and readiness evidence even on assertion failure.
+            let root = root.keep();
+            println!("interruption evidence: {} ({phase})", root.display());
+            let mut child = OwnedChild::spawn(&root, phase, "prepare");
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(45);
+            // Creation can precede completion of the marker write. Wait for the
+            // complete phase value, not just a newly created empty file.
+            while std::fs::read(root.join("ready")).ok().as_deref() != Some(phase.as_bytes()) {
+                assert!(
+                    child.0.try_wait().unwrap().is_none(),
+                    "child exited before readiness"
+                );
+                assert!(std::time::Instant::now() < deadline, "readiness timed out");
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            assert_eq!(std::fs::read(root.join("ready")).unwrap(), phase.as_bytes());
+            child.0.kill().unwrap();
+            assert_eq!(child.wait().signal(), Some(9));
+            let (name, mode) = if phase == "published" {
+                ("kitrove-installer", 0o700)
+            } else {
+                ("installer.payload", 0o600)
+            };
+            let directory = root.join(".kitrove-installer-bootstrap");
+            let path = directory.join(name);
+            let before = std::fs::symlink_metadata(&path).unwrap();
+            assert_eq!(before.mode() & 0o777, mode);
+            assert_eq!(
+                Sha256::digest(bounded_read(&path, 256 * 1024 * 1024)),
+                expected_digest
+            );
+            let mut reopen = OwnedChild::spawn(&root, phase, "reopen");
+            assert!(reopen.wait().success());
+            assert_eq!(
+                std::fs::read(root.join("checked")).unwrap(),
+                b"fresh authentication and reopening checked"
+            );
+            let after = std::fs::symlink_metadata(&path).unwrap();
+            assert_eq!(
+                (before.dev(), before.ino(), before.mode(), before.len()),
+                (after.dev(), after.ino(), after.mode(), after.len())
+            );
+            assert_eq!(
+                Sha256::digest(bounded_read(&path, 256 * 1024 * 1024)),
+                expected_digest
+            );
+            assert_eq!(std::fs::read_dir(directory).unwrap().count(), 1);
+        }
+        println!(
+            "real-artifact owner interruption passed; internal rename/mode cuts and power loss are not covered"
+        );
     }
 }
