@@ -1,4 +1,4 @@
-//! Suspended-self lifecycle and cooperative stdio preparation. No resume/readiness.
+//! Owned native lifecycle and cooperative stdio preparation. No identity/readiness proof.
 #![cfg(target_os = "macos")]
 #![deny(unsafe_op_in_unsafe_fn)]
 
@@ -322,12 +322,14 @@ impl Drop for SuspendedSelf {
 }
 
 /// Retains a separate suspended group leader while the inspection child may exit.
-/// Both are fixed self launches. No child extraction, resume or readiness is offered.
+/// Both are fixed self launches. Continuation requires the reviewed caller's identity
+/// check; this low-level owner offers no child extraction or readiness proof.
 /// The same standalone launch/SIGCHLD ownership contracts as SuspendedSelf apply.
 pub struct AnchoredSuspendedSelf {
     anchor: SuspendedSelf,
     child: SuspendedSelf,
     exit: ExitObservation,
+    resume_attempted: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -352,6 +354,7 @@ impl AnchoredSuspendedSelf {
                 anchor,
                 child,
                 exit: ExitObservation::Pending,
+                resume_attempted: false,
             },
             parent,
         ))
@@ -359,6 +362,30 @@ impl AnchoredSuspendedSelf {
 
     pub fn id(&self) -> libc::pid_t {
         self.child.id()
+    }
+
+    /// One-shot lifecycle primitive, not identity verification or launch authority.
+    /// The product caller must be the reviewed verified-request owner and must
+    /// already have checked this exact worker's identity and operation deadline.
+    /// Never resumes the group anchor. Failed attempts cannot be retried.
+    pub fn resume_owned_worker_once(&mut self) -> Result<(), ProcessRefused> {
+        if self.resume_attempted {
+            return Err(ProcessRefused);
+        }
+        self.resume_attempted = true;
+        require_retained_child_policy()?;
+        if !self.child.owned || !matches!(self.exit, ExitObservation::Pending) {
+            return Err(ProcessRefused);
+        }
+        if self.poll_exit()?.is_some() {
+            return Err(ProcessRefused);
+        }
+        // SAFETY: the exact worker remains owned and unreaped, independently of
+        // the live group anchor. This never signals a caller-provided PID/group.
+        if unsafe { libc::kill(self.child.pid, libc::SIGCONT) } != 0 {
+            return Err(ProcessRefused);
+        }
+        Ok(())
     }
 
     /// Observe/reap only the exact worker without waiting, retaining the live group
@@ -406,6 +433,7 @@ impl AnchoredSuspendedSelf {
             anchor,
             child,
             exit,
+            ..
         } = self;
         let child_result = child.terminate();
         let group_result = anchor.terminate();
@@ -440,7 +468,8 @@ mod tests {
         // Test-only continuation of this source-built test executable. libtest
         // refuses our fixed internal operation and exits normally with failure.
         // This does not expose production resume or execute a downloaded payload.
-        rustix::process::kill_process(child_pid, rustix::process::Signal::CONT).unwrap();
+        owner.resume_owned_worker_once().unwrap();
+        assert!(owner.resume_owned_worker_once().is_err());
         let status = observed_exit(&mut owner);
         assert_eq!(status.signal(), None);
         assert!(status.code().is_some());
@@ -474,6 +503,8 @@ mod tests {
         assert_eq!(status.signal(), Some(libc::SIGKILL));
         assert!(!owner.child.owned);
         assert_eq!(owner.poll_exit().unwrap(), Some(status));
+        assert!(owner.resume_owned_worker_once().is_err());
+        assert!(owner.resume_owned_worker_once().is_err());
         // SAFETY: the anchor remains owned and suspended after worker reaping.
         assert_eq!(unsafe { libc::getpgid(anchor_pid) }, anchor_pid);
         owner.terminate().unwrap();
@@ -492,6 +523,7 @@ mod tests {
         owner.child.owned = true;
         assert!(owner.poll_exit().is_err());
         assert!(!owner.child.owned);
+        assert!(owner.resume_owned_worker_once().is_err());
         assert!(owner.poll_exit().is_err());
         assert!(owner.terminate().is_err());
         assert_eq!(

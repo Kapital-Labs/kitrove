@@ -905,3 +905,22 @@ and confirms both children were reaped after cleanup. This is normal-exit lifecy
 evidence, not successful inspection or permission to execute downloaded content.
 Production APIs still expose no resume method. Both native exit tests share a bounded
 test wait helper instead of duplicating polling logic.
+
+### One-shot owned-worker continuation primitive
+
+The native lifecycle crate now offers one continuation attempt against the exact
+retained worker, never a supplied PID or group. It marks the attempt before checking
+child policy and exit state, refuses reaped/uncertain workers, and never retries a
+failed attempt. It does not continue the anchor. Native tests use the source-built
+test executable to verify ordinary failure exit, repeat refusal, and refusal after
+reaping or lost ownership.
+
+This low-level method is not a cryptographic authorization capability. Across the
+crate boundary, identity checking remains the reviewed product caller's obligation;
+arbitrary Rust callers could violate that contract just as they could call native
+signals themselves. Repository governance restricts the named continuation API to
+its native implementation and the exact verified-owner module, with adjacent-file
+negative tests. This is a review guard, not a security sandbox or Rust privacy proof.
+No product caller invokes it yet. The future prepared-owner operation must check its
+original deadline and retain verified identity, request, transport and payload
+evidence before continuation, then require framing, successful exit and cleanup.

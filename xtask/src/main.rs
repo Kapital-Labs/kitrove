@@ -1227,6 +1227,7 @@ fn check_production_source(path: &Path, source: &str) -> Result<(), String> {
         ("tokio::process", "process launch"),
         ("posix_spawn(", "native suspended launch"),
         ("dlsym(", "native spawn availability"),
+        ("resume_owned_worker_once(", "owned worker continuation"),
         ("std::process::exit(", "process termination"),
         ("std::net::", "network access"),
         ("TcpStream", "network access"),
@@ -1278,6 +1279,8 @@ fn check_production_source(path: &Path, source: &str) -> Result<(), String> {
     .any(|allowed| path == Path::new(allowed));
     let suspended_self_launch_allowed =
         path == Path::new("crates/kitrove-macos-process/src/lib.rs");
+    let owned_worker_continuation_allowed = suspended_self_launch_allowed
+        || path == Path::new("crates/kitrove-version-probe/src/apple_process_identity.rs");
     // This boundary writes only the fixed native-inspection acknowledgement to a
     // supplied stream. Do not grant it the broader filesystem-mutation exception.
     let inspection_stream_write_allowed =
@@ -1286,6 +1289,7 @@ fn check_production_source(path: &Path, source: &str) -> Result<(), String> {
         production.contains(token)
             && !(*category == "native suspended launch" && suspended_self_launch_allowed)
             && !(*category == "native spawn availability" && suspended_self_launch_allowed)
+            && !(*category == "owned worker continuation" && owned_worker_continuation_allowed)
             && !(*token == "write_all(" && inspection_stream_write_allowed)
             && !(*category == "filesystem mutation" && filesystem_mutation_allowed)
             && !(*category == "network access" && network_allowed)
@@ -1912,6 +1916,25 @@ x86_64-pc-windows-msvc = ["kitrove"]
             "std::net::TcpStream::connect(path);",
         ] {
             assert!(check_production_source(path, source).is_err());
+        }
+    }
+
+    #[test]
+    fn owned_worker_continuation_has_only_exact_reviewed_boundaries() {
+        let call = "owner.resume_owned_worker_once();";
+        for allowed in [
+            "crates/kitrove-macos-process/src/lib.rs",
+            "crates/kitrove-version-probe/src/apple_process_identity.rs",
+        ] {
+            assert!(check_production_source(Path::new(allowed), call).is_ok());
+        }
+        for refused in [
+            "crates/kitrove-installer/src/lib.rs",
+            "crates/kitrove-macos-signature/src/exchange.rs",
+            "crates/kitrove-version-probe/src/lib.rs",
+            "crates/kitrove-version-probe/src/adjacent.rs",
+        ] {
+            assert!(check_production_source(Path::new(refused), call).is_err());
         }
     }
 
