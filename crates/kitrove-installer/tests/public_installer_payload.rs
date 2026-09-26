@@ -121,6 +121,41 @@ mod native {
             executable_digest
         );
 
+        let publication_root = tempfile::Builder::new()
+            .prefix(".kitrove-publication-acceptance-")
+            .tempdir_in(std::env::var_os("HOME").unwrap())
+            .unwrap();
+        let publication_input = verify_installer_archive_attestation(
+            extract_installer_release(spec, &archive).unwrap(),
+            &expected,
+            &bundle,
+        )
+        .unwrap();
+        let published =
+            stage_authenticated_installer_payload(publication_root.path(), publication_input)
+                .unwrap()
+                .publish_native()
+                .unwrap();
+        published.revalidate().unwrap();
+        let published_path = publication_root
+            .path()
+            .join(".kitrove-installer-bootstrap/kitrove-installer");
+        assert_eq!(
+            std::fs::metadata(&published_path)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700
+        );
+        assert_eq!(
+            Sha256::digest(bounded_read(&published_path, 256 * 1024 * 1024)),
+            executable_digest
+        );
+        drop(published);
+        assert!(published_path.is_file());
+        // Publication is checked as data only. Never launch the downloaded binary.
+
         // This exact pinned fixture ends with CMS content followed by zero padding.
         // Prove that the selected mutation affects only CMS before using it as a test.
         let mut changed_cms = original.clone();

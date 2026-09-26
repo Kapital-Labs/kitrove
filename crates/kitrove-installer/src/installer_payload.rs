@@ -20,6 +20,26 @@ use crate::{InstallerStageError, NativeFileIdentity};
 
 const DIRECTORY: &str = ".kitrove-installer-bootstrap";
 const PAYLOAD: &str = "installer.payload";
+#[cfg(target_os = "macos")]
+const EXECUTABLE: &str = "kitrove-installer";
+
+/// Retained published installer, never application replacement authority.
+/// No automatic execution occurs. Dropping it preserves the published files.
+#[cfg(target_os = "macos")]
+pub struct PublishedInstallerPayload {
+    staged: StagedInstallerPayload,
+}
+
+#[cfg(target_os = "macos")]
+impl PublishedInstallerPayload {
+    /// Freshly check the retained namespace, permissions and authenticated bytes.
+    /// This does not make later pathname execution race-free or authenticate a new process.
+    pub fn revalidate(&self) -> Result<(), InstallerStageError> {
+        self.staged
+            .retained
+            .revalidate_named(self.staged.authenticated.bytes(), EXECUTABLE, 0o700)
+    }
+}
 
 /// Retains authenticated installer data, not a runnable installer or install permit.
 /// Dropping this value closes handles but preserves all staged files.
@@ -36,6 +56,19 @@ pub struct StagedInstallerPayload {
 }
 
 impl StagedInstallerPayload {
+    /// Fresh native verification followed by no-overwrite publication in the owned
+    /// private directory. Consumes staging authority; does not execute the result.
+    /// Failure preserves partial evidence, which may already have executable mode.
+    /// Never infer completion from the filename after a failure or interruption.
+    #[cfg(target_os = "macos")]
+    pub fn publish_native(self) -> Result<PublishedInstallerPayload, InstallerStageError> {
+        self.verify_native_signature()?;
+        self.retained.publish(self.authenticated.bytes())?;
+        let published = PublishedInstallerPayload { staged: self };
+        published.revalidate()?;
+        Ok(published)
+    }
+
     /// Rechecks retained ancestry, names, private permissions, identities and bytes.
     /// Success grants no permission to execute, publish or replace a binary.
     pub fn revalidate(&self) -> Result<(), InstallerStageError> {
@@ -114,16 +147,57 @@ struct RetainedPayload {
 
 impl RetainedPayload {
     fn revalidate(&self, bytes: &[u8]) -> Result<(), InstallerStageError> {
-        self.require_namespace(bytes.len())?;
+        self.revalidate_named(bytes, PAYLOAD, 0o600)
+    }
+
+    fn revalidate_named(
+        &self,
+        bytes: &[u8],
+        name: &str,
+        mode: u32,
+    ) -> Result<(), InstallerStageError> {
+        self.require_namespace(bytes.len(), name, mode)?;
         native::verify_sha256_contents(
             &self.file,
             bytes.len() as u64,
             Sha256::digest(bytes).into(),
         )?;
-        self.require_namespace(bytes.len())
+        self.require_namespace(bytes.len(), name, mode)
     }
 
-    fn require_namespace(&self, size: usize) -> Result<(), InstallerStageError> {
+    #[cfg(target_os = "macos")]
+    fn publish(&self, bytes: &[u8]) -> Result<(), InstallerStageError> {
+        self.revalidate(bytes)?;
+        crate::unix_install::rename_noreplace(
+            &self.directory,
+            OsStr::new(PAYLOAD),
+            &self.directory,
+            OsStr::new(EXECUTABLE),
+        )?;
+        // All errors after namespace mutation preserve evidence for inspection.
+        let complete = (|| {
+            self.revalidate_named(bytes, EXECUTABLE, 0o600)?;
+            native::make_retained_file_executable(
+                &self.directory,
+                EXECUTABLE,
+                &self.file,
+                self.file_identity,
+                bytes.len() as u64,
+            )?;
+            self.revalidate_named(bytes, EXECUTABLE, 0o700)?;
+            native::sync_directory(&self.directory)?;
+            native::sync_directory(self.parent.directory())?;
+            self.revalidate_named(bytes, EXECUTABLE, 0o700)
+        })();
+        complete.map_err(|_: InstallerStageError| InstallerStageError::RecoveryRequired)
+    }
+
+    fn require_namespace(
+        &self,
+        size: usize,
+        name: &str,
+        mode: u32,
+    ) -> Result<(), InstallerStageError> {
         native::revalidate_destination(&self.parent)?;
         native::require_named_directory_identity(
             self.parent.directory(),
@@ -131,13 +205,13 @@ impl RetainedPayload {
             &self.directory,
             self.directory_identity,
         )?;
-        native::require_exact_inventory(&self.directory, &[OsStr::new(PAYLOAD)])?;
+        native::require_exact_inventory(&self.directory, &[OsStr::new(name)])?;
         native::require_named_file_identity(
             &self.directory,
-            PAYLOAD,
+            name,
             &self.file,
             self.file_identity,
-            0o600,
+            mode,
             size as u64,
         )
     }
@@ -207,6 +281,39 @@ fn stage(
 mod tests {
     use super::*;
     use std::os::unix::fs::{PermissionsExt as _, symlink};
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn publication_retains_inode_and_refuses_occupied_or_changed_data() {
+        for case in ["valid", "occupied", "changed"] {
+            let root = crate::test_support::private_tempdir();
+            let bytes = b"synthetic data, never executed";
+            let retained = stage(root.path(), bytes, |_| Ok(())).unwrap();
+            let directory = root.path().join(DIRECTORY);
+            if case == "occupied" {
+                std::fs::write(directory.join(EXECUTABLE), b"unmanaged").unwrap();
+            } else if case == "changed" {
+                std::fs::write(directory.join(PAYLOAD), b"changed").unwrap();
+            }
+            // Filesystem-only seam, not native signature acceptance.
+            let result = retained.publish(bytes);
+            if case == "valid" {
+                result.unwrap();
+                retained.revalidate_named(bytes, EXECUTABLE, 0o700).unwrap();
+                assert!(!directory.join(PAYLOAD).exists());
+                assert_eq!(std::fs::read(directory.join(EXECUTABLE)).unwrap(), bytes);
+            } else {
+                assert!(result.is_err());
+                assert!(directory.join(PAYLOAD).is_file());
+                if case == "occupied" {
+                    assert_eq!(
+                        std::fs::read(directory.join(EXECUTABLE)).unwrap(),
+                        b"unmanaged"
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn stages_exact_nonexecutable_data_and_preserves_it_on_drop() {

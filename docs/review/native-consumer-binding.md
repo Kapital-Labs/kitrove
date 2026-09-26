@@ -981,3 +981,20 @@ payload authority. This method does not enable a public bootstrap command or pro
 Windows native signature verification. The public-artifact fixture exercises this
 method for the authentic payload and changed-byte refusal, while its lower-level
 tests still distinguish native CMS/code validation from retained-byte mismatches.
+
+### Mac installer executable publication boundary
+
+The consuming `publish_native` operation freshly verifies the authenticated retained
+payload, then revalidates it before a fixed-name no-overwrite rename within the owned
+private directory. The retained inode remains mode 0600 until the renamed inventory
+and bytes pass validation. A shared descriptor-based permission primitive changes
+only that retained inode to mode 0700, syncs it and rechecks its named identity.
+Directory synchronization and final authenticated-byte/namespace checks precede
+returning the distinct published-installer owner. No payload is automatically run.
+
+Failures preserve evidence. A failure or interruption after the permission change
+can leave an executable file without a returned owner; its name alone is never a
+completion record. Reopening/recovery still requires a separate reviewed boundary
+with fresh authentication and native checks. No application installation, rollback,
+PATH update, elevation or stable release is performed. Filesystem-only tests are
+distinct from the operator-only production-artifact acceptance exercise.

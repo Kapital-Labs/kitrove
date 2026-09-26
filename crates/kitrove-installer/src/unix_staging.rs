@@ -1026,6 +1026,23 @@ pub(crate) fn create_synced_private_file(
     Ok(file)
 }
 
+/// Change only a retained, private data inode already checked by its caller.
+/// This is a filesystem primitive, not native-signature or execution authority.
+#[cfg(target_os = "macos")]
+pub(crate) fn make_retained_file_executable(
+    directory: &Dir,
+    name: &str,
+    file: &cap_std::fs::File,
+    identity: NativeFileIdentity,
+    size: u64,
+) -> Result<(), InstallerStageError> {
+    require_named_file_identity(directory, name, file, identity, 0o600, size)?;
+    file.set_permissions(Permissions::from_mode(0o700))
+        .and_then(|()| file.sync_all())
+        .map_err(|_| InstallerStageError::RecoveryRequired)?;
+    require_named_file_identity(directory, name, file, identity, 0o700, size)
+}
+
 /// Completes a bounded caller-validated canonical record without replacing its prefix.
 /// Any uncertain identity or content remains intact and requires recovery.
 pub(crate) fn complete_private_file_prefix(
