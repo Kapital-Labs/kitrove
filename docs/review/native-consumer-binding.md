@@ -1035,3 +1035,20 @@ support is implemented there. Preparation calls the consuming publication bounda
 verification performs read-only reopening with fresh authentication and native checks.
 Neither command downloads, launches, updates PATH or infers first-execution trust.
 The executing installer must already be independently trusted or source-built.
+
+### Process interruption test boundary
+
+A Mac-only unit-test subprocess pauses at each private publication boundary:
+before rename, after rename while still 0600, after changing the retained inode to
+0700, and after directory synchronization. The parent kills and reaps that exact
+child, then invokes a fresh source-built test process to exercise the shared
+retained-file reopener. Data-only and renamed-0600 states must refuse; complete
+0700 states must reopen. Every state must refuse duplicate staging, preserve
+bytes, inode, mode and inventory, and never launch the payload. Child readiness
+and completion markers live outside the exact bootstrap inventory. All environment
+controls are confined to unit-test code; the production CLI has no crash hooks.
+
+These are synthetic filesystem interruption tests. They do not authenticate a real
+release, exercise fresh native signatures, simulate power loss or establish
+clean-machine acceptance. Pinned real-artifact interrupted publication remains a
+separate acceptance requirement.

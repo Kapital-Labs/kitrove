@@ -350,6 +350,11 @@ fn stage(
     complete.map_err(|_: InstallerStageError| InstallerStageError::RecoveryRequired)
 }
 
+#[cfg(target_os = "macos")]
+#[cfg(test)]
+#[path = "installer_publication_crash_tests.rs"]
+mod crash_tests;
+
 #[cfg(unix)]
 #[cfg(test)]
 mod tests {
