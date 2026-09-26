@@ -944,3 +944,40 @@ not establish successful helper inspection. No installer consumer call site or
 downloaded executable is enabled. Independent first execution, authenticated payload
 binding and retained-file revalidation remain separate requirements; a native
 inspection result is not an installer readiness token.
+
+### Source-built helper integration acceptance
+
+The existing pinned RC2 installer-payload acceptance fixture now uses a custom
+test entry point. Ordinary test runs report a skip; an arm64 Mac operator must
+explicitly pass `--run-native-acceptance` with the archive and selected attestation
+bundle paths. Other platforms cannot report an explicit acceptance run as success.
+The source-built test executable routes the exact internal helper argument through
+the real installer dispatch. Its parent authenticates the pinned archive first,
+stages mode-0600 data, then uses the prepared verified-owner inspection driver.
+No downloaded executable is launched and no signing credentials are used.
+
+On the existing arm64 Mac, this path passed the authentic payload case, refused a
+different captured CMS fingerprint, refused altered CMS bytes even with matching
+captured fingerprints, and refused changed code pages. Retained payload revalidation
+passed around unchanged inspection and refused altered bytes. The test reuses the
+same archive, provenance, staging, protocol and native verifier implementations.
+This establishes bounded source-built helper integration for those cases, not
+consumer command wiring, executable publication or clean-machine launch acceptance.
+
+### Authenticated retained-payload inspection
+
+`StagedInstallerPayload::verify_native_signature` derives its signature candidate
+only from retained authenticated installer bytes and their target. It derives the
+fixed payload path from the retained destination, not a caller-supplied path or
+fingerprint. It checks retained ancestry, inventory, private permissions, file identity
+and bytes before preparing the verified helper, again before native inspection,
+and afterward even when inspection refuses. Failure grants no authority and staged
+evidence is preserved. The payload remains mode 0600; the method never executes it.
+
+Success is deliberately a point-in-time result rather than a cached readiness token.
+Independent trust in the running verifier and its fixed helper dispatch is still
+required. A later publication or execution step must retain and freshly revalidate
+payload authority. This method does not enable a public bootstrap command or provide
+Windows native signature verification. The public-artifact fixture exercises this
+method for the authentic payload and changed-byte refusal, while its lower-level
+tests still distinguish native CMS/code validation from retained-byte mismatches.

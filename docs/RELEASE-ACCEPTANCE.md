@@ -49,6 +49,19 @@ merged main validation also passed in
 This is data staging only: native-signature-gated executable publication, reopening
 and a consumer bootstrap command remain unimplemented.
 
+The Mac retained-payload library now provides bounded native signature inspection
+using an independently trusted source-built self helper. It derives the candidate
+from authenticated installer bytes, checks retained file identity and bytes around
+inspection, and leaves the payload non-executable. The pinned RC2 arm64 fixture
+passed the authentic case and rejected changed CMS/code on the existing Mac through
+the real helper dispatch. This is not executable publication, downloaded-installer
+bootstrap, Windows signature acceptance or clean-machine/offline launch evidence.
+The operator-only test is explicitly selected with
+`cargo test -p kitrove-installer --test public_installer_payload -- --run-native-acceptance`
+and requires `KITROVE_TEST_INSTALLER_ARCHIVE` and `KITROVE_TEST_INSTALLER_BUNDLE` to
+point to the pinned RC2 arm64 archive and its selected production attestation bundle.
+Ordinary test runs skip this external-artifact acceptance exercise.
+
 Before advertising the binary path, prove:
 
 - independent selection of tag, full source commit, target and expected checksum;
