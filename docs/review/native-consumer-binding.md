@@ -1007,3 +1007,19 @@ symlink refuses before permissions change and leaves the unrelated target untouc
 These deterministic error/namespace tests are not fresh-process crash recovery or
 proof against arbitrary same-user concurrent mutation. Reopening acceptance remains
 required before an interrupted publication can be treated as complete.
+
+### Read-only published-installer reopening
+
+The distinct published owner can be reopened only with freshly authenticated installer
+bytes for the compiled target. Reuse the retained destination/private-directory checks
+and the existing nonblocking, no-follow exact-file opener, requiring one mode-0700
+leaf with a single link and matching authenticated bytes. Perform fresh bounded native
+inspection through the same helper path before returning the owner. No stored boolean,
+sidecar or filename authenticates completion. The read-only operation neither repairs
+partial mode-0600 publication nor changes names/permissions, and does not execute it.
+
+Synthetic cases cover partial staging, changed mode/bytes, symlinks, extra inventory
+and hardlinks without repair. The operator fixture separately drops the original
+published owner, independently reauthenticates the archive and reopens the published
+data with fresh native checks. Same-process reopening is not fresh-process interruption
+recovery or clean-machine launch evidence. Public bootstrap command wiring remains open.

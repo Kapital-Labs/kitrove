@@ -32,6 +32,26 @@ pub struct PublishedInstallerPayload {
 
 #[cfg(target_os = "macos")]
 impl PublishedInstallerPayload {
+    /// Reopen only the exact completed inventory using freshly authenticated bytes.
+    /// Performs fresh native verification without changing permissions or repairing
+    /// interrupted data. The running verifier still needs independent trust.
+    pub fn reopen(
+        parent: &Path,
+        authenticated: AuthenticatedInstallerExecutable,
+    ) -> Result<Self, InstallerStageError> {
+        if crate::compiled_release_target()? != authenticated.spec().target() {
+            return Err(InstallerStageError::TargetMismatch);
+        }
+        native::require_unprivileged_process()?;
+        let retained = RetainedPayload::reopen_published(parent, authenticated.bytes())?;
+        let staged = StagedInstallerPayload {
+            retained,
+            authenticated,
+        };
+        staged.verify_native_named(EXECUTABLE, 0o700)?;
+        Ok(Self { staged })
+    }
+
     /// Freshly check the retained namespace, permissions and authenticated bytes.
     /// This does not make later pathname execution race-free or authenticate a new process.
     pub fn revalidate(&self) -> Result<(), InstallerStageError> {
@@ -82,11 +102,17 @@ impl StagedInstallerPayload {
     /// private mode-0600 data and retained handles are unchanged.
     #[cfg(target_os = "macos")]
     pub fn verify_native_signature(&self) -> Result<(), InstallerStageError> {
+        self.verify_native_named(PAYLOAD, 0o600)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn verify_native_named(&self, name: &str, mode: u32) -> Result<(), InstallerStageError> {
         use kitrove_release_policy::apple_code_directory::candidate_signature;
         use kitrove_version_probe::apple_process_identity::prepare_verified_suspended_self;
         use std::os::unix::ffi::OsStrExt as _;
 
-        self.revalidate()?;
+        self.retained
+            .revalidate_named(self.authenticated.bytes(), name, mode)?;
         let candidate = candidate_signature(
             self.authenticated.bytes(),
             self.authenticated.spec().target(),
@@ -94,16 +120,19 @@ impl StagedInstallerPayload {
         .map_err(|_| InstallerStageError::VerificationFailed)?;
         let path = Path::new(OsStr::from_bytes(self.retained.parent.path_bytes()))
             .join(DIRECTORY)
-            .join(PAYLOAD);
+            .join(name);
         let prepared = prepare_verified_suspended_self()
             .and_then(|owner| owner.bind_inspection(&path, &candidate))
             .map_err(|_| InstallerStageError::VerificationFailed)?;
-        self.revalidate()?;
+        self.retained
+            .revalidate_named(self.authenticated.bytes(), name, mode)?;
         let inspected = prepared
             .inspect_native()
             .map_err(|_| InstallerStageError::VerificationFailed);
         // Revalidate even when native inspection refuses. Never cache path success.
-        let retained = self.revalidate();
+        let retained = self
+            .retained
+            .revalidate_named(self.authenticated.bytes(), name, mode);
         retained.and(inspected)
     }
 }
@@ -155,6 +184,29 @@ enum PublicationBoundary {
 }
 
 impl RetainedPayload {
+    #[cfg(target_os = "macos")]
+    fn reopen_published(parent: &Path, bytes: &[u8]) -> Result<Self, InstallerStageError> {
+        let parent = native::open_destination(parent)?;
+        let directory = native::open_private_child(parent.directory(), OsStr::new(DIRECTORY))?;
+        let directory_identity = native::directory_identity(&directory)?;
+        native::require_exact_inventory(&directory, &[OsStr::new(EXECUTABLE)])?;
+        let leaf = crate::unix_recovery::open_exact_private_file(
+            &directory,
+            EXECUTABLE,
+            0o700,
+            bytes.len() as u64,
+        )?;
+        let retained = Self {
+            parent,
+            directory,
+            directory_identity,
+            file: leaf.file,
+            file_identity: leaf.identity,
+        };
+        retained.revalidate_named(bytes, EXECUTABLE, 0o700)?;
+        Ok(retained)
+    }
+
     fn revalidate(&self, bytes: &[u8]) -> Result<(), InstallerStageError> {
         self.revalidate_named(bytes, PAYLOAD, 0o600)
     }
@@ -305,6 +357,72 @@ mod tests {
     #[cfg(target_os = "macos")]
     use cap_std::fs::PermissionsExt as _;
     use std::os::unix::fs::{PermissionsExt as _, symlink};
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn reopening_refuses_partial_or_changed_publication_without_repair() {
+        for case in [
+            "valid",
+            "data",
+            "mode",
+            "bytes",
+            "symlink",
+            "inventory",
+            "hardlink",
+        ] {
+            let root = crate::test_support::private_tempdir();
+            let bytes = b"synthetic reopening data";
+            let retained = stage(root.path(), bytes, |_| Ok(())).unwrap();
+            let directory = root.path().join(DIRECTORY);
+            let path = directory.join(EXECUTABLE);
+            if case != "data" {
+                retained.publish(bytes).unwrap();
+            }
+            drop(retained);
+            match case {
+                "mode" => {
+                    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap()
+                }
+                "bytes" => std::fs::write(&path, b"changed").unwrap(),
+                "symlink" => {
+                    std::fs::rename(&path, root.path().join("evidence")).unwrap();
+                    symlink(root.path().join("evidence"), &path).unwrap();
+                }
+                "inventory" => std::fs::write(directory.join("extra"), b"unmanaged").unwrap(),
+                "hardlink" => std::fs::hard_link(&path, root.path().join("alias")).unwrap(),
+                _ => {}
+            }
+            let result = RetainedPayload::reopen_published(root.path(), bytes);
+            assert_eq!(result.is_ok(), case == "valid");
+            if case == "data" {
+                assert!(directory.join(PAYLOAD).is_file());
+                assert!(!path.exists());
+            }
+            if case == "mode" {
+                assert_eq!(
+                    std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+                    0o600
+                );
+            }
+            if case == "bytes" {
+                assert_eq!(std::fs::read(&path).unwrap(), b"changed");
+            }
+            if case == "symlink" {
+                assert!(
+                    std::fs::symlink_metadata(&path)
+                        .unwrap()
+                        .file_type()
+                        .is_symlink()
+                );
+            }
+            if case == "inventory" {
+                assert_eq!(
+                    std::fs::read(directory.join("extra")).unwrap(),
+                    b"unmanaged"
+                );
+            }
+        }
+    }
 
     #[cfg(target_os = "macos")]
     #[test]

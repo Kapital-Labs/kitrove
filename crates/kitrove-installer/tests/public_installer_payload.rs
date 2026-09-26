@@ -154,6 +154,18 @@ mod native {
         );
         drop(published);
         assert!(published_path.is_file());
+        let reopened = kitrove_installer::PublishedInstallerPayload::reopen(
+            publication_root.path(),
+            verify_installer_archive_attestation(
+                extract_installer_release(spec, &archive).unwrap(),
+                &expected,
+                &bundle,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        reopened.revalidate().unwrap();
+        drop(reopened);
         // Publication is checked as data only. Never launch the downloaded binary.
 
         // This exact pinned fixture ends with CMS content followed by zero padding.
