@@ -782,3 +782,26 @@ contract require the caller to close transport input first, but it cannot prove 
 descriptor was closed. It is byte accounting, not a receipt for trusted execution.
 The driver must supply observed write counts and retain its deadline through output,
 exit and cleanup checks. No process or filesystem operation is introduced here.
+
+### Cooperative exchange driver
+
+The signature crate now combines the shared request/response states with the
+existing nonblocking process transport. Each poll performs at most one write and
+one read from each output stream, closes input immediately after the final observed
+write, and checks the unchanged absolute deadline before and after the step.
+Streams that reached EOF are not polled again. Refusal and completion are terminal;
+subsequent polls refuse without further I/O. The private scripted-transport seam
+tests partial writes, pending input, stream errors, closure ordering and bounded
+work without starting or resuming an executable.
+
+The public result is framing only, not native verification or installer readiness.
+The future verified owner must bind the exact transport and exchange state, retain
+the child, avoid busy polling and require successful exit, cleanup and payload
+revalidation under the same operation deadline. This unit does not add that owner
+integration or a resume path. A caller can supply a transport, but cannot select a
+command, verification implementation or signature policy.
+
+Dependency review: the lockfile adds only the existing workspace macos-process edge
+to macos-signature. No package versions, registry identities or third-party packages
+change. The reviewed lock digest is updated for that single edge. Existing process
+launch and side-effect governance allowances remain unchanged.

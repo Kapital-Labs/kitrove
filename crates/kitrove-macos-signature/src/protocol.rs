@@ -24,6 +24,15 @@ pub struct InspectionRequest {
 }
 
 impl InspectionRequest {
+    #[cfg(test)]
+    pub(crate) fn fixture(deadline: Instant) -> Self {
+        Self::from_frame(
+            encode(Path::new("/private/payload"), &[7; 20], &[9; 32]).unwrap(),
+            deadline,
+        )
+        .unwrap()
+    }
+
     pub fn new(
         path: &Path,
         candidate: &AppleSignatureCandidate,

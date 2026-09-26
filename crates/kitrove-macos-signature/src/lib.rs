@@ -18,7 +18,9 @@ use security_framework::os::macos::code_signing::{Flags, SecRequirement, SecStat
 use sha2::{Digest as _, Sha256};
 use std::path::Path;
 
+mod exchange;
 mod protocol;
+pub use exchange::{ExchangeProgress, InspectionExchange};
 pub use protocol::{
     INSPECTION_SUCCESS_RESPONSE, InspectionRequest, InspectionResponse,
     MAX_INSPECTION_REQUEST_BYTES, encode_inspection_request, inspect_request, serve_inspection,

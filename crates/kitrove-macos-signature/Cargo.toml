@@ -13,6 +13,7 @@ publish = false
 core-foundation.workspace = true
 security-framework.workspace = true
 kitrove-release-policy.workspace = true
+kitrove-macos-process = { path = "../kitrove-macos-process" }
 sha2.workspace = true
 
 [lints.rust]
