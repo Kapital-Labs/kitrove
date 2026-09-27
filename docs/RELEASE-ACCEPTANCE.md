@@ -235,7 +235,20 @@ containing the recorded RC1/RC2 archives and bundles:
 cargo test -p kitrove-installer --test public_lifecycle_refusal -- --ignored --nocapture
 ```
 
-Ordinary CI skips this external-artifact test; native operator results must be
+The same operator target's populated-state A/B/A test passed on the existing arm64
+Mac with evidence retained in `populated-state-vRxi7V`. Shared model constructors
+created a synthetic active profile, symbolic environment binding, deployment receipt,
+trust decision and scan, plus canonical sync base records, pointer and object canary.
+All harness paths were inside the fresh private fixture. State roots, sync controls,
+synthetic harness files and the unmanaged destination leaf retained their exact
+inventories, inodes, permissions, link counts and content hashes after every
+preflight, transaction and retirement. Preflights left the destination unchanged;
+upgrade installed B's pinned digest and rollback restored A's pinned digest.
+This tests preservation of typed synthetic metadata and files, not real remote
+content verification, binding resolution, real credentials, concurrent mutation,
+interrupted lifecycle or clean-machine launch. No downloaded installer was run.
+
+Ordinary CI skips these external-artifact tests; native operator results must be
 recorded separately from compiled test coverage.
 
 Prepare each version in its own reviewed worktree/PR. Update the
