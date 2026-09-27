@@ -3,6 +3,18 @@ use super::*;
 use std::fs;
 use std::io::Write as _;
 
+fn hold_for_kill(root: &Path, leaf: &str, value: &str) -> ! {
+    let mut ready = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(root.join(leaf))
+        .unwrap();
+    ready.write_all(value.as_bytes()).unwrap();
+    ready.sync_all().unwrap();
+    std::thread::sleep(std::time::Duration::from_secs(60));
+    panic!("parent did not interrupt retained transaction");
+}
+
 fn material(evidence: &Path, candidate: bool) -> AuthenticatedRecoveryMaterial {
     let (directory, bundle, tag, commit, digest) = if candidate {
         (
@@ -61,6 +73,38 @@ fn real_upgrade_cut_child() {
     let candidate = material(&evidence, !rollback);
     let destination = root.join("destination");
     let roots = [root.join("state-a"), root.join("state-b")];
+    match std::env::var("KITROVE_TEST_CUT_ACTION").unwrap().as_str() {
+        "prepare" => {}
+        "recover" => {
+            let subject = prior.executable().subject();
+            let expected = kitrove_release_provenance::ExpectedReleaseIdentity::new(
+                subject.release_tag(),
+                subject.source_commit(),
+            )
+            .unwrap();
+            PreparedReplacement::recover_direction_with(
+                &destination,
+                candidate.executable(),
+                &roots,
+                if rollback {
+                    ReplacementDirection::Rollback
+                } else {
+                    ReplacementDirection::Upgrade
+                },
+                |staged| {
+                    RetainedRollbackKit::reopen_material(
+                        staged,
+                        &expected,
+                        subject.archive_sha256(),
+                    )
+                },
+                |_, _| hold_for_kill(&root, "recovery-ready", "before-verification"),
+            )
+            .unwrap();
+            panic!("recovery cut returned without interruption");
+        }
+        _ => panic!("unknown cut action"),
+    }
     let prepared = if rollback {
         PreparedReplacement::prepare_rollback(&destination, candidate.executable(), &prior, &roots)
     } else {
@@ -72,17 +116,9 @@ fn real_upgrade_cut_child() {
             |_, _| panic!("cut child must never reach native verification or execution"),
             |boundary| {
                 if boundary == selected {
-                    let mut ready = fs::OpenOptions::new()
-                        .write(true)
-                        .create_new(true)
-                        .open(root.join("cut-ready"))
-                        .unwrap();
-                    ready.write_all(cut.as_bytes()).unwrap();
-                    ready.sync_all().unwrap();
                     // Retain transaction ownership and state guards until the parent
                     // kills this exact child. A timeout is failure, never acceptance.
-                    std::thread::sleep(std::time::Duration::from_secs(60));
-                    panic!("parent did not interrupt retained transaction");
+                    hold_for_kill(&root, "cut-ready", &cut);
                 }
                 Ok(())
             },
