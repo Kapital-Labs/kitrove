@@ -232,7 +232,7 @@ Run explicitly with `KITROVE_TEST_RELEASE_EVIDENCE` pointing to the durable dire
 containing the recorded RC1/RC2 archives and bundles:
 
 ```sh
-cargo test -p kitrove-installer --test public_lifecycle_refusal -- --ignored --nocapture
+cargo test -p kitrove-installer --test public_lifecycle_refusal real_upgrade_refuses_busy_and_invalid_state_without_mutation -- --ignored --nocapture
 ```
 
 The same operator target's populated-state A/B/A test passed on the existing arm64
@@ -247,6 +247,33 @@ upgrade installed B's pinned digest and rollback restored A's pinned digest.
 This tests preservation of typed synthetic metadata and files, not real remote
 content verification, binding resolution, real credentials, concurrent mutation,
 interrupted lifecycle or clean-machine launch. No downloaded installer was run.
+
+Real-artifact interrupted upgrade acceptance also passed three process cuts on the
+existing arm64 Mac. A source-built, test-only child retained the actual transaction
+and selected state locks before exchange, just after exchange, or after recording
+replacement. The parent observed readiness, killed that exact child with SIGKILL
+and reaped it. A fresh production CLI process authenticated B and the retained A
+recovery material, completed native verification and recovery, then retirement.
+B's pinned executable digest matched; both minimal synthetic state roots and the
+unmanaged canary retained their inventories, inodes, modes, link counts and hashes.
+Evidence is retained in `real-upgrade-cut-4EnN96`, `real-upgrade-cut-6Mo3fC` and
+`real-upgrade-cut-GeZiIF`. These are real authenticated artifacts with test-only
+interruption scheduling, not synthetic authentication or a production runtime hook.
+The child cannot proceed into version verification; recovery uses the normal CLI
+and its unchanged native helper. No downloaded installer was executed.
+This does not cover power loss, a second interruption during recovery, rollback
+interruption, populated-state interruption, other native targets or clean-machine
+launch. Run the parent explicitly after building the matching source libtest:
+
+```sh
+cargo test -p kitrove-installer --lib --no-run
+# Set KITROVE_TEST_UPGRADE_LIBTEST to the absolute local libtest path printed above.
+# KITROVE_TEST_RELEASE_EVIDENCE selects the same pinned artifact directory as above.
+cargo test -p kitrove-installer --test public_lifecycle_refusal upgrade_interruption::real_upgrade_process_cuts_recover_in_fresh_cli -- --ignored --nocapture
+```
+
+Only select a locally source-built libtest from the reviewed checkout. Do not
+download or infer that executable from the release artifacts.
 
 Ordinary CI skips these external-artifact tests; native operator results must be
 recorded separately from compiled test coverage.

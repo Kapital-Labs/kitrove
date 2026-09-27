@@ -17,6 +17,9 @@ const CANARY: &str = "KITROVE_FAKE_REFUSAL_CREDENTIAL_NOT_A_SECRET";
 #[path = "support/populated_state.rs"]
 mod populated_state;
 
+#[path = "support/upgrade_interruption.rs"]
+mod upgrade_interruption;
+
 fn release(evidence: &Path, prior: bool, b: bool) -> Vec<String> {
     let (directory, bundle, tag, commit, digest) = if b {
         (
