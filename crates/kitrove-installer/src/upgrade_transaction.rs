@@ -221,6 +221,11 @@ impl std::fmt::Debug for PreparedReplacement<'_> {
     }
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[cfg(test)]
+#[path = "real_upgrade_interruption_tests.rs"]
+mod real_interruption_tests;
+
 #[cfg(all(unix, debug_assertions))]
 #[cfg(test)]
 #[path = "upgrade_transaction_tests.rs"]
