@@ -14,6 +14,9 @@ const VALID: &[u8] =
     br#"{"schema_version":1,"machine":{"id":"refusal-fixture","active_profile":null}}"#;
 const CANARY: &str = "KITROVE_FAKE_REFUSAL_CREDENTIAL_NOT_A_SECRET";
 
+#[path = "support/populated_state.rs"]
+mod populated_state;
+
 fn release(evidence: &Path, prior: bool, b: bool) -> Vec<String> {
     let (directory, bundle, tag, commit, digest) = if b {
         (
