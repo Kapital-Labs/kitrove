@@ -49,14 +49,23 @@ fn real_upgrade_cut_child() {
         "replaced-recorded" => unix::UpgradeBoundary::ReplacedRecorded,
         _ => panic!("unknown cut"),
     };
-    let prior = material(&evidence, false);
-    let candidate = material(&evidence, true);
-    let prepared = PreparedReplacement::prepare(
-        &root.join("destination"),
-        candidate.executable(),
-        &prior,
-        &[root.join("state-a"), root.join("state-b")],
-    )
+    let rollback = match std::env::var("KITROVE_TEST_REPLACEMENT_DIRECTION")
+        .unwrap()
+        .as_str()
+    {
+        "upgrade" => false,
+        "rollback" => true,
+        _ => panic!("unknown replacement direction"),
+    };
+    let prior = material(&evidence, rollback);
+    let candidate = material(&evidence, !rollback);
+    let destination = root.join("destination");
+    let roots = [root.join("state-a"), root.join("state-b")];
+    let prepared = if rollback {
+        PreparedReplacement::prepare_rollback(&destination, candidate.executable(), &prior, &roots)
+    } else {
+        PreparedReplacement::prepare(&destination, candidate.executable(), &prior, &roots)
+    }
     .unwrap();
     prepared
         .install_with_hooks(

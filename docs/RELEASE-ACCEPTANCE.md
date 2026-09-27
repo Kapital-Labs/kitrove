@@ -275,6 +275,25 @@ cargo test -p kitrove-installer --test public_lifecycle_refusal upgrade_interrup
 Only select a locally source-built libtest from the reviewed checkout. Do not
 download or infer that executable from the release artifacts.
 
+The shared process-cut harness also passed explicit B-to-A rollback at all three
+boundaries. The test child used rollback preparation with authenticated A as the
+candidate and B as retained prior material. Fresh `recover-rollback` and
+`retire-rollback` processes succeeded, A's exact digest matched, and both minimal
+synthetic state roots and the unmanaged canary were unchanged. Evidence is retained
+in `real-rollback-cut-HlYO1i`, `real-rollback-cut-P8md6j` and
+`real-rollback-cut-7XyXma`. All three upgrade cuts passed again after the shared
+refactor, in `real-upgrade-cut-c0u6ur`, `real-upgrade-cut-Xn3pqS` and
+`real-upgrade-cut-221Dtf`. Run both directions with the same source-built libtest
+and evidence environment described above:
+
+```sh
+cargo test -p kitrove-installer --test public_lifecycle_refusal upgrade_interruption:: -- --ignored --nocapture --test-threads=1
+```
+
+This extends real-artifact process-interruption coverage to explicit rollback, not
+power loss, repeated interruption during recovery, populated-state interruption,
+other native targets or clean-machine launch. No downloaded installer was run.
+
 Ordinary CI skips these external-artifact tests; native operator results must be
 recorded separately from compiled test coverage.
 

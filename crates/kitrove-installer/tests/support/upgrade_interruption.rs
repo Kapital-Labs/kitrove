@@ -15,7 +15,18 @@ impl Drop for OwnedChild {
 #[test]
 #[ignore = "operator-only; requires pinned artifacts and explicitly selected source-built libtest"]
 fn real_upgrade_process_cuts_recover_in_fresh_cli() {
+    replacement_process_cuts(false);
+}
+
+#[test]
+#[ignore = "operator-only; requires pinned artifacts and explicitly selected source-built libtest"]
+fn real_rollback_process_cuts_recover_in_fresh_cli() {
+    replacement_process_cuts(true);
+}
+
+fn replacement_process_cuts(rollback: bool) {
     use std::os::unix::process::ExitStatusExt as _;
+    let direction = if rollback { "rollback" } else { "upgrade" };
     let evidence = PathBuf::from(
         std::env::var_os("KITROVE_TEST_RELEASE_EVIDENCE").expect("evidence directory"),
     );
@@ -27,7 +38,7 @@ fn real_upgrade_process_cuts_recover_in_fresh_cli() {
     assert!(fs::symlink_metadata(&child_binary).unwrap().is_file());
     for cut in ["before-exchange", "exchanged", "replaced-recorded"] {
         let root = tempfile::Builder::new()
-            .prefix("real-upgrade-cut-")
+            .prefix(&format!("real-{direction}-cut-"))
             .tempdir_in(&evidence)
             .unwrap()
             .keep();
@@ -53,7 +64,7 @@ fn real_upgrade_process_cuts_recover_in_fresh_cli() {
         ];
         for action in ["install", "retire-install"] {
             let mut args = vec![action.to_owned()];
-            args.extend(release(&evidence, false, false));
+            args.extend(release(&evidence, false, rollback));
             args.extend(roots.clone());
             invoke(&root, action, &args, None);
         }
@@ -65,6 +76,7 @@ fn real_upgrade_process_cuts_recover_in_fresh_cli() {
                 .env("KITROVE_TEST_RELEASE_EVIDENCE", &evidence)
                 .env("KITROVE_TEST_UPGRADE_CUT_ROOT", &root)
                 .env("KITROVE_TEST_UPGRADE_CUT", cut)
+                .env("KITROVE_TEST_REPLACEMENT_DIRECTION", direction)
                 .args([
                     "--exact",
                     "upgrade_transaction::real_interruption_tests::real_upgrade_cut_child",
@@ -100,19 +112,26 @@ fn real_upgrade_process_cuts_recover_in_fresh_cli() {
                     .contains(CANARY)
             );
         }
-        for action in ["recover-upgrade", "retire-upgrade"] {
-            let mut args = vec![action.to_owned()];
-            args.extend(release(&evidence, false, true));
-            for pair in release(&evidence, true, false).chunks_exact(2) {
+        for action in [
+            format!("recover-{direction}"),
+            format!("retire-{direction}"),
+        ] {
+            let mut args = vec![action.clone()];
+            args.extend(release(&evidence, false, !rollback));
+            for pair in release(&evidence, true, rollback).chunks_exact(2) {
                 if !matches!(pair[0].as_str(), "--prior-archive" | "--prior-bundle") {
                     args.extend_from_slice(pair);
                 }
             }
             args.extend(roots.clone());
-            invoke(&root, action, &args, None);
+            invoke(&root, &action, &args, None);
             assert_eq!(before, [snapshot(&first), snapshot(&second)]);
             assert_eq!(unmanaged, snapshot(&destination.join("unmanaged.txt")));
-            let expected = "54ac690c5ae5b0bcc480f4925b0f7ef5fe4e9b777a6b9390ca0ead593715bed2";
+            let expected = if rollback {
+                "766afbe0279cf6a1f623a8a69bb122cfdcb3206f26a7b7c1acceff749e905e7e"
+            } else {
+                "54ac690c5ae5b0bcc480f4925b0f7ef5fe4e9b777a6b9390ca0ead593715bed2"
+            };
             let actual = Sha256::digest(fs::read(destination.join("kitrove")).unwrap());
             for (index, byte) in actual.iter().enumerate() {
                 assert_eq!(
@@ -122,7 +141,7 @@ fn real_upgrade_process_cuts_recover_in_fresh_cli() {
             }
         }
         println!(
-            "{cut}: SIGKILL observed, fresh recovery/retirement passed, B digest and state preserved"
+            "{direction}/{cut}: SIGKILL observed, fresh recovery/retirement passed, candidate digest and state preserved"
         );
     }
 }
