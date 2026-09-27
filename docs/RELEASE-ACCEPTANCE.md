@@ -310,6 +310,25 @@ preservation through these real-artifact interruptions, not remote-content
 verification, credential resolution, concurrent mutation, repeated interruption
 during recovery, power loss or clean-machine launch.
 
+Repeated-interruption cases then passed in both directions with populated synthetic
+state. After each of the three initial cuts, a second source-built test process
+reauthenticated the retained kit and reopened the transaction through the existing
+recovery implementation. It paused at the verification callback while retaining
+transaction ownership, without returning a successful verification result. The
+parent killed and reaped that exact process too. A final fresh production CLI
+performed actual native verification, recovery and retirement. Candidate digests
+and state/sync/harness snapshots matched after both interruptions and completion.
+Rollback evidence is retained in `real-rollback-repeated-populated-cut-DOZ7Mo`,
+`real-rollback-repeated-populated-cut-6doA56` and
+`real-rollback-repeated-populated-cut-P2SFLe`; upgrade evidence is in
+`real-upgrade-repeated-populated-cut-kCldd6`,
+`real-upgrade-repeated-populated-cut-TPNAEu` and
+`real-upgrade-repeated-populated-cut-1QVdS0`. The full six-case group, including
+all previous cases, passed in 555.72 seconds using the invocation above.
+This covers a second interruption immediately before recovery verification, not
+arbitrary recovery journal boundaries, termination inside the native helper,
+power loss, other targets or clean-machine launch. No production hook was added.
+
 Ordinary CI skips these external-artifact tests; native operator results must be
 recorded separately from compiled test coverage.
 
