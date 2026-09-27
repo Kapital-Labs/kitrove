@@ -15,16 +15,28 @@ impl Drop for OwnedChild {
 #[test]
 #[ignore = "operator-only; requires pinned artifacts and explicitly selected source-built libtest"]
 fn real_upgrade_process_cuts_recover_in_fresh_cli() {
-    replacement_process_cuts(false);
+    replacement_process_cuts(false, false);
 }
 
 #[test]
 #[ignore = "operator-only; requires pinned artifacts and explicitly selected source-built libtest"]
 fn real_rollback_process_cuts_recover_in_fresh_cli() {
-    replacement_process_cuts(true);
+    replacement_process_cuts(true, false);
 }
 
-fn replacement_process_cuts(rollback: bool) {
+#[test]
+#[ignore = "operator-only; requires pinned artifacts and explicitly selected source-built libtest"]
+fn real_populated_upgrade_process_cuts_recover_in_fresh_cli() {
+    replacement_process_cuts(false, true);
+}
+
+#[test]
+#[ignore = "operator-only; requires pinned artifacts and explicitly selected source-built libtest"]
+fn real_populated_rollback_process_cuts_recover_in_fresh_cli() {
+    replacement_process_cuts(true, true);
+}
+
+fn replacement_process_cuts(rollback: bool, populated: bool) {
     use std::os::unix::process::ExitStatusExt as _;
     let direction = if rollback { "rollback" } else { "upgrade" };
     let evidence = PathBuf::from(
@@ -38,7 +50,10 @@ fn replacement_process_cuts(rollback: bool) {
     assert!(fs::symlink_metadata(&child_binary).unwrap().is_file());
     for cut in ["before-exchange", "exchanged", "replaced-recorded"] {
         let root = tempfile::Builder::new()
-            .prefix(&format!("real-{direction}-cut-"))
+            .prefix(&format!(
+                "real-{direction}-{}cut-",
+                if populated { "populated-" } else { "" }
+            ))
             .tempdir_in(&evidence)
             .unwrap()
             .keep();
@@ -51,8 +66,16 @@ fn replacement_process_cuts(rollback: bool) {
         fs::set_permissions(&destination, fs::Permissions::from_mode(0o700)).unwrap();
         let first = root.join("state-a");
         let second = root.join("state-b");
-        let _first = state(&first, VALID);
+        let harness = root.join("synthetic-harness");
+        fs::create_dir(&harness).unwrap();
+        fs::set_permissions(&harness, fs::Permissions::from_mode(0o700)).unwrap();
+        if populated {
+            super::populated_state::populated(&first, &harness);
+        } else {
+            let _first = state(&first, VALID);
+        }
         let _second = state(&second, VALID);
+        let before = [snapshot(&first), snapshot(&second), snapshot(&harness)];
         fs::write(destination.join("unmanaged.txt"), CANARY).unwrap();
         let roots = vec![
             "--destination".to_owned(),
@@ -67,8 +90,11 @@ fn replacement_process_cuts(rollback: bool) {
             args.extend(release(&evidence, false, rollback));
             args.extend(roots.clone());
             invoke(&root, action, &args, None);
+            assert_eq!(
+                before,
+                [snapshot(&first), snapshot(&second), snapshot(&harness)]
+            );
         }
-        let before = [snapshot(&first), snapshot(&second)];
         let unmanaged = snapshot(&destination.join("unmanaged.txt"));
         let mut child = OwnedChild(
             Command::new(&child_binary)
@@ -103,7 +129,10 @@ fn replacement_process_cuts(rollback: bool) {
         }
         child.0.kill().unwrap();
         assert_eq!(child.0.wait().unwrap().signal(), Some(9));
-        assert_eq!(before, [snapshot(&first), snapshot(&second)]);
+        assert_eq!(
+            before,
+            [snapshot(&first), snapshot(&second), snapshot(&harness)]
+        );
         assert_eq!(unmanaged, snapshot(&destination.join("unmanaged.txt")));
         for path in ["child.stdout", "child.stderr"] {
             assert!(
@@ -125,7 +154,10 @@ fn replacement_process_cuts(rollback: bool) {
             }
             args.extend(roots.clone());
             invoke(&root, &action, &args, None);
-            assert_eq!(before, [snapshot(&first), snapshot(&second)]);
+            assert_eq!(
+                before,
+                [snapshot(&first), snapshot(&second), snapshot(&harness)]
+            );
             assert_eq!(unmanaged, snapshot(&destination.join("unmanaged.txt")));
             let expected = if rollback {
                 "766afbe0279cf6a1f623a8a69bb122cfdcb3206f26a7b7c1acceff749e905e7e"

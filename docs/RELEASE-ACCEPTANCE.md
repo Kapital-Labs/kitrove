@@ -294,6 +294,22 @@ This extends real-artifact process-interruption coverage to explicit rollback, n
 power loss, repeated interruption during recovery, populated-state interruption,
 other native targets or clean-machine launch. No downloaded installer was run.
 
+Both directions subsequently passed the same three process cuts with the shared
+populated synthetic fixture: typed deployment metadata, symbolic binding, trust
+and scan records, canonical sync controls, an object canary and isolated harness
+files. Snapshots taken before initial installation remained identical after
+installation, retirement, process termination, fresh recovery and final retirement.
+Candidate digests matched A for rollback and B for upgrade. Populated rollback
+evidence is retained in `real-rollback-populated-cut-kNLBRQ`,
+`real-rollback-populated-cut-xd6kN2` and `real-rollback-populated-cut-sPitQy`;
+populated upgrade evidence is in `real-upgrade-populated-cut-DsTOtF`,
+`real-upgrade-populated-cut-Tdp8Ju` and `real-upgrade-populated-cut-TnHMeX`.
+The two minimal-state cases passed again in the same four-test run. The command
+above now selects all four cases. This establishes synthetic metadata/file
+preservation through these real-artifact interruptions, not remote-content
+verification, credential resolution, concurrent mutation, repeated interruption
+during recovery, power loss or clean-machine launch.
+
 Ordinary CI skips these external-artifact tests; native operator results must be
 recorded separately from compiled test coverage.
 

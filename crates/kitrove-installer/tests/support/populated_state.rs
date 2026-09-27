@@ -17,7 +17,7 @@ fn hash(c: char) -> ContentHash {
     ContentHash::parse(format!("blake3:{}", c.to_string().repeat(64))).unwrap()
 }
 
-fn populated(path: &Path, harness: &Path) {
+pub(super) fn populated(path: &Path, harness: &Path) {
     let deployed = harness.join("review.txt");
     file(&deployed, b"synthetic managed content, preserve exactly\n");
     file(&harness.join("unmanaged.txt"), CANARY.as_bytes());
