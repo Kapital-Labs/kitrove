@@ -332,6 +332,39 @@ power loss, other targets or clean-machine launch. No production hook was added.
 Ordinary CI skips these external-artifact tests; native operator results must be
 recorded separately from compiled test coverage.
 
+The shared operator harness also supports x86-64 Linux with separately pinned
+Linux archives and executable digests. On 2026-09-28, the ordinary `kitrove` user
+in an Ubuntu 24.04.5 Proxmox VM passed populated synthetic-state A/B/A preservation
+(`populated-state-YCVDiZ`) and all eight busy/invalid-state refusal cases
+(`lifecycle-refusal-Fd9Y7p`). Exact state/sync/harness snapshots were preserved,
+rollback restored A, first-root locks were released after refusal, and fake
+credential text did not leak into command output. The installer was built from
+reviewed source; no downloaded installer was executed. Earlier empty-state
+A/B/A also passed on this VM.
+
+The same Linux run passed all six interruption tests: upgrade and rollback with
+minimal state, populated state, and a second interruption immediately before
+recovery verification. Each test covered before-exchange, exchanged and
+replacement-recorded boundaries, for 18 scenarios and 24 exact child SIGKILL/reap
+events. Fresh production CLI processes authenticated retained material, recovered
+and retired the transactions; expected executable digests and state/sync/harness
+snapshots matched. The complete eight-test group passed in 2521.26 seconds.
+Logs and all fixtures are retained in `proxmox-linux-vm-20260927` in the maintainer's
+durable release evidence, including the final VM evidence archive. This is not
+power-loss testing, arbitrary journal/native-helper interruption, two-machine
+product acceptance, real credential resolution or clean Mac evidence.
+
+Use `umask 077` when invoking the operator tests so fresh fixture ancestry is
+private. The VM's default `0002` made the first attempt's temporary directories
+group-writable; shared state validation refused them before any lifecycle operation.
+That failed attempt is retained, not counted as acceptance. Linux fixtures use
+`release-a` and `release-b` under `KITROVE_TEST_RELEASE_EVIDENCE`, with each exact
+published archive basename and `a.bundle.json` / `b.bundle.json` respectively.
+Select those bundles through the independently trusted installer's existing
+`select-application-bundle` command with the pinned identity and digest. Tests
+authenticate again for every operation; selected bundle files are not reusable
+execution authority. No production validator or runtime hook was changed.
+
 Prepare each version in its own reviewed worktree/PR. Update the
 shared workspace version, locked workspace package records and compatibility
 catalog together, and review the resulting lock/catalog guard digests. A declares
