@@ -28,6 +28,11 @@ not the broader product specification's Linux arm64 ambition.
 
 ## Execution order
 
+The maintainer additionally approved preparation, signing and publication of
+`v0.1.0-rc.3` on 2026-10-06. See the [RC3 preparation review](review/rc3-release-preparation.md)
+for the compatibility decision and unchanged acceptance limits. Approval and
+preparation do not mean RC3 has been published or its artifacts verified.
+
 ### 1. Trusted first acquisition
 
 Establish an independently trusted starting verifier before executing a downloaded
