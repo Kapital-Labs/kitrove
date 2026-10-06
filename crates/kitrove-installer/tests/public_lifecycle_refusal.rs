@@ -1,5 +1,8 @@
 //! Explicit operator acceptance using pinned public artifacts and synthetic state only.
-#![cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#![cfg(any(
+    all(target_os = "macos", target_arch = "aarch64"),
+    all(target_os = "linux", target_arch = "x86_64")
+))]
 
 use kitrove_state_lifecycle::StateAuthority;
 use sha2::{Digest as _, Sha256};
@@ -20,31 +23,25 @@ mod populated_state;
 #[path = "support/upgrade_interruption.rs"]
 mod upgrade_interruption;
 
+#[path = "support/public_release_pins.rs"]
+mod pins;
+
 fn release(evidence: &Path, prior: bool, b: bool) -> Vec<String> {
-    let (directory, bundle, tag, commit, digest) = if b {
-        (
-            "rc2-public-20260924",
-            "rc2-public-attestations-20260924/kitrove-cli-aarch64-apple-darwin.tar.xz.bundle.json",
-            "v0.1.0-rc.2",
-            "11f2d7b7daa1115e23d95121a6f7c923153b3190",
-            "45701c8b18120cb0906586eb8371b5041618d1cf226b2f9ab40b52689af86ca5",
-        )
-    } else {
-        (
-            "rc1-public-20260924",
-            "rc1-public-attestations-20260924/kitrove-cli-aarch64-apple-darwin.tar.xz.corrected.bundle.json",
-            "v0.1.0-rc.1.3",
-            "31b4657a8742756f26aa0596e2c57a4f357c8295",
-            "e8c32f13cd4d6a115a86cfe3192d8863b2e1b2e87fff9052486921c2ef771c3c",
-        )
-    };
+    let index = usize::from(b);
+    let (directory, bundle, tag, commit, digest) = (
+        pins::DIRECTORIES[index],
+        pins::BUNDLES[index],
+        pins::TAGS[index],
+        pins::COMMITS[index],
+        pins::ARCHIVE_DIGESTS[index],
+    );
     let prefix = if prior { "--prior-" } else { "--" };
     [
         (
             "archive",
             evidence
                 .join(directory)
-                .join("kitrove-cli-aarch64-apple-darwin.tar.xz")
+                .join(pins::ARCHIVE)
                 .to_str()
                 .unwrap()
                 .to_owned(),

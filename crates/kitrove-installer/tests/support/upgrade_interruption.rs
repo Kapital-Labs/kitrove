@@ -190,11 +190,7 @@ fn replacement_process_cuts(rollback: bool, populated: bool, repeated: bool) {
                 [snapshot(&first), snapshot(&second), snapshot(&harness)]
             );
             assert_eq!(unmanaged, snapshot(&destination.join("unmanaged.txt")));
-            let expected = if rollback {
-                "766afbe0279cf6a1f623a8a69bb122cfdcb3206f26a7b7c1acceff749e905e7e"
-            } else {
-                "54ac690c5ae5b0bcc480f4925b0f7ef5fe4e9b777a6b9390ca0ead593715bed2"
-            };
+            let expected = pins::EXECUTABLE_DIGESTS[usize::from(!rollback)];
             let actual = Sha256::digest(fs::read(destination.join("kitrove")).unwrap());
             for (index, byte) in actual.iter().enumerate() {
                 assert_eq!(

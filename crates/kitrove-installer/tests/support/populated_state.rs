@@ -157,21 +157,21 @@ fn real_aba_preserves_populated_state_and_sync_controls() {
             false,
             None,
             ["preflight-install", "install", "retire-install"],
-            "766afbe0279cf6a1f623a8a69bb122cfdcb3206f26a7b7c1acceff749e905e7e",
+            pins::EXECUTABLE_DIGESTS[0],
         ),
         (
             "upgrade",
             true,
             Some(false),
             ["preflight-upgrade", "upgrade", "retire-upgrade"],
-            "54ac690c5ae5b0bcc480f4925b0f7ef5fe4e9b777a6b9390ca0ead593715bed2",
+            pins::EXECUTABLE_DIGESTS[1],
         ),
         (
             "rollback",
             false,
             Some(true),
             ["preflight-rollback", "rollback", "retire-rollback"],
-            "766afbe0279cf6a1f623a8a69bb122cfdcb3206f26a7b7c1acceff749e905e7e",
+            pins::EXECUTABLE_DIGESTS[0],
         ),
     ] {
         for action in actions {

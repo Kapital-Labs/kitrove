@@ -3,6 +3,9 @@ use super::*;
 use std::fs;
 use std::io::Write as _;
 
+#[path = "../tests/support/public_release_pins.rs"]
+mod pins;
+
 fn hold_for_kill(root: &Path, leaf: &str, value: &str) -> ! {
     let mut ready = fs::OpenOptions::new()
         .write(true)
@@ -16,31 +19,20 @@ fn hold_for_kill(root: &Path, leaf: &str, value: &str) -> ! {
 }
 
 fn material(evidence: &Path, candidate: bool) -> AuthenticatedRecoveryMaterial {
-    let (directory, bundle, tag, commit, digest) = if candidate {
-        (
-            "rc2-public-20260924",
-            "rc2-public-attestations-20260924/kitrove-cli-aarch64-apple-darwin.tar.xz.bundle.json",
-            "v0.1.0-rc.2",
-            "11f2d7b7daa1115e23d95121a6f7c923153b3190",
-            "45701c8b18120cb0906586eb8371b5041618d1cf226b2f9ab40b52689af86ca5",
-        )
-    } else {
-        (
-            "rc1-public-20260924",
-            "rc1-public-attestations-20260924/kitrove-cli-aarch64-apple-darwin.tar.xz.corrected.bundle.json",
-            "v0.1.0-rc.1.3",
-            "31b4657a8742756f26aa0596e2c57a4f357c8295",
-            "e8c32f13cd4d6a115a86cfe3192d8863b2e1b2e87fff9052486921c2ef771c3c",
-        )
-    };
+    let index = usize::from(candidate);
+    let (directory, bundle, tag, commit, digest) = (
+        pins::DIRECTORIES[index],
+        pins::BUNDLES[index],
+        pins::TAGS[index],
+        pins::COMMITS[index],
+        pins::ARCHIVE_DIGESTS[index],
+    );
     let mut sha = [0; 32];
     for (index, byte) in sha.iter_mut().enumerate() {
         *byte = u8::from_str_radix(&digest[index * 2..index * 2 + 2], 16).unwrap();
     }
     crate::release_intake::LocalReleaseRequest {
-        archive: &evidence
-            .join(directory)
-            .join("kitrove-cli-aarch64-apple-darwin.tar.xz"),
+        archive: &evidence.join(directory).join(pins::ARCHIVE),
         bundle: &evidence.join(bundle),
         expected: &kitrove_release_provenance::ExpectedReleaseIdentity::new(tag, commit).unwrap(),
         archive_sha256: sha,
