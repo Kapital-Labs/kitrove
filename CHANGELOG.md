@@ -4,6 +4,29 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.3
+
+### Added
+
+- Authenticated installer payload staging on Unix and Windows.
+- Mac native-signature-gated installer preparation and fresh verification through
+  `prepare-installer` and `verify-prepared-installer`, without automatic launch.
+- Bounded Mac inspection helpers with retained process ownership and explicit cleanup.
+
+### Fixed
+
+- Updated `faster-hex` to address the reviewed x86/AVX2 out-of-bounds-read advisory.
+
+### Validation
+
+- Expanded real-artifact Mac and Linux lifecycle tests for state preservation,
+  refusal, interrupted upgrades/rollbacks and repeated recovery interruption.
+
+Declares RC2 rollback-compatible: no application-state migration or sync/conflict
+format change. RC3 publication and exact-artifact acceptance are pending. A trusted
+starting verifier remains necessary; clean-Mac first launch, remaining native
+platform acceptance and the two-machine product roundtrip remain open.
+
 ## 0.1.0-rc.2
 
 ### Fixed
