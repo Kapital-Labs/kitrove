@@ -59,5 +59,6 @@ ADRs document foundational decisions and their consequences. Accepted ADRs are a
 | [0043](0043-stapled-mac-installer-container.md) | Stapled Mac installer container supplements release archives | Accepted; local signed preparation passed, native consumer acceptance pending | NS-07, NS-08, NS-09 |
 | [0044](0044-release-environment-provenance.md) | Pin protected release environment and immutable subject | Implementation correction; real production fixture and local native verification passed | NS-07, NS-09 |
 | [0045](0045-consumer-native-verification-is-a-closed-process-boundary.md) | Consumer native verification is a closed process boundary | Accepted for staged implementation; runtime unavailable | NS-07, NS-09 |
+| [0046](0046-homebrew-is-a-separate-distribution-authority.md) | Homebrew is a separate distribution authority | Proposed; local packaging only, publication gated | NS-07, NS-08, NS-09 |
 
 Use [`0000-template.md`](0000-template.md) for new records.
