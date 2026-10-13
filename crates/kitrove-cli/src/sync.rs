@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::io::{self, IsTerminal as _, Write as _};
 
@@ -753,6 +753,31 @@ fn publication_id(digest: &ContentHash) -> Result<PublicationId, CliError> {
     })
 }
 
+fn summary_changes<K: Ord + std::fmt::Display, V: PartialEq>(
+    local: &BTreeMap<K, V>,
+    remote: Option<&BTreeMap<K, V>>,
+    merged: &BTreeMap<K, V>,
+) -> Vec<serde_json::Value> {
+    let keys: BTreeSet<_> = local
+        .keys()
+        .chain(remote.into_iter().flat_map(|map| map.keys()))
+        .chain(merged.keys())
+        .collect();
+    keys.into_iter()
+        .map(|id| {
+            let action = |before: Option<&V>| match (before, merged.get(id)) {
+                (None, None) => "unchanged",
+                (None, Some(_)) => "add",
+                (Some(_), None) => "remove",
+                (Some(before), Some(after)) if before == after => "unchanged",
+                _ => "update",
+            };
+            json!({"name": id.to_string(), "local": action(local.get(id)),
+            "remote": action(remote.and_then(|map| map.get(id)))})
+        })
+        .collect()
+}
+
 fn render_ready(plan: &SyncPlan, json_output: bool) -> Result<String, CliError> {
     if json_output {
         let mut encoded = serde_json::to_string_pretty(&json!({
@@ -761,6 +786,9 @@ fn render_ready(plan: &SyncPlan, json_output: bool) -> Result<String, CliError> 
             "plan_digest": plan.digest().as_str(),
             "upload_objects": plan.upload().len(),
             "download_objects": plan.download().len(),
+            "items": summary_changes(&plan.local().manifest().assets, plan.remote_snapshot().map(|s| &s.manifest().assets), &plan.merged().manifest().assets),
+            "packs": summary_changes(&plan.local().manifest().packs, plan.remote_snapshot().map(|s| &s.manifest().packs), &plan.merged().manifest().packs),
+            "profiles": summary_changes(&plan.local().manifest().profiles, plan.remote_snapshot().map(|s| &s.manifest().profiles), &plan.merged().manifest().profiles),
         }))
         .map_err(render_error)?;
         encoded.push('\n');
@@ -894,10 +922,24 @@ fn render_error(_: serde_json::Error) -> CliError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::BTreeSet;
 
     use kitrove_agent_skills::{CapturedFile, CapturedTree, FileMode, StoredSkillTree, hash_tree};
     use kitrove_model::{ObjectDescriptor, PortablePath, RemoteRevision, SnapshotObjectKind};
+
+    #[test]
+    fn change_summary_includes_deletions_and_both_sides() {
+        let local = BTreeMap::from([("gone", 1), ("update", 1), ("same", 1)]);
+        let remote = BTreeMap::from([("gone", 1), ("remote", 1), ("same", 1)]);
+        let merged = BTreeMap::from([("update", 2), ("remote", 1), ("same", 1)]);
+        let rows = summary_changes(&local, Some(&remote), &merged);
+        let row = |name| rows.iter().find(|v| v["name"] == name).unwrap();
+        assert_eq!(row("gone")["local"], "remove");
+        assert_eq!(row("gone")["remote"], "remove");
+        assert_eq!(row("update")["local"], "update");
+        assert_eq!(row("update")["remote"], "add");
+        assert_eq!(row("remote")["local"], "add");
+        assert_eq!(row("same")["remote"], "unchanged");
+    }
 
     #[test]
     fn environment_credentials_use_only_fixed_names_and_fail_closed() {

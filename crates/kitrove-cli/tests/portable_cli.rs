@@ -2119,6 +2119,39 @@ fn lock_and_status_share_manifest_authority_and_stable_json() {
 }
 
 #[test]
+fn skill_names_resolve_exactly_and_ambiguity_does_not_mutate() {
+    let fixture = Fixture::new();
+    fixture.skill(
+        &fixture.home.join(".claude/skills"),
+        "named-skill",
+        "Original native content",
+    );
+    fixture.skill(
+        &fixture.home.join(".agents/skills"),
+        "named-skill",
+        "Different native content",
+    );
+    let before = fs::read(fixture.environment.join("kitrove.toml")).unwrap();
+    let ambiguous = fixture.adopt("named-skill", None);
+    assert_eq!(ambiguous.status.code(), Some(1));
+    assert!(stderr(&ambiguous).contains("adoption.name_ambiguous"));
+    assert_eq!(
+        fs::read(fixture.environment.join("kitrove.toml")).unwrap(),
+        before
+    );
+    let missing = fixture.adopt("not-present", None);
+    assert_eq!(missing.status.code(), Some(1));
+    assert!(stderr(&missing).contains("adoption.name_missing"));
+    let selected = fixture.adopt_with_selection(
+        "named-skill",
+        None,
+        &["--harness", "claude", "--scope", "user"],
+    );
+    assert_eq!(selected.status.code(), Some(0), "{}", stderr(&selected));
+    assert_eq!(json(&selected)["asset_id"], "named-skill");
+}
+
+#[test]
 fn adoption_is_confirmed_then_idempotent_and_persists_both_objects() {
     let fixture = Fixture::new();
     fixture.skill(

@@ -8,6 +8,8 @@ use kitrove_model::{AssetId, ContentHash, HarnessId, HarnessScope, ProfileId};
 
 #[derive(Debug)]
 pub(crate) enum Command {
+    Setup,
+    Configure(EnvironmentArgs),
     Init(InitArgs),
     Scan(ScanArgs),
     Adopt(AdoptArgs),
@@ -97,6 +99,7 @@ pub(crate) struct ScanArgs {
     pub roots: Vec<ExplicitRoot>,
     pub environment: Option<PathBuf>,
     pub json: bool,
+    pub verbose: bool,
 }
 
 pub(crate) fn tier_one_harnesses() -> BTreeSet<HarnessId> {
@@ -211,7 +214,7 @@ pub(crate) struct PackRollbackArgs {
     pub json: bool,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum SyncRemoteArgs {
     Filesystem(PathBuf),
     Git {
@@ -352,7 +355,7 @@ impl Display for CliError {
 pub(crate) fn parse_args(
     arguments: impl IntoIterator<Item = OsString>,
 ) -> Result<Command, CliError> {
-    let mut arguments = arguments.into_iter();
+    let mut arguments = arguments.into_iter().peekable();
     let Some(command) = next_utf8(&mut arguments)? else {
         return Ok(Command::Help);
     };
@@ -362,7 +365,9 @@ pub(crate) fn parse_args(
         "north-star" => finish_information(arguments, Command::NorthStar),
         "invariants" => finish_information(arguments, Command::Invariants),
         "--version" | "-V" => finish_information(arguments, Command::Version),
+        "init" if arguments.peek().is_none() => Ok(Command::Setup),
         "init" => parse_init(arguments).map(Command::Init),
+        "configure" => parse_environment(arguments, "configure").map(Command::Configure),
         "scan" => parse_scan(arguments).map(Command::Scan),
         "adopt" => parse_adopt(arguments).map(Command::Adopt),
         "remove" => parse_remove(arguments).map(Command::Remove),
@@ -1439,9 +1444,11 @@ fn parse_scan(mut arguments: impl Iterator<Item = OsString>) -> Result<ScanArgs,
     let mut roots = Vec::new();
     let mut environment = None;
     let mut json = false;
+    let mut verbose = false;
 
     while let Some(argument) = next_utf8(&mut arguments)? {
         match argument.as_str() {
+            "--verbose" if !verbose => verbose = true,
             "--harness" => {
                 let value = required_value(&mut arguments)?;
                 harnesses.insert(parse_harness(&value)?);
@@ -1494,6 +1501,7 @@ fn parse_scan(mut arguments: impl Iterator<Item = OsString>) -> Result<ScanArgs,
         roots,
         environment,
         json,
+        verbose,
     })
 }
 

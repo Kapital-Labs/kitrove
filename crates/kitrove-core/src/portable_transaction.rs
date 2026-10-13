@@ -1374,6 +1374,48 @@ pub fn commit_pack_distribution_adoption(
     )
 }
 
+/// Commits exact selected verified objects using the existing manifest transaction.
+pub fn commit_collection_import(
+    plan: &crate::CollectionImportPlan,
+    objects: &[VerifiedObjectEnvelope],
+    environment_root: &Path,
+    limits: CaptureLimits,
+) -> Result<PortableManifestCommitOutcome, PortableTransactionError> {
+    let supplied: BTreeSet<_> = objects
+        .iter()
+        .map(|object| object.descriptor().clone())
+        .collect();
+    if supplied.len() != objects.len() || supplied != *plan.required_objects() {
+        return Err(pack_adoption_objects_invalid());
+    }
+    commit_manifest_plan_inner(
+        plan,
+        ManifestCommitKind::Adopt,
+        Some(objects),
+        environment_root,
+        limits,
+        None,
+    )
+}
+
+impl ManifestCommitPlan for crate::CollectionImportPlan {
+    fn digest(&self) -> &ContentHash {
+        &self.digest
+    }
+    fn proposed_manifest(&self) -> &EnvironmentManifest {
+        &self.proposed_manifest
+    }
+    fn proposed_lock(&self) -> &Lockfile {
+        &self.proposed_lock
+    }
+    fn base_manifest_revision(&self) -> &Revision {
+        &self.base_manifest_revision
+    }
+    fn proposed_manifest_revision(&self) -> &Revision {
+        &self.proposed_manifest_revision
+    }
+}
+
 /// Inspects journal presence and structure without taking a lock or mutating state.
 pub fn inspect_portable_journal(
     environment_root: &Path,

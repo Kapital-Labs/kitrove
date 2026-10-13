@@ -68,6 +68,19 @@ fn install_probe_canary(fixture: &Fixture, command: &mut Command) -> PathBuf {
 }
 
 #[test]
+fn guided_commands_refuse_nonterminal_without_creating_state() {
+    let fixture = Fixture::new();
+    for command in ["init", "configure"] {
+        let output = fixture.command().arg(command).output().unwrap();
+        assert_eq!(output.status.code(), Some(2));
+        assert!(stderr(&output).contains("interactive terminal"));
+        assert!(!fixture.state.exists());
+        assert!(!fixture.environment.exists());
+        assert!(!fixture.working.join("kitrove.toml").exists());
+    }
+}
+
+#[test]
 fn init_creates_complete_exact_authority_and_refuses_reinitialization() {
     let fixture = Fixture::new();
     let output = fixture

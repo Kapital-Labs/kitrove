@@ -38,6 +38,7 @@ pub(super) fn recover_atomic_apply_batch_inner(
     };
     let encoded_authority = journal.encoded_authority().to_owned();
     let targets = open_recovery_target_roots(&journal, &environment, &state)?;
+    validate_recovery_destinations(&journal, &environment, &state, &targets)?;
     drop(journal);
     drop(preliminary_roots);
     after_preliminary_unlock();
@@ -50,6 +51,7 @@ pub(super) fn recover_atomic_apply_batch_inner(
     if journal.encoded_authority() != encoded_authority {
         return Err(recovery_blocked());
     }
+    validate_recovery_destinations(&journal, &environment, &state, &targets)?;
     let current_state = required_text(&state, STATE_PATH)?;
     let current_hash = kitrove_model::ContentHash::digest(current_state.as_bytes());
     let state_is_old = &current_hash == journal.old_state_hash();
@@ -84,6 +86,26 @@ pub(super) fn recover_atomic_apply_batch_inner(
         recover_rollback(&state, &targets, &mut journal, limits)?;
         Ok(AtomicApplyBatchRecoveryOutcome::RolledBack)
     }
+}
+
+fn validate_recovery_destinations(
+    journal: &AtomicApplyBatchJournalCursor,
+    environment: &ObjectStore,
+    state: &ObjectStore,
+    targets: &[TargetRoot],
+) -> Result<(), AtomicApplyBatchTransactionError> {
+    validate_application_destinations(
+        environment,
+        state,
+        targets,
+        journal.participants().iter().map(|participant| {
+            (
+                participant.target_anchor().clone(),
+                PathBuf::from(participant.target_anchor().as_str())
+                    .join(participant.relative_destination().as_str()),
+            )
+        }),
+    )
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]

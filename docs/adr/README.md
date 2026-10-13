@@ -61,4 +61,6 @@ ADRs document foundational decisions and their consequences. Accepted ADRs are a
 | [0045](0045-consumer-native-verification-is-a-closed-process-boundary.md) | Consumer native verification is a closed process boundary | Accepted for staged implementation; runtime unavailable | NS-07, NS-09 |
 | [0046](0046-homebrew-is-a-separate-distribution-authority.md) | Homebrew is a separate distribution authority | Proposed; local packaging only, publication gated | NS-07, NS-08, NS-09 |
 
+| [0047](0047-guided-setup-preserves-explicit-authority.md) | Guided setup preserves explicit authority | Accepted for implementation | NS-01 through NS-10 |
+
 Use [`0000-template.md`](0000-template.md) for new records.

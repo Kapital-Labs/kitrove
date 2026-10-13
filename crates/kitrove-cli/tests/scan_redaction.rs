@@ -473,9 +473,12 @@ fn rejected_sources_and_receipts_are_redacted_from_text_json_stderr_and_debug() 
     for (source, canary) in CANARIES {
         assert_source_redacted(source, canary, &text, &json_output, &debug);
     }
-    for output in [&text, &json_output] {
+    for (output, expected_name) in [
+        (&text, "\\u{200b}sk-analysis"),
+        (&json_output, BENIGN_NATIVE_ID),
+    ] {
         assert!(
-            String::from_utf8_lossy(&output.stdout).contains(BENIGN_NATIVE_ID),
+            String::from_utf8_lossy(&output.stdout).contains(expected_name),
             "scan output removed the benign Pi native ID"
         );
     }

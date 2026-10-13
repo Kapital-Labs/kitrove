@@ -541,6 +541,77 @@ impl ObjectStore {
             .collect()
     }
 
+    /// Application targets may contain the collection/state roots (the ordinary
+    /// user-home layout). Each control namespace must still be disjoint. Other
+    /// transaction coordinators retain the stronger non-nesting requirement.
+    pub(crate) fn try_lock_application_roots(
+        environment: &Self,
+        state: &Self,
+        targets: &[&Self],
+    ) -> Result<Vec<EnvironmentLock>, ObjectMutationError> {
+        environment.require_non_overlapping_root(state)?;
+        let mut stores = vec![environment, state];
+        stores.extend_from_slice(targets);
+        let resolved = stores
+            .iter()
+            .map(|store| {
+                Ok((
+                    store.verified_root_identity()?,
+                    std::fs::canonicalize(&store.root_path).map_err(|_| unsafe_root())?,
+                ))
+            })
+            .collect::<Result<Vec<_>, ObjectMutationError>>()?;
+        for (_, target) in resolved.iter().skip(2) {
+            for (_, authority) in &resolved[..2] {
+                if path_is_within(target, authority)? {
+                    return Err(unsafe_root());
+                }
+            }
+        }
+        for (index, (_, left)) in resolved.iter().enumerate() {
+            for (_, right) in &resolved[index + 1..] {
+                if roots_overlap(&left.join(".kitrove"), &right.join(".kitrove"))? {
+                    return Err(unsafe_root());
+                }
+            }
+        }
+        let order = resolve_root_lock_order_with_nesting(
+            stores.len(),
+            |index| Ok(resolved[index].clone()),
+            true,
+        )?;
+        for store in &stores {
+            store.require_ambient_root_identity()?;
+        }
+        order
+            .into_iter()
+            .map(|index| stores[index].try_lock_environment())
+            .collect()
+    }
+
+    /// Checks a planned leaf against a held root or its private control namespace.
+    /// Resolve only its directory ancestry; a leaf is never followed as a link.
+    pub(crate) fn require_disjoint_application_path(
+        &self,
+        path: &Path,
+        controls_only: bool,
+    ) -> Result<(), ObjectMutationError> {
+        self.require_ambient_root_identity()?;
+        let parent = path.parent().ok_or_else(unsafe_path)?;
+        let leaf = path.file_name().ok_or_else(unsafe_path)?;
+        let planned = resolved_lexical_root(parent)?.join(leaf);
+        let root = std::fs::canonicalize(&self.root_path).map_err(|_| unsafe_root())?;
+        let protected = if controls_only {
+            root.join(".kitrove")
+        } else {
+            root
+        };
+        if roots_overlap(&planned, &protected)? {
+            return Err(unsafe_path());
+        }
+        self.require_ambient_root_identity()
+    }
+
     pub(crate) fn portable_is_verified(
         &self,
         root: &PortablePath,
@@ -3594,6 +3665,14 @@ fn resolve_root_lock_order(
     root_count: usize,
     mut resolve: impl FnMut(usize) -> Result<(MetadataIdentity, PathBuf), ObjectMutationError>,
 ) -> Result<Vec<usize>, ObjectMutationError> {
+    resolve_root_lock_order_with_nesting(root_count, &mut resolve, false)
+}
+
+fn resolve_root_lock_order_with_nesting(
+    root_count: usize,
+    mut resolve: impl FnMut(usize) -> Result<(MetadataIdentity, PathBuf), ObjectMutationError>,
+    allow_nesting: bool,
+) -> Result<Vec<usize>, ObjectMutationError> {
     let mut identities = BTreeSet::new();
     let mut paths = BTreeSet::new();
     let mut resolved = Vec::with_capacity(root_count);
@@ -3604,15 +3683,21 @@ fn resolve_root_lock_order(
         }
         resolved.push((identity, path, index));
     }
-    if paths.iter().any(|path| {
-        path.ancestors()
-            .skip(1)
-            .any(|ancestor| paths.contains(ancestor))
-    }) {
+    if !allow_nesting
+        && paths.iter().any(|path| {
+            path.ancestors()
+                .skip(1)
+                .any(|ancestor| paths.contains(ancestor))
+        })
+    {
         return Err(unsafe_root());
     }
     resolved.sort_unstable_by_key(|(identity, _, _)| *identity);
     Ok(resolved.into_iter().map(|(_, _, index)| index).collect())
+}
+
+fn path_is_within(child: &Path, parent: &Path) -> Result<bool, ObjectMutationError> {
+    Ok(child.components().count() >= parent.components().count() && roots_overlap(child, parent)?)
 }
 
 impl Debug for ObjectStore {
@@ -6355,6 +6440,57 @@ mod internal_tests {
 
         let reversed = ObjectStore::try_lock_distinct_roots(&[&second, &first]).unwrap();
         assert_eq!(reversed.len(), 2);
+    }
+
+    #[test]
+    fn application_home_layout_holds_every_lock_and_general_policy_stays_strict() {
+        let temporary = trusted_tempdir();
+        let home_path = temporary.path().canonicalize().unwrap();
+        let environment_path = home_path.join("collection");
+        let state_path = home_path.join("state");
+        fs::create_dir(&environment_path).unwrap();
+        fs::create_dir(&state_path).unwrap();
+        let home = ObjectStore::open(&home_path).unwrap();
+        let environment = ObjectStore::open(&environment_path).unwrap();
+        let state = ObjectStore::open(&state_path).unwrap();
+        assert!(ObjectStore::try_lock_distinct_roots(&[&home, &environment, &state]).is_err());
+        assert!(
+            ObjectStore::try_lock_application_roots(&environment, &state, &[&home, &home]).is_err()
+        );
+        assert!(!home_path.join(".kitrove").exists());
+        let locks =
+            ObjectStore::try_lock_application_roots(&environment, &state, &[&home]).unwrap();
+        assert_eq!(locks.len(), 3);
+        for store in [&home, &environment, &state] {
+            let Err(error) = store.try_lock_environment() else {
+                panic!("root not locked");
+            };
+            assert_eq!(error.code(), "object.environment_locked");
+        }
+        drop(locks);
+        assert_eq!(
+            ObjectStore::try_lock_application_roots(&state, &environment, &[&home])
+                .unwrap()
+                .len(),
+            3
+        );
+    }
+
+    #[test]
+    fn application_roots_cannot_overlap_control_namespaces() {
+        let temporary = trusted_tempdir();
+        let home_path = temporary.path().canonicalize().unwrap();
+        let environment_path = home_path.join(".kitrove/collection");
+        let state_path = home_path.join("state");
+        fs::create_dir_all(&environment_path).unwrap();
+        fs::create_dir(&state_path).unwrap();
+        let home = ObjectStore::open(&home_path).unwrap();
+        let environment = ObjectStore::open(&environment_path).unwrap();
+        let state = ObjectStore::open(&state_path).unwrap();
+        assert!(ObjectStore::try_lock_application_roots(&environment, &state, &[&home]).is_err());
+        assert!(!environment_path.join(".kitrove").exists());
+        assert!(!state_path.join(".kitrove").exists());
+        assert_eq!(fs::read_dir(home_path.join(".kitrove")).unwrap().count(), 1);
     }
 
     #[test]

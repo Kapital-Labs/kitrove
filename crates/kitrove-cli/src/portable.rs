@@ -186,6 +186,7 @@ pub(crate) fn run_adopt(
     let manifest = load_manifest(&root)?;
     let scan_arguments = adoption_scan_args(root.clone(), &selection);
     let report = scan_report(scan_arguments, registry)?;
+    let observation_id = crate::scan_display::resolve_skill_name(&report, &observation_id)?;
     if let Some((entry, observation, selected_entry_hash)) =
         select_mcp_observation(&report, &observation_id)
     {
@@ -1000,6 +1001,7 @@ fn adoption_scan_args(environment: std::path::PathBuf, selection: &AdoptionSelec
         roots: selection.roots.clone(),
         environment: Some(environment),
         json: false,
+        verbose: false,
     }
 }
 
