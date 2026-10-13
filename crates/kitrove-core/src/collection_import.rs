@@ -256,6 +256,26 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let root = directory.path().canonicalize().unwrap();
         let current = empty();
+        // Match initialized control-file ownership, including an elevated Windows
+        // test runner whose ambient file creator may otherwise select another owner.
+        let store = crate::ObjectStore::open(&root).unwrap();
+        for (path, contents) in [
+            ("kitrove.toml", current.to_toml().unwrap()),
+            (
+                "kitrove.lock.json",
+                derive_lockfile(&current).unwrap().to_json().unwrap(),
+            ),
+        ] {
+            store
+                .stage_text(
+                    &kitrove_model::PortablePath::parse(path).unwrap(),
+                    &contents,
+                    1 << 20,
+                )
+                .unwrap();
+        }
+        // Later writes deliberately change only fixture contents, retaining the
+        // initialized ownership while exercising stale-manifest refusal.
         let write_controls = |manifest: &EnvironmentManifest| {
             std::fs::write(root.join("kitrove.toml"), manifest.to_toml().unwrap()).unwrap();
             std::fs::write(
@@ -264,7 +284,6 @@ mod tests {
             )
             .unwrap();
         };
-        write_controls(&current);
         let (adoption, _, _) = crate::adoption::tests::ready_plan();
         let asset = adoption.asset().clone();
         let objects = vec![
