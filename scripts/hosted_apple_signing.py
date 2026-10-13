@@ -23,12 +23,39 @@ OPERATIONS = frozenset(('identity import', 'Keychain cleanup',
     'Keychain search-list snapshot', 'Keychain search-list restoration',
     'application archive preparation', 'installer archive preparation', 'installer container preparation'))
 
+# These match the reviewed xtask's fixed error labels, not provider diagnostics.
+# Keep cleanup uncertainty first when an error contains both a primary failure
+# and an unconfirmed detach. Output remains a constant category only.
+DMG_FAILURE_MARKERS = (
+    (b'dmg detach could not be confirmed', 'dmg-detach-unconfirmed'),
+    (b'cannot remove empty dmg mountpoint', 'dmg-mountpoint-cleanup'),
+    (b'installer disk image creation', 'dmg-create'),
+    (b'apple container signing', 'dmg-sign'),
+    (b'apple notarization returned an invalid result', 'notary-invalid-response'),
+    (b'apple notarization was not accepted', 'notary-not-accepted'),
+    (b'apple notarization (a timeout may leave a pending apple submission)', 'notary-submit-or-wait'),
+    (b'apple ticket stapling', 'dmg-staple'),
+    (b'apple ticket validation', 'dmg-staple-validation'),
+    (b'apple signature and team verification', 'apple-signature-verification'),
+    (b'apple signature inspection', 'apple-signature-inspection'),
+    (b'disk image integrity verification', 'dmg-integrity'),
+    (b'read-only dmg mount', 'dmg-mount'),
+    (b'mounted dmg has an unexpected file inventory', 'dmg-payload-inventory'),
+    (b'mounted dmg payload differs from prepared installer', 'dmg-payload-mismatch'),
+    (b'dmg payload inventory changed', 'dmg-staged-inventory-changed'),
+    (b'installer dmg payload changed', 'dmg-staged-payload-changed'),
+    (b'cannot synchronize final dmg output', 'dmg-output-sync'),
+    (b'cannot synchronize final dmg', 'dmg-image-sync'),
+    (b'cannot create fresh dmg output directory', 'dmg-output-create'),
+    (b'dmg output requires an absolute path with a canonical existing parent', 'dmg-output-path'),
+)
+
 
 def error_category(stderr):
     # Only these constant categories can leave the process. Never return a line,
     # substring, path, exception message or account value from provider output.
     lowered = stderr.lower()
-    for marker, category in (
+    for marker, category in DMG_FAILURE_MARKERS + (
         (b'cannot open cargo-dist manifest directory:', 'manifest-directory'),
         (b'user interaction is not allowed', 'interaction-required'),
         (b'unable to build chain', 'certificate-chain'),

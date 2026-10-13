@@ -143,6 +143,25 @@ class HostedAppleSigningTests(unittest.TestCase):
                 signing.native(['SECRET'], operation='identity import')
             self.assertNotIn('SECRET', output.getvalue())
 
+    def test_dmg_categories_are_constant_and_never_expose_diagnostics(self):
+        for marker, category in signing.DMG_FAILURE_MARKERS:
+            with self.subTest(category=category):
+                output = io.StringIO()
+                result = types.SimpleNamespace(returncode=1,
+                    stderr=b'SECRET_ACCOUNT\n' + marker.upper() + b' /SECRET_PATH\n',
+                    stdout=b'SECRET_PROVIDER_OUTPUT')
+                with patch.object(signing.subprocess, 'run', return_value=result), \
+                     contextlib.redirect_stdout(output), self.assertRaises(RuntimeError):
+                    signing.native(['SECRET_ARG'], operation='installer container preparation')
+                self.assertEqual(output.getvalue(),
+                    'Starting: installer container preparation\n'
+                    f'Failed: installer container preparation [{category}]\n')
+        self.assertEqual(signing.error_category(
+            b'read-only DMG mount failed; DMG detach could not be confirmed; /SECRET'),
+            'dmg-detach-unconfirmed')
+        self.assertEqual(signing.error_category(b'unknown SECRET diagnostic'),
+            'unclassified-native-failure')
+
     def test_unknown_diagnostic_and_multiline_password_fail_without_output(self):
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
