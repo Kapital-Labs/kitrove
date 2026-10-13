@@ -44,6 +44,7 @@ pub(crate) fn run_scan(
     registry: &PolicyRegistry,
 ) -> Result<CompletedScan, CliError> {
     let json = arguments.json;
+    let verbose = arguments.verbose;
     let report = scan_report(arguments, registry)?;
     let status = if report_needs_attention(&report) {
         3
@@ -57,8 +58,10 @@ pub(crate) fn run_scan(
                 "the scan report could not be serialized",
             )
         })?
-    } else {
+    } else if verbose {
         render_scan_text(&report)
+    } else {
+        crate::scan_display::render(&report)
     };
     Ok(CompletedScan { output, status })
 }

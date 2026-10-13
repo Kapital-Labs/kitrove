@@ -68,6 +68,7 @@ pub(crate) fn run_init(
             roots: Vec::new(),
             environment: Some(environment_root.clone()),
             json: arguments.json,
+            verbose: false,
         },
         registry,
     )?;

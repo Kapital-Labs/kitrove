@@ -40,15 +40,19 @@ Inspect your existing setup without initializing or changing it:
 ./target/release/kitrove scan --json
 ```
 
-Create an empty Kitrove environment:
+Start the interactive first-computer or second-computer walkthrough:
 
 ```sh
-./target/release/kitrove init --machine-id my-machine
+./target/release/kitrove init
 ```
 
-Initialization does not adopt capabilities. Use `kitrove help` for the available
-commands and their options. Workflows that change managed files separate planning
-from confirmation; `kitrove lock` rebuilds derived lock data immediately.
+The walkthrough selects a collection location, previews initialization, discovers
+skills by name, and offers separately confirmed adoption, remote synchronization
+or selective import, and destination application. Revisit it with
+`kitrove configure`. See [Getting started](docs/GETTING-STARTED.md) for both computer
+setups and scripted commands. No credentials or trust decisions are synchronized.
+Workflows that change managed files separate planning from confirmation;
+`kitrove lock` rebuilds derived lock data immediately.
 
 ## Supported tools and boundaries
 

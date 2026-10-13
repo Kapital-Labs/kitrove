@@ -360,6 +360,9 @@ impl AcceptanceFixture {
             ]);
         if json {
             command.arg("--json");
+        } else {
+            // This integration asserts the detailed diagnostic contract.
+            command.arg("--verbose");
         }
         command
     }

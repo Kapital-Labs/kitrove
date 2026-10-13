@@ -11,6 +11,8 @@ mod portable;
 mod registry;
 mod removal;
 mod scan;
+mod scan_display;
+mod setup;
 mod sync;
 mod trust;
 mod version_probe;
@@ -60,6 +62,14 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         }
     };
     match command {
+        Command::Setup => return setup::entry(None, false),
+        Command::Configure(arguments) => {
+            if arguments.json {
+                eprintln!("configure is interactive; use explicit commands for JSON automation");
+                return 2;
+            }
+            return setup::entry(arguments.environment, true);
+        }
         Command::Init(arguments) => {
             let registry = match try_tier_one_registry() {
                 Ok(registry) => registry,
@@ -82,6 +92,9 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
             }
         }
         Command::Help => {
+            println!(
+                "GUIDED SETUP:\n    kitrove init        Interactive first/second computer setup\n    kitrove configure [--environment <path>]    Revisit setup\n    kitrove scan --verbose    Full diagnostic text (JSON unchanged)\n    kitrove adopt <skill-name> --harness <tool>    Select an exact unique name\n"
+            );
             print!("{HELP}{ADDITIONAL_MCP_HELP}{ADDITIONAL_SYNC_HELP}{ADDITIONAL_PACK_HELP}")
         }
         Command::About => println!(

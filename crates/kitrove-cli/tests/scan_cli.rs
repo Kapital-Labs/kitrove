@@ -501,8 +501,23 @@ fn text_and_json_inventory_use_the_same_attention_exit() {
         "{}",
         stderr(&text_output)
     );
-    assert!(stdout(&text_output).starts_with("kitrove scan v1\nmode inventory\n"));
-    assert!(stdout(&text_output).contains("classification=\"unmanaged\""));
+    assert!(stdout(&text_output).starts_with("Kitrove inventory (read-only)"));
+    assert!(stdout(&text_output).contains("available to add"));
+    assert!(!stdout(&text_output).contains("observation-"));
+    let verbose = fixture
+        .command()
+        .args([
+            "scan",
+            "--harness",
+            "claude",
+            "--scope",
+            "user",
+            "--verbose",
+        ])
+        .output()
+        .unwrap();
+    assert!(stdout(&verbose).starts_with("kitrove scan v1\nmode inventory\n"));
+    assert!(stdout(&verbose).contains("classification=\"unmanaged\""));
 
     let json_output = fixture
         .command()

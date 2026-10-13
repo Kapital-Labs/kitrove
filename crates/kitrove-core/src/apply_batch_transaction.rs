@@ -316,6 +316,20 @@ fn with_locked_batch_authority<T>(
         .map_err(|_| root_overlap())?;
 
     let targets = open_target_roots(plan, &environment, &state)?;
+    validate_application_destinations(
+        &environment,
+        &state,
+        &targets,
+        plan.items()
+            .iter()
+            .map(|item| {
+                Ok((
+                    item.target_anchor().map_err(|_| target_invalid())?,
+                    PathBuf::from(item.destination().as_str()),
+                ))
+            })
+            .collect::<Result<Vec<_>, AtomicApplyBatchTransactionError>>()?,
+    )?;
     let _root_locks = try_lock_batch_roots(&environment, &state, &targets)?;
     ensure_no_pending_recovery(&environment, &state)?;
 
@@ -340,8 +354,43 @@ fn try_lock_batch_roots(
     state: &ObjectStore,
     targets: &[TargetRoot],
 ) -> Result<Vec<EnvironmentLock>, AtomicApplyBatchTransactionError> {
-    let roots = batch_root_stores(environment, state, targets);
-    ObjectStore::try_lock_distinct_roots(&roots).map_err(root_lock_error)
+    let roots = targets
+        .iter()
+        .filter(|target| target.requires_lock)
+        .map(|target| &target.store)
+        .collect::<Vec<_>>();
+    ObjectStore::try_lock_application_roots(environment, state, &roots).map_err(root_lock_error)
+}
+
+fn validate_application_destinations(
+    environment: &ObjectStore,
+    state: &ObjectStore,
+    targets: &[TargetRoot],
+    destinations: impl IntoIterator<Item = (NormalizedDestination, PathBuf)>,
+) -> Result<(), AtomicApplyBatchTransactionError> {
+    for (anchor, path) in destinations {
+        let target = targets
+            .iter()
+            .find(|target| target.identity == anchor)
+            .ok_or_else(target_invalid)?;
+        state
+            .require_disjoint_application_path(&path, false)
+            .map_err(root_lock_error)?;
+        // A project may intentionally use the collection itself as its target.
+        // Preserve that established case, but a home target must not mutate a
+        // nested collection through its broader capability.
+        if target.requires_lock {
+            environment
+                .require_disjoint_application_path(&path, false)
+                .map_err(root_lock_error)?;
+        }
+        for store in batch_root_stores(environment, state, targets) {
+            store
+                .require_disjoint_application_path(&path, true)
+                .map_err(root_lock_error)?;
+        }
+    }
+    Ok(())
 }
 
 fn root_lock_error(error: crate::ObjectMutationError) -> AtomicApplyBatchTransactionError {

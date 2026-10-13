@@ -123,6 +123,117 @@ fn no_journal_recovery_releases_locks_before_immediate_commit() {
 }
 
 #[test]
+fn home_target_with_nested_authority_recovers_each_boundary() {
+    for cut in 0..3 {
+        let fixture = batch_fixture_layout(true);
+        let old_state = fs::read(fixture.state.join(STATE_PATH)).unwrap();
+        let interrupted = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            with_locked_batch_authority(
+                &fixture.batch,
+                &fixture.environment,
+                &fixture.state,
+                CaptureLimits::default(),
+                |environment, state, targets, sources| {
+                    commit_locked_batch(
+                        &fixture.batch,
+                        environment,
+                        state,
+                        targets,
+                        sources,
+                        CaptureLimits::default(),
+                        || {
+                            if cut == 0 {
+                                panic!("prepared");
+                            }
+                        },
+                        |_| {},
+                        |_| {
+                            if cut == 1 {
+                                panic!("target");
+                            }
+                        },
+                        || {
+                            if cut == 2 {
+                                panic!("state");
+                            }
+                        },
+                    )
+                },
+            )
+            .unwrap();
+        }));
+        assert!(interrupted.is_err());
+        let expected = if cut == 2 {
+            AtomicApplyBatchRecoveryOutcome::Completed
+        } else {
+            AtomicApplyBatchRecoveryOutcome::RolledBack
+        };
+        assert_eq!(
+            recover_atomic_apply_batch(
+                &fixture.environment,
+                &fixture.state,
+                CaptureLimits::default()
+            )
+            .unwrap(),
+            expected
+        );
+        for item in fixture.batch.items() {
+            assert_eq!(
+                fixture
+                    .target
+                    .join(item.relative_destination().as_str())
+                    .exists(),
+                cut == 2
+            );
+        }
+        if cut != 2 {
+            assert_eq!(fs::read(fixture.state.join(STATE_PATH)).unwrap(), old_state);
+        }
+    }
+}
+
+#[test]
+fn home_target_cannot_mutate_nested_authority_or_any_control_namespace() {
+    for destination in [
+        "environment",
+        "state",
+        ".kitrove",
+        "environment/.kitrove",
+        "state/.kitrove",
+    ] {
+        let fixture = batch_fixture_layout(true);
+        let before = fs::read(fixture.state.join(STATE_PATH)).unwrap();
+        let plan = plan_skill_apply(
+            &fixture.manifest,
+            &fixture.asset_id,
+            &fixture.object,
+            &policy(destination, HarnessId::Claude),
+            &fixture.target,
+            std::str::from_utf8(&before).unwrap(),
+            DestinationObservation::Absent,
+        )
+        .unwrap();
+        match AtomicApplyBatchPlan::new(vec![AtomicApplyItem::Skill(plan)], None) {
+            Ok(batch) => assert!(
+                commit_atomic_apply_batch(
+                    &batch,
+                    &fixture.environment,
+                    &fixture.state,
+                    CaptureLimits::default()
+                )
+                .is_err()
+            ),
+            Err(error) => {
+                assert!(destination.contains(".kitrove"));
+                assert_eq!(error.code(), "apply.batch_journal_authority_invalid");
+            }
+        }
+        assert_eq!(fs::read(fixture.state.join(STATE_PATH)).unwrap(), before);
+        assert!(!fixture.target.join(".kitrove").exists());
+    }
+}
+
+#[test]
 fn interrupted_prompt_command_install_rolls_back_file_and_receipt() {
     let fixture = AtomicPromptCommandFixture::new();
     let old_state = fs::read(fixture.state.join(STATE_PATH)).unwrap();
@@ -2100,9 +2211,18 @@ struct BatchFixture {
 }
 
 fn batch_fixture() -> BatchFixture {
+    batch_fixture_layout(false)
+}
+
+fn batch_fixture_layout(nested_authority: bool) -> BatchFixture {
     let root = tempfile::tempdir().unwrap();
-    let environment = create_root(root.path(), "environment");
     let target = create_root(root.path(), "target");
+    let authority_parent = if nested_authority {
+        target.as_path()
+    } else {
+        root.path()
+    };
+    let environment = create_root(authority_parent, "environment");
     let state = environment.parent().unwrap().join("state");
     let candidate = make_candidate(FileMode::Regular, "review");
     let AdoptionPlanOutcome::Ready(adoption) =
