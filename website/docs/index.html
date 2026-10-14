@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Get started · Kitrove docs</title>
+    <meta
+      name="description"
+      content="Install Kitrove, collect your first skills, and choose how to set up a second computer."
+    />
+    <link rel="icon" href="../mark.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="shell header">
+      <a class="brand" href="../"
+        ><img src="../mark.svg" width="32" height="32" alt="" />kitrove<span
+          class="beta"
+          >docs</span
+        ></a
+      >
+      <nav aria-label="Main navigation">
+        <a href="../#how">How it works</a
+        ><a href="https://github.com/Kapital-Labs/kitrove">GitHub ↗</a>
+      </nav>
+      <a class="button small" href="../#install">Get Kitrove ↓</a>
+    </header>
+    <div class="shell docs-layout">
+      <nav class="docs-nav" aria-label="On this page">
+        <a href="#install">Install the preview</a
+        ><a href="#first-computer">Your first computer</a
+        ><a href="#configure">Revisit setup</a
+        ><a href="#second-computer">A second computer</a
+        ><a href="#scan">Scan by name</a
+        ><a href="#boundaries">Safety and limits</a
+        ><a href="#help">More documentation</a>
+      </nav>
+      <main id="main" class="docs-content">
+        <p class="eyebrow">Getting started · RC4.1</p>
+        <h1>Your first collection.</h1>
+        <p>
+          Kitrove collects skills from your agent tools and helps you apply
+          compatible capabilities elsewhere. You choose what to adopt, where to
+          put it, and which changes to approve.
+        </p>
+        <h2 id="install">Install the preview</h2>
+        <p>On an Apple Silicon Mac with Homebrew:</p>
+        <pre><code>brew install --cask kapital-labs/tap/kitrove-rc</code></pre>
+        <p>For an existing preview installation:</p>
+        <pre><code>brew update
+brew upgrade --cask kapital-labs/tap/kitrove-rc</code></pre>
+        <p>
+          Homebrew owns the binary. Uninstalling the cask preserves your
+          collection and local state. Do not use the standalone installer to
+          replace Homebrew-managed files.
+        </p>
+        <p>
+          Windows and Linux package-manager installs are not published. Intel
+          Mac, Windows x86_64, and Linux x86_64 users can consult the
+          <a
+            href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/RELEASES.md"
+            >manual release and verification guide</a
+          >. Authenticate a download before its first execution.
+        </p>
+        <h2 id="first-computer">Set up your first computer</h2>
+        <pre><code>kitrove init</code></pre>
+        <ol>
+          <li>Choose <strong>Set up my first computer</strong>.</li>
+          <li>
+            Choose a collection folder. Kitrove suggests
+            <code>~/Kitrove</code> and asks for a name for this computer. Review
+            the collection and machine-local state locations before confirming
+            creation.
+          </li>
+          <li>
+            Pick skills by the numbers in the scan results, or choose
+            <code>all</code>. Review the source tool as well as the name. The
+            same directory can appear through more than one tool.
+          </li>
+          <li>
+            Review and confirm each adoption. Kitrove leaves the source files in
+            place.
+          </li>
+          <li>
+            Choose <strong>Apply selected items</strong>, pick destinations,
+            then review and confirm the separate application plan.
+          </li>
+        </ol>
+        <p class="note">
+          Enter skips a confirmation. Type <code>q</code> to stop. Steps you
+          already confirmed stay completed; the walkthrough is not one
+          all-or-nothing transaction.
+        </p>
+        <p>
+          Your collection and local state are separate. On macOS, the default
+          state folder is <code>~/Library/Application Support/kitrove</code>.
+          Setup shows both paths and does not edit your shell profile.
+        </p>
+        <h2 id="configure">Return when you want to change something</h2>
+        <pre><code>kitrove configure</code></pre>
+        <p>
+          Select your existing collection to collect more skills, apply another
+          selection, sync, or import selected items. To choose a non-default
+          collection:
+        </p>
+        <pre><code>kitrove configure --environment /absolute/path/to/collection</code></pre>
+        <p>
+          Nothing starts syncing in the background. You choose a backend for
+          each operation, review the plan, and confirm it.
+        </p>
+        <h2 id="second-computer">Bring your collection to a second computer</h2>
+        <p>
+          On the first computer, open Configure and choose
+          <strong>Connect / sync the whole collection</strong>. Use an existing
+          filesystem/shared directory, HTTPS Git remote, or SSH Git remote with
+          an explicit known-hosts file. Create and authorize a remote repository
+          separately.
+        </p>
+        <p>
+          This must be a Kitrove snapshot backend, not a regular checkout of
+          skill files. An empty existing backend can receive the first approved
+          publication. Review changes on both sides: full sync is bidirectional.
+        </p>
+        <p>
+          Install Kitrove on the second computer and run
+          <code>kitrove init</code>. Choose the route that fits:
+        </p>
+        <ul>
+          <li>
+            <strong>Connect a second computer to the whole collection.</strong>
+            Create a new local identity and review full sync. Your agent files
+            stay untouched until you choose Apply.
+          </li>
+          <li>
+            <strong
+              >Combine this computer's skills with an existing
+              collection.</strong
+            >
+            Connect an empty collection first to establish shared history. Then
+            collect this computer's skills and review publishing the additions.
+          </li>
+          <li>
+            <strong>Import specific items.</strong> Choose assets or packs for a
+            one-time import. Packs include their required members. This
+            preserves unrelated local items and does not change the remote.
+          </li>
+        </ul>
+        <p class="note">
+          Two independently populated collections without shared history cannot
+          full-sync automatically. Use selective import for chosen items. Do not
+          delete local state to force a connection.
+        </p>
+        <p>
+          Conflicting content under the same identity stops the operation for
+          review. RC4.1 does not choose an automatic winner or create a
+          keep-both rewrite.
+        </p>
+        <h2 id="scan">Inspect skills and choose by name</h2>
+        <pre><code>kitrove scan
+kitrove scan --harness claude --scope user
+kitrove adopt humanizer --harness claude --scope user</code></pre>
+        <p>
+          The last command is an example for a uniquely named skill called
+          <code>humanizer</code>. Replace it with a name from your scan.
+          Ambiguous names need a narrower source or scope, or the exact
+          observation ID from <code>kitrove scan --verbose</code>.
+        </p>
+        <p>
+          Scanning does not change files. Adoption still captures fresh content
+          and requires a confirmed plan. For automation, use
+          <code>kitrove scan --json</code>; bare Init and Configure require a
+          terminal.
+        </p>
+        <h2 id="boundaries">Know the boundaries</h2>
+        <ul>
+          <li>
+            Collection sync excludes credentials, trust decisions, machine
+            paths, local bindings, and deployment receipts. Install and
+            authorize each agent tool on each computer.
+          </li>
+          <li>
+            Kitrove reports transfer fidelity. A successful import does not mean
+            identical behavior in another tool.
+          </li>
+          <li>
+            Executable capabilities need separate local trust. Setup does not
+            grant it or install prerequisites. Pi and OpenCode may ask for an
+            independently trusted local binary for a bounded version check.
+          </li>
+          <li>
+            Kitrove refuses unmanaged destination conflicts instead of
+            overwriting existing files.
+          </li>
+          <li>
+            Complete pending RC4.1 application transactions before downgrading
+            to RC3, which does not understand the new nested-home transaction
+            layout.
+          </li>
+        </ul>
+        <p>
+          RC4.1 remains a prerelease. Tests on the existing Apple Silicon
+          signing host do not establish clean-Mac quarantined online/offline
+          first launch, other native target acceptance, or real two-machine
+          product acceptance.
+        </p>
+        <h2 id="help">Go deeper or get help</h2>
+        <p>
+          The repository contains the
+          <a
+            href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/GETTING-STARTED.md"
+            >full setup guide</a
+          >,
+          <a
+            href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/RELEASES.md"
+            >release verification instructions</a
+          >, and
+          <a
+            href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/RELEASE-ACCEPTANCE.md"
+            >acceptance checklist</a
+          >.
+        </p>
+        <p>
+          Report problems in
+          <a href="https://github.com/Kapital-Labs/kitrove/issues"
+            >GitHub issues</a
+          >. Include the version and command, but remove credentials, private
+          paths, and sensitive skill content from logs before sharing.
+        </p>
+      </main>
+    </div>
+    <footer class="shell footer">
+      <a class="brand" href="../"
+        ><img src="../mark.svg" width="26" height="26" alt="" />kitrove</a
+      >
+      <p>Your collection. Your choices.</p>
+      <nav aria-label="Footer">
+        <a href="https://github.com/Kapital-Labs/kitrove/releases">Releases</a
+        ><a href="https://github.com/Kapital-Labs/kitrove/issues">Feedback</a>
+      </nav>
+    </footer>
+  </body>
+</html>
