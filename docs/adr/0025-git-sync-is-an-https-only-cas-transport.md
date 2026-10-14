@@ -21,7 +21,7 @@ D4 adds exact direct pins for:
 
 ```toml
 ureq = { version = "=3.4.0", default-features = false, features = ["rustls"] }
-rustls = { version = "=0.23.45", default-features = false, features = ["ring", "logging", "std", "tls12"] }
+rustls = { version = "=0.23.46", default-features = false, features = ["ring", "logging", "std", "tls12"] }
 webpki-roots = "=1.0.9"
 url = "=2.5.8"
 gix-hash = { version = "=0.26.2", default-features = false, features = ["sha1"] }

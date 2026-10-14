@@ -4,6 +4,23 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.4.2
+
+### Security
+
+- Update rustls to 0.23.46 for RUSTSEC-2026-0346 through RUSTSEC-2026-0349.
+  Keep the existing TLS provider and feature selection; do not suppress advisories.
+
+### Added
+
+- Product website and getting-started guide, with a gated static deployment workflow.
+
+Includes RC4.1's interactive onboarding, configure flow and second-computer setup.
+Declares RC4.1 format-compatible for explicit rollback because no application-state,
+lifecycle or sync format changes. Compatibility is not a recommendation to return
+to an older dependency version. Publication and exact-artifact validation remain
+pending; clean-machine and remaining native-platform acceptance gates stay open.
+
 ## 0.1.0-rc.3
 
 ### Added
