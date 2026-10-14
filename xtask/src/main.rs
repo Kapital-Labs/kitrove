@@ -11,7 +11,7 @@ mod release_archive;
 mod release_staging;
 
 const REVIEWED_CARGO_LOCK_BLAKE3: &str =
-    "d9802f661ad36fbba61c34fb5c45ffe8dca7177e4376dbf76b99b6a2d21205b0";
+    "c6137c4b6ce9e8560f26b660817ea40f869990e29f999458671ba274a38f6d95";
 const REVIEWED_SIGSTORE_REKOR_TREE_BLAKE3: &str =
     "898ca8f9c61bd79c3ef16bcc22650249eb4f32872540d281660f07b1c828c355";
 const REVIEWED_SIGSTORE_TSA_TREE_BLAKE3: &str =
@@ -23,7 +23,7 @@ const REVIEWED_DIST_CONFIG_BLAKE3: &str =
 const REVIEWED_RELEASE_POLICY_BLAKE3: &str =
     "03be092bae87eddbc776daed227c8ed0b45d92ec0fcc2548e8218c25ef2dad5d";
 const REVIEWED_APPLICATION_COMPATIBILITY_BLAKE3: &str =
-    "4966435e68555bbfc7c0b3a9a494a61d4fa35a5227e19f9e96b5ad71050507ae";
+    "dc782d428e7bfaf1345d18482c3c546f1ded146fad793bf0c332664a500d882f";
 const RELEASE_ACTION_PINS: [(&str, &str); 5] = [
     ("azure/login", "8216e11d8cd9b42fe925c852af8e76311ff067ac"),
     ("actions/attest", "1e69f48acb82d1966a394da916b4c1698aa569d6"),
@@ -1307,7 +1307,7 @@ fn check_git_dependency_boundary(root: &Path) -> Result<(), String> {
     let manifest = read(root, "Cargo.toml")?;
     for token in [
         "ureq = { version = \"=3.4.0\", default-features = false, features = [\"rustls\"] }",
-        "rustls = { version = \"=0.23.45\", default-features = false, features = [\"ring\", \"logging\", \"std\", \"tls12\"] }",
+        "rustls = { version = \"=0.23.46\", default-features = false, features = [\"ring\", \"logging\", \"std\", \"tls12\"] }",
         "webpki-roots = \"=1.0.9\"",
         "url = \"=2.5.8\"",
         "gix-hash = { version = \"=0.26.2\", default-features = false, features = [\"sha1\"] }",
