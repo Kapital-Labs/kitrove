@@ -1,0 +1,3 @@
+# Public OpenPGP signing-subkey fingerprint in custody documentation, not a secret.
+# Exact historical finding only; private keys and other values remain scanned.
+64393979710bfb9cf415f555f25d81b47469ee5e:packaging/SIGNING.md:generic-api-key:8
