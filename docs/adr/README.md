@@ -62,5 +62,6 @@ ADRs document foundational decisions and their consequences. Accepted ADRs are a
 | [0046](0046-homebrew-is-a-separate-distribution-authority.md) | Homebrew is a separate distribution authority | Proposed; local packaging only, publication gated | NS-07, NS-08, NS-09 |
 
 | [0047](0047-guided-setup-preserves-explicit-authority.md) | Guided setup preserves explicit authority | Accepted for implementation | NS-01 through NS-10 |
+| [0048](0048-native-packages-have-separate-distribution-authority.md) | Native packages have separate distribution authority | Proposed; package development authorized, publication gated by validation | NS-07, NS-08, NS-09 |
 
 Use [`0000-template.md`](0000-template.md) for new records.
