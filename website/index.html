@@ -310,16 +310,17 @@ kitrove configure</code></pre>
           <section id="linux" class="platform-panel">
             <div class="panel-label">
               <h3>Linux</h3>
-              <span class="status pending">Manual preview</span>
+              <span class="status">APT / DNF preview</span>
             </div>
             <p>
-              Linux x86_64 release artifacts are available. We have not
-              published APT, DNF, or other Linux package-manager installs.
+              Install the x86-64 preview through our signed APT or DNF
+              repository. We tested installation, upgrade and removal on
+              Ubuntu 24.04 and Fedora 44.
             </p>
             <p>
-              Use the release verification instructions before running a
-              download. Native lifecycle testing is separate from building the
-              archive.
+              Follow the <a href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/LINUX-INSTALL.md">Linux setup guide</a>
+              to check the signing key and add the repository, then run
+              <code>kitrove init</code> as your normal user.
             </p>
             <a
               class="text-link"

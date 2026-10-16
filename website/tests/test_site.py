@@ -94,7 +94,8 @@ class SiteTests(unittest.TestCase):
         for command in ("winget install", "choco install", "apt install", "dnf install"):
             self.assertNotIn(command, home)
         self.assertIn("have not published a WinGet or Chocolatey package", visible)
-        self.assertIn("have not published APT, DNF", visible)
+        self.assertIn("signed APT or DNF repository", visible)
+        self.assertIn("docs/LINUX-INSTALL.md", home)
 
 
 if __name__ == "__main__":

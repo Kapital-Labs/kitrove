@@ -1,8 +1,8 @@
 # Native package development
 
-These files stage package development under ADR-0048. No WinGet, APT or DNF
-channel has been published. Do not copy a planned installation command onto the
-product site until native acceptance and channel publication finish.
+These files stage package development under ADR-0048. APT and DNF preview
+repositories are live; see [Linux setup](../docs/LINUX-INSTALL.md).
+WinGet community approval is pending. Do not advertise that install command yet.
 
 The initial candidate is `v0.1.0-rc.4.2`, source commit
 `f9f4e43ccc258e85ad2fff91df4bde90e1e09b4f`, protected release run `38603835793`.
@@ -41,8 +41,11 @@ passed signed-metadata installation and removal, exact executable digest checks,
 ordinary-user version/help and canary preservation. Both clients rejected metadata
 changed after signing. APT used a dedicated `Signed-By` key and a seven-day
 `Valid-Until`; DNF required both package and repository signatures. These checks
-do not cover public HTTPS hosting, repository upgrades or key rotation, and do not
-establish a published channel. See [signing custody](SIGNING.md).
+were followed by local signed repository upgrades and public HTTPS install,
+RC4.1-to-RC4.2 upgrade and removal acceptance on 2026-10-16. Those tests checked
+exact executable hashes, ordinary-user execution and synthetic canaries.
+Key rotation and real application-state migration remain separate requirements.
+See [signing custody](SIGNING.md) and [repository renewal](HOSTING.md).
 
 ## Windows staging
 
