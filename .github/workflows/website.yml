@@ -29,7 +29,12 @@ jobs:
         run: |
           python3 -m unittest discover -s website/tests
           node --check website/app.js
-          python3 website/build.py "$RUNNER_TEMP/kitrove-site"
+          python3 website/prepare_packages.py "$RUNNER_TEMP/kitrove-package-payloads"
+          if test -d "$RUNNER_TEMP/kitrove-package-payloads"; then
+            python3 website/build.py "$RUNNER_TEMP/kitrove-site" --package-payloads "$RUNNER_TEMP/kitrove-package-payloads"
+          else
+            python3 website/build.py "$RUNNER_TEMP/kitrove-site"
+          fi
       - name: Require green public main before publication
         if: github.event_name == 'workflow_dispatch'
         env:

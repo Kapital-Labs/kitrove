@@ -4,18 +4,28 @@ The maintainer approved a separate package-only GitHub prerelease and HTTPS
 repository metadata on kitrove.dev on 2026-10-15. RC4.2 release assets stay
 unchanged. Public APT and DNF channels are not available yet.
 
-The package release will hold the tested Debian and signed RPM files. A reviewed
-site inventory will pin the path, size and SHA-256 of each published package,
-metadata file and public key. The site deployment will fetch package assets from
-that exact package release, then stage them at the paths signed metadata names.
+The package-only release `linux-packages-rc42-1` holds the tested Debian and signed
+RPM files. The reviewed site inventory pins the path, size and SHA-256 of each
+package, metadata file and public key. The deployment fetches package assets from
+that exact release, then stages them at the paths signed metadata names.
 The website builder accepts an explicit payload directory and performs no network
-requests or signing. Its current inventory is empty and enables no package channel.
+requests or signing. The repository files are prepared for deployment; this alone
+does not establish a working public package-manager channel.
+
+`website/prepare_packages.py` bounds downloads and restricts redirects to HTTPS
+GitHub asset hosts. It checks exact local metadata inventory and all file hashes.
+`website/verify_package_metadata.py` then verifies the pinned public key and
+repository signatures in a temporary public-only keyring. It compares the verified
+InRelease plaintext with Release and checks both detached signatures. APT dates
+must be current and validity cannot exceed seven days. Every RPM metadata timestamp
+must be current and less than seven days old at deployment. This RPM deployment
+check is not a claim that DNF enforces an APT-style Valid-Until on clients.
 
 Before enabling the channel:
 
 1. Authenticate the upstream release and compare each packaged executable with
    the retained release digest. Verify package inventories and RPM signatures.
-2. Create a new package-only release with fixed versioned names. Do not overwrite
+2. Use the existing package-only release with fixed versioned names. Do not overwrite
    published files, alter the application release, or resolve a mutable latest URL.
 3. Generate repository metadata with fresh timestamps. Sign it outside CI with
    the dedicated package signing subkey. Keep private keys and passphrases out of

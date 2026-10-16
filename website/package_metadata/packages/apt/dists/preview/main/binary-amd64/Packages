@@ -1,0 +1,18 @@
+Package: kitrove-rc
+Architecture: amd64
+Version: 0.1.0~rc.4.2-1
+Priority: optional
+Section: utils
+Maintainer: Brandon Kaplan <Bkaplan31@gmail.com>
+Depends: libc6 (>= 2.34), libgcc-s1
+Filename: pool/main/k/kitrove-rc/kitrove-rc_0.1.0.rc.4.2-1_amd64.deb
+Size: 5026866
+MD5sum: ee7b4125ad36a481cb30c033fedf2c12
+SHA1: 397ed0d65ef2a1e5a634f0f1b990ae93d06ec824
+SHA256: 8d7029ec85c77d428416cdfd0b2a581c57f9665f8e2c77d0c5120676b68bc27b
+SHA512: 1cd9013aa2fb80290a2c4b6ef9b51a0f737a4d5dabc13f1dca31f6700a6f4c1b2ab81fe33dbb74cdc5a1220033e406bfbe7edbbefde41eacda95e42ab20c85ab
+Homepage: https://kitrove.dev/
+Description: Portable AI tool configuration and skills (release candidate)
+ Manage selected skills and configuration across tools and computers.
+ This experimental package owns the CLI only and preserves application data.
+
