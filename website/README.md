@@ -59,8 +59,9 @@ release status change. The website is a curated summary, not generated reference
 documentation. Tests freeze current commands and verify local links, but cannot
 replace semantic review of product claims.
 
-Only Apple Silicon Homebrew installation is advertised. WinGet, Chocolatey, APT,
-and DNF channels are not published and must not be presented as usable commands.
+Apple Silicon Homebrew and x86-64 APT/DNF preview repositories are available.
+The Linux guide includes key verification and repository setup. WinGet and
+Chocolatey are not published and must not be presented as usable commands.
 A future package channel needs its own package, distribution trust review,
 ordinary-user install/upgrade/uninstall acceptance, and publication approval.
 Windows should prioritize WinGet, with Chocolatey optional. Linux packaging
