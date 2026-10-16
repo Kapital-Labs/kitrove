@@ -1,0 +1,40 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA256
+
+Architectures: amd64
+Codename: preview
+Components: main
+Date: Fri, 16 Oct 2026 01:13:17 +0000
+Valid-Until: Fri, 23 Oct 2026 01:13:17 +0000
+Label: Kitrove
+Origin: Kitrove
+Suite: preview
+MD5Sum:
+ 43ec9840fbd29f559125ec06fb2a8351              818 main/binary-amd64/Packages
+ 3ed7d63688dd65c38566b3e7cf54a8e2              564 main/binary-amd64/Packages.gz
+SHA1:
+ 7b64f6e9e2c01d4d1e6de5d18e4d9412506bc1cc              818 main/binary-amd64/Packages
+ fe1756701a14e8cfc922d1c327bb74a8a5cac7d7              564 main/binary-amd64/Packages.gz
+SHA256:
+ 5990cad2ae85c0945313105e84210ff8ca2561514c9eda8ea62211bffbc3a947              818 main/binary-amd64/Packages
+ 8fa35dc28bfccd6071296bea9343d39beaa731feecab55771baa6b8b55a3740e              564 main/binary-amd64/Packages.gz
+SHA512:
+ 11eb5d7ceb2e7d9853e8c688527b035559c44f531793a944aca48e093fc39498e5907583c0140fbf042fa6461a672931ce37e31e6f0b0661018da8807f559e21              818 main/binary-amd64/Packages
+ 5c879564364130b521e056e547f8e20b949cd7eb10157f03db84feef720af41559a5d98e573ac70893ba87052c8683675b12dd6794597857cc51206a57ce58d8              564 main/binary-amd64/Packages.gz
+-----BEGIN PGP SIGNATURE-----
+
+iQJPBAEBCAA5FiEEgxVpZff/ZWq/bE77YML7+FEGWN8FAmrRenQbFIAAAAAABAAO
+bWFudTIsMi41KzEuMTIsMCwzAAoJEGDC+/hRBljf5lcP/i7hX/KxCKJYt0vQSSN1
+u0yw7kiYRsmJmIxPSM6brOBKeTlp/48K9zxJFnUX/o+GgZAu3ZsgmZUSayCrJPhH
+viWN8CTHtGzJBkcrdR8IQfREyOejaOqOeX23tfjWZLMuJDx3D6Yz4rpJRMgFLQrq
+XrlS0kgGXVcRfkf7nf/NzcgHPcJhsaCOqVSpb0aIDjGUMS0k9biqaQ4Hwz73phWk
+rUWgxZFIEnSmVBB/EuAFpNqIobmCX0Hsy1w3TMeVbyz1n3THsVk8MqA7hrJvcwTz
+oKlFjbdseXiu9YgQV/FsktRgfp+i4V7dL+mlUxtCjR48Li5AfllWsiBXzka+0C2b
+yPbE7Wm69OdKuRVIAP1QLnRhFzl6aQVdfxKiDj+BzzajjYfnaT8VbjLuaH/i3Raw
+L8D2+kcj91V+UeoDY2fIZ3stmdFflGKTvSGOo4I9PPZAB+2KcnmBJSutYSP+R3wK
+hC4EE6geXuIQ616N0noeciQf0Pqt2wODBK5jXQLZ7vE5JnzpJVQgEcoHGuwdSIRC
+lM9g8K808tpOz94v/57RaPURyn8ksBfxmoRLKypicQvXppmvZlNDhpP9vQdk1aOE
+JHHhpQ3VcgUmbCrtj4aFn2vme5YmTdsH9v/PjsnMpEQMpyivl0+YNe2YROm7Z9Vt
+6S3NlC5G9+1LjJPYMD0dPnU5
+=I5Op
+-----END PGP SIGNATURE-----

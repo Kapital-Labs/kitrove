@@ -1,0 +1,20 @@
+Architectures: amd64
+Codename: preview
+Components: main
+Date: Fri, 16 Oct 2026 01:13:17 +0000
+Valid-Until: Fri, 23 Oct 2026 01:13:17 +0000
+Label: Kitrove
+Origin: Kitrove
+Suite: preview
+MD5Sum:
+ 43ec9840fbd29f559125ec06fb2a8351              818 main/binary-amd64/Packages
+ 3ed7d63688dd65c38566b3e7cf54a8e2              564 main/binary-amd64/Packages.gz
+SHA1:
+ 7b64f6e9e2c01d4d1e6de5d18e4d9412506bc1cc              818 main/binary-amd64/Packages
+ fe1756701a14e8cfc922d1c327bb74a8a5cac7d7              564 main/binary-amd64/Packages.gz
+SHA256:
+ 5990cad2ae85c0945313105e84210ff8ca2561514c9eda8ea62211bffbc3a947              818 main/binary-amd64/Packages
+ 8fa35dc28bfccd6071296bea9343d39beaa731feecab55771baa6b8b55a3740e              564 main/binary-amd64/Packages.gz
+SHA512:
+ 11eb5d7ceb2e7d9853e8c688527b035559c44f531793a944aca48e093fc39498e5907583c0140fbf042fa6461a672931ce37e31e6f0b0661018da8807f559e21              818 main/binary-amd64/Packages
+ 5c879564364130b521e056e547f8e20b949cd7eb10157f03db84feef720af41559a5d98e573ac70893ba87052c8683675b12dd6794597857cc51206a57ce58d8              564 main/binary-amd64/Packages.gz

@@ -5,6 +5,7 @@ from urllib.parse import urlsplit, unquote
 import unittest
 import importlib.util
 import tempfile
+import shutil
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -33,10 +34,18 @@ class Page(HTMLParser):
 
 class SiteTests(unittest.TestCase):
     def test_deployment_inventory_and_no_reuse(self):
-        spec = importlib.util.spec_from_file_location("site_build", ROOT / "build.py")
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
         with tempfile.TemporaryDirectory() as temp:
+            # Static build semantics stay offline; package staging has separate tests.
+            fixture = Path(temp) / "source"
+            fixture.mkdir()
+            for name in ("build.py", "package_assets.py", "index.html", "docs/index.html", "styles.css", "app.js", "mark.svg"):
+                target = fixture / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT / name, target)
+            (fixture / "package_inventory.json").write_text('{"version":1,"files":[]}')
+            spec = importlib.util.spec_from_file_location("site_build", fixture / "build.py")
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
             target = Path(temp) / "public"
             module.build(target)
             self.assertEqual(

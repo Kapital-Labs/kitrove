@@ -1,4 +1,70 @@
 {
   "version": 1,
-  "files": []
+  "files": [
+    {
+      "path": "packages/apt/dists/preview/InRelease",
+      "sha256": "d82a02d922efe73852ed8011a7134d66073d451cc8b4280dcb99fbcf22d90754",
+      "size": 2042
+    },
+    {
+      "path": "packages/apt/dists/preview/Release",
+      "sha256": "8a574f20e140a84f92ebc68440009a8e562ef95bc10158611c4ef13d033e95fa",
+      "size": 1123
+    },
+    {
+      "path": "packages/apt/dists/preview/Release.gpg",
+      "sha256": "a768b35b75286b1a050049aa2f851106b8e559bcce851c36011197911a48d0f0",
+      "size": 870
+    },
+    {
+      "path": "packages/apt/dists/preview/main/binary-amd64/Packages",
+      "sha256": "5990cad2ae85c0945313105e84210ff8ca2561514c9eda8ea62211bffbc3a947",
+      "size": 818
+    },
+    {
+      "path": "packages/apt/dists/preview/main/binary-amd64/Packages.gz",
+      "sha256": "8fa35dc28bfccd6071296bea9343d39beaa731feecab55771baa6b8b55a3740e",
+      "size": 564
+    },
+    {
+      "path": "packages/apt/pool/main/k/kitrove-rc/kitrove-rc_0.1.0.rc.4.2-1_amd64.deb",
+      "sha256": "8d7029ec85c77d428416cdfd0b2a581c57f9665f8e2c77d0c5120676b68bc27b",
+      "size": 5026866
+    },
+    {
+      "path": "packages/keys/kitrove-packages.asc",
+      "sha256": "5ac38737296e75cbabef85ab16de742a9dcf5abb487932f3f2adee4cf8a8aa07",
+      "size": 4028
+    },
+    {
+      "path": "packages/rpm/Packages/kitrove-rc-0.1.0.rc.4.2-1.x86_64.rpm",
+      "sha256": "a7bd7e72b29e1b9a3da0e6ddc6e57739df2131fab323d9e78f75719c2f68a893",
+      "size": 5012775
+    },
+    {
+      "path": "packages/rpm/repodata/628d794615e758916b8617224738a5ae06f139861467b15bcd9f5534273b16d4-filelists.xml.zst",
+      "sha256": "628d794615e758916b8617224738a5ae06f139861467b15bcd9f5534273b16d4",
+      "size": 311
+    },
+    {
+      "path": "packages/rpm/repodata/b95046410b25d6f2a85a6d2c67ab444fb4ff9ea1a18da69608fc2e7d63ad76d2-other.xml.zst",
+      "sha256": "b95046410b25d6f2a85a6d2c67ab444fb4ff9ea1a18da69608fc2e7d63ad76d2",
+      "size": 247
+    },
+    {
+      "path": "packages/rpm/repodata/bafdfe243a512249da4983db9298ce8e784190589d8feba7f04ef878fb8d412b-primary.xml.zst",
+      "sha256": "bafdfe243a512249da4983db9298ce8e784190589d8feba7f04ef878fb8d412b",
+      "size": 904
+    },
+    {
+      "path": "packages/rpm/repodata/repomd.xml",
+      "sha256": "0f4a0a10892c95d51e819ab8b9502fb15440c88ecdafa5bff92f36fc573d664b",
+      "size": 1549
+    },
+    {
+      "path": "packages/rpm/repodata/repomd.xml.asc",
+      "sha256": "c4605c343c1d089e61d0df05640acc03614102906551f83f43ccf3a52cc4faac",
+      "size": 870
+    }
+  ]
 }
