@@ -186,8 +186,9 @@ distribution approvals or time-sensitive repository metadata renewal.
   increment is defined in [ADR-0049](adr/0049-agent-materialization-approval.md);
   pack authoring, removal, and adoption/update approval are described in
   [ADR-0050](adr/0050-agent-pack-authoring-approval.md),
-  [ADR-0051](adr/0051-agent-removal-approval.md), and
-  [ADR-0052](adr/0052-agent-adoption-approval.md).
+  [ADR-0051](adr/0051-agent-removal-approval.md),
+  [ADR-0052](adr/0052-agent-adoption-approval.md), and
+  [ADR-0055](adr/0055-agent-pack-import-approval.md).
   Implementation alone does not complete this milestone.
 - [ ] Stable, documented JSON plans/results and exit codes, including stale
   approval, conflicts, unsupported capabilities, trust requirements, and recovery

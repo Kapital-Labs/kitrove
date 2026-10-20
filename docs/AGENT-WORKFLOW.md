@@ -12,6 +12,7 @@ do not all use the same field name:
 | `plan` (for `apply`) | `batch_digest` |
 | `remove --plan` or `pack remove --plan` | `batch_digest` |
 | `pack create --plan` or `pack update --plan` | `digest` |
+| `pack adopt --plan` or `pack rollback --plan` | `digest` |
 | `adopt --plan`, including `adopt --update … --plan` | `plan_digest` |
 
 ## Preview, approve, apply
@@ -103,9 +104,17 @@ ownership where available.
 already have explicit digest approval. Sync can publish as well as receive.
 Each machine keeps its own credentials, bindings, trust and receipts.
 
-Pack adopt/rollback retain their existing `--yes`
-option; it is not equivalent to externally approving a previously inspected
-digest. Those operations are not covered by these exact-digest approval modes.
+Pack adopt/rollback also support `--plan` and `--confirm <digest>`, mutually
+exclusive with each other and legacy `--yes`. Repeat the same remote and pack
+selection; rollback still requires `--expected-prior` and `--to`.
+Preview performs verified remote history/object reads without committing
+collection or native authority. Backends may perform temporary/cache writes
+and network access. It refuses pending adoption recovery; approved commits
+also refuse other pending portable recovery under lock, before cleanup.
+Exact objects, history selection and local authority are still validated.
+Legacy interactive/`--yes` behavior is unchanged; `--yes` is not approval of
+a previously inspected digest. None of these operations grants executable trust.
+
 Guided `init` and `configure` require a terminal; explicit initialization is
 available for scripts.
 

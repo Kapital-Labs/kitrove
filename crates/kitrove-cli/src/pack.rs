@@ -16,8 +16,8 @@ use kitrove_model::{
 use serde_json::{Value, json};
 
 use crate::args::{
-    CliError, EnvironmentArgs, PackAdoptArgs, PackCreateArgs, PackDiscoverArgs, PackInspectArgs,
-    PackRollbackArgs, PackUpdateArgs, SyncRemoteArgs,
+    ApprovalMode, CliError, EnvironmentArgs, PackAdoptArgs, PackCreateArgs, PackDiscoverArgs,
+    PackInspectArgs, PackRollbackArgs, PackUpdateArgs, SyncRemoteArgs,
 };
 use crate::portable::{CompletedCommand, fidelity, load_manifest, serialization_error};
 use crate::scan::resolve_required_environment_root;
@@ -69,12 +69,14 @@ pub(crate) fn run_pack_adopt(
         remote,
         environment,
         assume_yes,
+        approval,
         json,
     } = arguments;
     let request = PackAdoptionRequest {
         environment,
         pack_id,
         assume_yes,
+        approval,
         json_output: json,
     };
     match remote {
@@ -97,6 +99,7 @@ struct PackAdoptionRequest {
     environment: Option<std::path::PathBuf>,
     pack_id: AssetId,
     assume_yes: bool,
+    approval: ApprovalMode,
     json_output: bool,
 }
 
@@ -106,6 +109,7 @@ fn adopt_with_backend<B: SyncBackend>(
     confirm: &mut impl FnMut(&str) -> bool,
 ) -> Result<CompletedCommand, CliError> {
     let root = resolve_required_environment_root(request.environment.as_deref())?;
+    import_approval::require_no_recovery(&request.approval, &root)?;
     let manifest = load_manifest(&root)?;
     let limits = SyncLimits::default();
     let mut read = backend.begin_read(limits).map_err(backend_error)?;
@@ -136,15 +140,26 @@ fn adopt_with_backend<B: SyncBackend>(
     drop(read);
 
     let rendered = render_pack_adoption_plan(&plan, request.json_output)?;
-    if !request.assume_yes && !confirm(&rendered) {
-        return Err(CliError::new(
-            "pack_adopt.confirmation_required",
-            "the pack adoption plan was not confirmed; no changes were made",
-        ));
+    if !import_approval::review(
+        &request.approval,
+        request.assume_yes,
+        plan.digest(),
+        &rendered,
+        confirm,
+        "pack_adopt.confirmation_required",
+    )? {
+        return Ok(CompletedCommand {
+            output: rendered,
+            status: 0,
+        });
     }
-    let outcome =
-        commit_pack_distribution_adoption(&plan, &objects, &root, CaptureLimits::default())
-            .map_err(|error| CliError::new(error.code(), error.message()))?;
+    let commit = if matches!(request.approval, ApprovalMode::Interactive) {
+        commit_pack_distribution_adoption
+    } else {
+        kitrove_core::commit_approved_pack_distribution_adoption
+    };
+    let outcome = commit(&plan, &objects, &root, CaptureLimits::default())
+        .map_err(|error| CliError::new(error.code(), error.message()))?;
     Ok(CompletedCommand {
         output: render_pack_adoption_result(&plan, outcome, request.json_output)?,
         status: 0,
@@ -152,6 +167,7 @@ fn adopt_with_backend<B: SyncBackend>(
 }
 
 mod authoring;
+mod import_approval;
 pub(crate) use authoring::{run_pack_create, run_pack_update};
 
 pub(crate) fn run_pack_rollback(
@@ -165,6 +181,7 @@ pub(crate) fn run_pack_rollback(
         remote,
         environment,
         assume_yes,
+        approval,
         json,
     } = arguments;
     let request = PackRollbackRequest {
@@ -173,6 +190,7 @@ pub(crate) fn run_pack_rollback(
         expected_prior,
         target_revision,
         assume_yes,
+        approval,
         json_output: json,
     };
     match remote {
@@ -197,6 +215,7 @@ struct PackRollbackRequest {
     expected_prior: kitrove_model::ContentHash,
     target_revision: kitrove_model::ContentHash,
     assume_yes: bool,
+    approval: ApprovalMode,
     json_output: bool,
 }
 
@@ -206,6 +225,7 @@ fn run_pack_rollback_with_backend<B: SyncBackend>(
     confirm: &mut impl FnMut(&str) -> bool,
 ) -> Result<CompletedCommand, CliError> {
     let root = resolve_required_environment_root(request.environment.as_deref())?;
+    import_approval::require_no_recovery(&request.approval, &root)?;
     let manifest = load_manifest(&root)?;
     let limits = SyncLimits::default();
     let mut read = backend.begin_read(limits).map_err(backend_error)?;
@@ -241,13 +261,25 @@ fn run_pack_rollback_with_backend<B: SyncBackend>(
     drop(read);
 
     let rendered = render_pack_rollback_plan(&plan, request.json_output)?;
-    if !request.assume_yes && !confirm(&rendered) {
-        return Err(CliError::new(
-            "pack_rollback.confirmation_required",
-            "the pack rollback plan was not confirmed; no changes were made",
-        ));
+    if !import_approval::review(
+        &request.approval,
+        request.assume_yes,
+        plan.digest(),
+        &rendered,
+        confirm,
+        "pack_rollback.confirmation_required",
+    )? {
+        return Ok(CompletedCommand {
+            output: rendered,
+            status: 0,
+        });
     }
-    let outcome = commit_pack_rollback(&plan, &objects, &root, CaptureLimits::default())
+    let commit = if matches!(request.approval, ApprovalMode::Interactive) {
+        commit_pack_rollback
+    } else {
+        kitrove_core::commit_approved_pack_rollback
+    };
+    let outcome = commit(&plan, &objects, &root, CaptureLimits::default())
         .map_err(|error| CliError::new(error.code(), error.message()))?;
     Ok(CompletedCommand {
         output: render_pack_rollback_result(&plan, outcome, request.json_output)?,

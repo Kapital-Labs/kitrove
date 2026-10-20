@@ -1297,7 +1297,10 @@ pub fn commit_lock_repair(
 }
 
 mod pack_approval;
-pub use pack_approval::{commit_approved_pack_mutation, commit_pack_creation, commit_pack_update};
+pub use pack_approval::{
+    commit_approved_pack_distribution_adoption, commit_approved_pack_mutation,
+    commit_approved_pack_rollback, commit_pack_creation, commit_pack_update,
+};
 mod adoption_approval;
 pub use adoption_approval::*;
 
@@ -1308,6 +1311,22 @@ pub fn commit_pack_rollback(
     environment_root: &Path,
     limits: CaptureLimits,
 ) -> Result<PortableManifestCommitOutcome, PortableTransactionError> {
+    commit_pack_rollback_with_recovery(
+        plan,
+        objects,
+        environment_root,
+        limits,
+        RecoveryPolicy::Recover,
+    )
+}
+
+fn commit_pack_rollback_with_recovery(
+    plan: &PackRollbackPlan,
+    objects: &[VerifiedObjectEnvelope],
+    environment_root: &Path,
+    limits: CaptureLimits,
+    recovery_policy: RecoveryPolicy,
+) -> Result<PortableManifestCommitOutcome, PortableTransactionError> {
     let supplied: BTreeSet<_> = objects
         .iter()
         .map(|object| object.descriptor().clone())
@@ -1315,13 +1334,14 @@ pub fn commit_pack_rollback(
     if supplied.len() != objects.len() || supplied != *plan.required_objects() {
         return Err(pack_rollback_objects_invalid());
     }
-    commit_manifest_plan_inner(
+    commit_manifest_plan_with_recovery(
         plan,
         ManifestCommitKind::Rollback,
         Some(objects),
         environment_root,
         limits,
         None,
+        recovery_policy,
     )
 }
 
@@ -1332,6 +1352,22 @@ pub fn commit_pack_distribution_adoption(
     environment_root: &Path,
     limits: CaptureLimits,
 ) -> Result<PortableManifestCommitOutcome, PortableTransactionError> {
+    commit_pack_adoption_with_recovery(
+        plan,
+        objects,
+        environment_root,
+        limits,
+        RecoveryPolicy::Recover,
+    )
+}
+
+fn commit_pack_adoption_with_recovery(
+    plan: &PackDistributionPlan,
+    objects: &[VerifiedObjectEnvelope],
+    environment_root: &Path,
+    limits: CaptureLimits,
+    recovery_policy: RecoveryPolicy,
+) -> Result<PortableManifestCommitOutcome, PortableTransactionError> {
     let supplied: BTreeSet<_> = objects
         .iter()
         .map(|object| object.descriptor().clone())
@@ -1339,13 +1375,14 @@ pub fn commit_pack_distribution_adoption(
     if supplied.len() != objects.len() || supplied != *plan.required_objects() {
         return Err(pack_adoption_objects_invalid());
     }
-    commit_manifest_plan_inner(
+    commit_manifest_plan_with_recovery(
         plan,
         ManifestCommitKind::Adopt,
         Some(objects),
         environment_root,
         limits,
         None,
+        recovery_policy,
     )
 }
 
@@ -4331,7 +4368,7 @@ mod tests {
         (root, environment, plan)
     }
 
-    fn pack_rollback_environment() -> (TempDir, std::path::PathBuf, PackRollbackPlan) {
+    pub(super) fn pack_rollback_environment() -> (TempDir, std::path::PathBuf, PackRollbackPlan) {
         let root = tempfile::tempdir().unwrap();
         let environment = root.path().canonicalize().unwrap();
         let historical = crate::pack_creation::tests::manifest();

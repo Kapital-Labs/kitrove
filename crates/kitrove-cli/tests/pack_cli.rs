@@ -2,6 +2,8 @@
 
 #[path = "pack_cli/approval.rs"]
 mod approval;
+#[path = "pack_cli/import_approval.rs"]
+mod import_approval;
 
 use kitrove_testkit::owned_fixture;
 
