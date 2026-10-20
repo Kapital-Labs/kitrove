@@ -93,6 +93,9 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         }
         Command::Help => {
             println!(
+                "PACK IMPORT APPROVAL:\n    kitrove pack adopt|rollback [selection] --plan --json\n    kitrove pack adopt|rollback [same selection] --confirm <digest> --json\n    These flags conflict with legacy --yes; rollback requires --expected-prior and --to.\n"
+            );
+            println!(
                 "ADOPTION APPROVAL:\n    kitrove adopt [selection] <observation-id> --plan --json\n    kitrove adopt [same selection] <observation-id> --confirm <digest> --json\n    Updates also require --update <asset-id> --expected-prior <content-hash>.\n    Approval never authorizes pending recovery or executable trust.\n"
             );
             println!(

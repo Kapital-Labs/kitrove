@@ -178,6 +178,7 @@ pub(crate) struct PackAdoptArgs {
     pub remote: SyncRemoteArgs,
     pub environment: Option<PathBuf>,
     pub assume_yes: bool,
+    pub approval: ApprovalMode,
     pub json: bool,
 }
 
@@ -221,6 +222,7 @@ pub(crate) struct PackRollbackArgs {
     pub remote: SyncRemoteArgs,
     pub environment: Option<PathBuf>,
     pub assume_yes: bool,
+    pub approval: ApprovalMode,
     pub json: bool,
 }
 
@@ -513,6 +515,7 @@ fn parse_pack_adopt(
     let mut remote = ParsedRemoteArgs::default();
     let mut environment = None;
     let mut assume_yes = false;
+    let mut approval = ApprovalMode::Interactive;
     let mut json = false;
     while let Some(argument) = next_utf8(&mut arguments)? {
         if remote.consume(&argument, &mut arguments)? {
@@ -523,7 +526,12 @@ fn parse_pack_adopt(
                 pack_id = Some(parse_asset_id(&required_value(&mut arguments)?, "--pack")?);
             }
             "--environment" => set_environment(&mut environment, &mut arguments)?,
-            "--yes" if !assume_yes => assume_yes = true,
+            "--plan" | "--confirm" if !assume_yes => {
+                parse_approval_flag(&argument, &mut approval, &mut arguments)?
+            }
+            "--yes" if !assume_yes && matches!(approval, ApprovalMode::Interactive) => {
+                assume_yes = true
+            }
             "--json" if !json => json = true,
             "--json" => return Err(repeated_json()),
             _ => {
@@ -540,6 +548,7 @@ fn parse_pack_adopt(
         remote: remote.finish()?,
         environment,
         assume_yes,
+        approval,
         json,
     })
 }
@@ -553,6 +562,7 @@ fn parse_pack_rollback(
     let mut remote = ParsedRemoteArgs::default();
     let mut environment = None;
     let mut assume_yes = false;
+    let mut approval = ApprovalMode::Interactive;
     let mut json = false;
     while let Some(argument) = next_utf8(&mut arguments)? {
         if remote.consume(&argument, &mut arguments)? {
@@ -572,7 +582,12 @@ fn parse_pack_rollback(
                 target_revision = Some(parse_pack_revision(&mut arguments, "--to is invalid")?);
             }
             "--environment" => set_environment(&mut environment, &mut arguments)?,
-            "--yes" if !assume_yes => assume_yes = true,
+            "--plan" | "--confirm" if !assume_yes => {
+                parse_approval_flag(&argument, &mut approval, &mut arguments)?
+            }
+            "--yes" if !assume_yes && matches!(approval, ApprovalMode::Interactive) => {
+                assume_yes = true
+            }
             "--json" if !json => json = true,
             "--json" => return Err(repeated_json()),
             _ => {
@@ -602,6 +617,7 @@ fn parse_pack_rollback(
         remote: remote.finish()?,
         environment,
         assume_yes,
+        approval,
         json,
     })
 }
