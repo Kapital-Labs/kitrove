@@ -239,7 +239,7 @@ pub fn plan_agent_update(
         .assets
         .insert(asset_id.clone(), asset.clone());
     proposed_manifest
-        .validate()
+        .refresh_pack_revisions()
         .map_err(|_| update_error("agent_update.proposed_manifest_invalid"))?;
     let proposed_lock = derive_lockfile(&proposed_manifest)
         .map_err(|_| update_error("agent_update.proposed_lock_invalid"))?;

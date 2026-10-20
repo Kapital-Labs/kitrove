@@ -42,6 +42,13 @@ selective import and rollback preserve this source kind and original member
 provenance. Older clients reject the new source kind rather than misinterpret it;
 use matching supporting versions at both ends. No release is authorized here.
 
+Member updates must re-derive every affected parent pack before validating the
+proposed manifest and deriving its lock/revision/approval digest. This applies to
+skills, instructions, commands, agents and MCP entries as well as the existing
+extension path. Membership and declared source are unchanged; only derived
+aggregate authority changes. Historical local pack-application claims remain
+receipt-backed and are not silently upgraded by portable member updates.
+
 ## Validation gates
 
 - Explicit opt-in, strict argument parsing, read-only preview and exact approval.
