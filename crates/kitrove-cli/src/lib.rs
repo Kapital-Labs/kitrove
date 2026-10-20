@@ -28,7 +28,7 @@ use args::{
     ADDITIONAL_MCP_HELP, ADDITIONAL_PACK_HELP, ADDITIONAL_SYNC_HELP, Command, HELP, parse_args,
 };
 use init::run_init;
-use materialize::{run_apply, run_plan};
+use materialize::{run_apply, run_confirmed_apply, run_plan};
 use pack::{
     run_pack_adopt, run_pack_create, run_pack_discover, run_pack_inspect, run_pack_list,
     run_pack_rollback, run_pack_update,
@@ -93,6 +93,9 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         }
         Command::Help => {
             println!(
+                "AGENT APPROVAL:\n    kitrove plan [selection] --json\n    kitrove apply [same selection] --confirm <batch_digest> [--json]\n    Approval uses the complete batch_digest, never an individual plan_digest.\n    Pending recovery requires explicit handling and a fresh plan.\n"
+            );
+            println!(
                 "GUIDED SETUP:\n    kitrove init        Interactive first/second computer setup\n    kitrove configure [--environment <path>]    Revisit setup\n    kitrove scan --verbose    Full diagnostic text (JSON unchanged)\n    kitrove adopt <skill-name> --harness <tool>    Select an exact unique name\n"
             );
             print!("{HELP}{ADDITIONAL_MCP_HELP}{ADDITIONAL_SYNC_HELP}{ADDITIONAL_PACK_HELP}")
@@ -135,6 +138,17 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
             }
         },
         Command::Plan(arguments) => match run_plan(arguments) {
+            Ok(completed) => {
+                print!("{}", completed.output);
+                return completed.status;
+            }
+            Err(error) => {
+                eprintln!("error[{}]: {error}", error.code);
+                return 1;
+            }
+        },
+        Command::ConfirmedApply(arguments, digest) => match run_confirmed_apply(arguments, &digest)
+        {
             Ok(completed) => {
                 print!("{}", completed.output);
                 return completed.status;
