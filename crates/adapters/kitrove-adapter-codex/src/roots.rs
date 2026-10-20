@@ -169,19 +169,19 @@ pub(crate) fn runtime_authority() -> PolicyRuntimeAuthority {
 
 pub(crate) fn agent_roots(context: &RootContext<'_>) -> Vec<RelatedRoot> {
     let mut roots = Vec::new();
-    if scope_selected(context, HarnessScope::User) {
-        if let Some(home) = context.home {
-            roots.push(RelatedRoot {
-                logical_id: RootId::parse("codex.user.agents").unwrap(),
-                path: home.join(".codex/agents"),
-                scope: HarnessScope::User,
-                tier: RootTier::User,
-                policy_rank: USER_RANK,
-                kind: AssetKind::Agent,
-                pattern: RelatedDocumentPattern::TomlDirectChildren,
-                evidence: evidence(AGENT_EVIDENCE),
-            });
-        }
+    if scope_selected(context, HarnessScope::User)
+        && let Some(home) = context.home
+    {
+        roots.push(RelatedRoot {
+            logical_id: RootId::parse("codex.user.agents").unwrap(),
+            path: home.join(".codex/agents"),
+            scope: HarnessScope::User,
+            tier: RootTier::User,
+            policy_rank: USER_RANK,
+            kind: AssetKind::Agent,
+            pattern: RelatedDocumentPattern::TomlDirectChildren,
+            evidence: evidence(AGENT_EVIDENCE),
+        });
     }
     if scope_selected(context, HarnessScope::Project) {
         for (index, anchor) in project_anchors(context).into_iter().enumerate() {
@@ -322,23 +322,23 @@ fn indexed_rank(base: u32, index: usize) -> u32 {
 
 pub(crate) fn standard_receipt_anchors(context: &RootContext<'_>) -> Vec<ReceiptAnchor> {
     let mut anchors = Vec::new();
-    if scope_selected(context, HarnessScope::User) {
-        if let Some(home) = context.home {
-            anchors.push(ReceiptAnchor {
-                scope: HarnessScope::User,
-                path: home.join(".agents/skills"),
-                evidence: evidence(USER_EVIDENCE),
-            });
-        }
+    if scope_selected(context, HarnessScope::User)
+        && let Some(home) = context.home
+    {
+        anchors.push(ReceiptAnchor {
+            scope: HarnessScope::User,
+            path: home.join(".agents/skills"),
+            evidence: evidence(USER_EVIDENCE),
+        });
     }
-    if scope_selected(context, HarnessScope::Project) {
-        if let Some(anchor) = project_anchors(context).into_iter().last() {
-            anchors.push(ReceiptAnchor {
-                scope: HarnessScope::Project,
-                path: anchor.join(".agents/skills"),
-                evidence: evidence(PROJECT_EVIDENCE),
-            });
-        }
+    if scope_selected(context, HarnessScope::Project)
+        && let Some(anchor) = project_anchors(context).into_iter().last()
+    {
+        anchors.push(ReceiptAnchor {
+            scope: HarnessScope::Project,
+            path: anchor.join(".agents/skills"),
+            evidence: evidence(PROJECT_EVIDENCE),
+        });
     }
     anchors
 }

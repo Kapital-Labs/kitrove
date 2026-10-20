@@ -262,7 +262,7 @@ pub(crate) fn parse_sha256(value: &str) -> Option<[u8; 32]> {
         return None;
     }
     let mut digest = [0_u8; 32];
-    for (output, pair) in digest.iter_mut().zip(value.as_bytes().chunks_exact(2)) {
+    for (output, pair) in digest.iter_mut().zip(value.as_bytes().as_chunks::<2>().0) {
         *output = hex_nibble(pair[0])?.checked_mul(16)? + hex_nibble(pair[1])?;
     }
     Some(digest)

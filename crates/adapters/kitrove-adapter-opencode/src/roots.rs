@@ -268,19 +268,19 @@ pub(crate) fn runtime_authority() -> PolicyRuntimeAuthority {
 
 pub(crate) fn command_roots(context: &RootContext<'_>) -> Vec<RelatedRoot> {
     let mut roots = Vec::new();
-    if scope_selected(context, HarnessScope::User) {
-        if let Some(home) = context.home {
-            roots.push(RelatedRoot {
-                logical_id: RootId::parse("opencode.user.native.commands").unwrap(),
-                path: home.join(".config/opencode/commands"),
-                scope: HarnessScope::User,
-                tier: RootTier::User,
-                policy_rank: USER_NATIVE_RANK,
-                kind: AssetKind::Command,
-                pattern: RelatedDocumentPattern::MarkdownAtAnyDepth,
-                evidence: evidence(COMMAND_EVIDENCE),
-            });
-        }
+    if scope_selected(context, HarnessScope::User)
+        && let Some(home) = context.home
+    {
+        roots.push(RelatedRoot {
+            logical_id: RootId::parse("opencode.user.native.commands").unwrap(),
+            path: home.join(".config/opencode/commands"),
+            scope: HarnessScope::User,
+            tier: RootTier::User,
+            policy_rank: USER_NATIVE_RANK,
+            kind: AssetKind::Command,
+            pattern: RelatedDocumentPattern::MarkdownAtAnyDepth,
+            evidence: evidence(COMMAND_EVIDENCE),
+        });
     }
     if scope_selected(context, HarnessScope::Project) {
         for (index, anchor) in project_anchors_root_to_current(context)
@@ -305,19 +305,19 @@ pub(crate) fn command_roots(context: &RootContext<'_>) -> Vec<RelatedRoot> {
 
 pub(crate) fn agent_roots(context: &RootContext<'_>) -> Vec<RelatedRoot> {
     let mut roots = Vec::new();
-    if scope_selected(context, HarnessScope::User) {
-        if let Some(home) = context.home {
-            roots.push(RelatedRoot {
-                logical_id: RootId::parse("opencode.user.native.agents").unwrap(),
-                path: home.join(".config/opencode/agents"),
-                scope: HarnessScope::User,
-                tier: RootTier::User,
-                policy_rank: USER_NATIVE_RANK,
-                kind: AssetKind::Agent,
-                pattern: RelatedDocumentPattern::MarkdownDirectChildren,
-                evidence: evidence(AGENT_EVIDENCE),
-            });
-        }
+    if scope_selected(context, HarnessScope::User)
+        && let Some(home) = context.home
+    {
+        roots.push(RelatedRoot {
+            logical_id: RootId::parse("opencode.user.native.agents").unwrap(),
+            path: home.join(".config/opencode/agents"),
+            scope: HarnessScope::User,
+            tier: RootTier::User,
+            policy_rank: USER_NATIVE_RANK,
+            kind: AssetKind::Agent,
+            pattern: RelatedDocumentPattern::MarkdownDirectChildren,
+            evidence: evidence(AGENT_EVIDENCE),
+        });
     }
     if scope_selected(context, HarnessScope::Project) {
         for (index, anchor) in project_anchors_root_to_current(context)
@@ -349,22 +349,22 @@ pub(crate) fn standard_roots(
     let mut seen_paths = BTreeSet::new();
     let project_anchors = project_anchors_root_to_current(context);
 
-    if scope_selected(context, HarnessScope::User) {
-        if let Some(home) = context.home {
-            push_unique(
-                &mut roots,
-                &mut seen_paths,
-                observed_root(
-                    "opencode.user.claude.skills",
-                    home.join(".claude/skills"),
-                    HarnessScope::User,
-                    RootTier::Compatibility,
-                    CLAUDE_GLOBAL_RANK,
-                    layouts,
-                    CLAUDE_COMPATIBILITY_EVIDENCE,
-                ),
-            );
-        }
+    if scope_selected(context, HarnessScope::User)
+        && let Some(home) = context.home
+    {
+        push_unique(
+            &mut roots,
+            &mut seen_paths,
+            observed_root(
+                "opencode.user.claude.skills",
+                home.join(".claude/skills"),
+                HarnessScope::User,
+                RootTier::Compatibility,
+                CLAUDE_GLOBAL_RANK,
+                layouts,
+                CLAUDE_COMPATIBILITY_EVIDENCE,
+            ),
+        );
     }
     if scope_selected(context, HarnessScope::Project) {
         for (index, anchor) in project_anchors.iter().enumerate() {
@@ -384,22 +384,22 @@ pub(crate) fn standard_roots(
         }
     }
 
-    if scope_selected(context, HarnessScope::User) {
-        if let Some(home) = context.home {
-            push_unique(
-                &mut roots,
-                &mut seen_paths,
-                observed_root(
-                    "opencode.user.agents.skills",
-                    home.join(".agents/skills"),
-                    HarnessScope::User,
-                    RootTier::Compatibility,
-                    AGENT_GLOBAL_RANK,
-                    layouts,
-                    AGENT_COMPATIBILITY_EVIDENCE,
-                ),
-            );
-        }
+    if scope_selected(context, HarnessScope::User)
+        && let Some(home) = context.home
+    {
+        push_unique(
+            &mut roots,
+            &mut seen_paths,
+            observed_root(
+                "opencode.user.agents.skills",
+                home.join(".agents/skills"),
+                HarnessScope::User,
+                RootTier::Compatibility,
+                AGENT_GLOBAL_RANK,
+                layouts,
+                AGENT_COMPATIBILITY_EVIDENCE,
+            ),
+        );
     }
     if scope_selected(context, HarnessScope::Project) {
         for (index, anchor) in project_anchors.iter().enumerate() {
@@ -419,22 +419,22 @@ pub(crate) fn standard_roots(
         }
     }
 
-    if scope_selected(context, HarnessScope::User) {
-        if let Some(home) = context.home {
-            push_unique(
-                &mut roots,
-                &mut seen_paths,
-                observed_root(
-                    "opencode.user.native.skills",
-                    home.join(".config/opencode/skills"),
-                    HarnessScope::User,
-                    RootTier::User,
-                    USER_NATIVE_RANK,
-                    layouts,
-                    USER_NATIVE_EVIDENCE,
-                ),
-            );
-        }
+    if scope_selected(context, HarnessScope::User)
+        && let Some(home) = context.home
+    {
+        push_unique(
+            &mut roots,
+            &mut seen_paths,
+            observed_root(
+                "opencode.user.native.skills",
+                home.join(".config/opencode/skills"),
+                HarnessScope::User,
+                RootTier::User,
+                USER_NATIVE_RANK,
+                layouts,
+                USER_NATIVE_EVIDENCE,
+            ),
+        );
     }
     if scope_selected(context, HarnessScope::Project) {
         for (index, anchor) in project_anchors.iter().enumerate() {
@@ -552,23 +552,23 @@ pub(crate) fn unusual_roots(
 
 pub(crate) fn standard_receipt_anchors(context: &RootContext<'_>) -> Vec<ReceiptAnchor> {
     let mut anchors = Vec::new();
-    if scope_selected(context, HarnessScope::User) {
-        if let Some(home) = context.home {
-            anchors.push(ReceiptAnchor {
-                scope: HarnessScope::User,
-                path: home.join(".config/opencode/skills"),
-                evidence: evidence(USER_NATIVE_EVIDENCE),
-            });
-        }
+    if scope_selected(context, HarnessScope::User)
+        && let Some(home) = context.home
+    {
+        anchors.push(ReceiptAnchor {
+            scope: HarnessScope::User,
+            path: home.join(".config/opencode/skills"),
+            evidence: evidence(USER_NATIVE_EVIDENCE),
+        });
     }
-    if scope_selected(context, HarnessScope::Project) {
-        if let Some(anchor) = project_anchors_root_to_current(context).first() {
-            anchors.push(ReceiptAnchor {
-                scope: HarnessScope::Project,
-                path: anchor.join(".opencode/skills"),
-                evidence: evidence(PROJECT_NATIVE_EVIDENCE),
-            });
-        }
+    if scope_selected(context, HarnessScope::Project)
+        && let Some(anchor) = project_anchors_root_to_current(context).first()
+    {
+        anchors.push(ReceiptAnchor {
+            scope: HarnessScope::Project,
+            path: anchor.join(".opencode/skills"),
+            evidence: evidence(PROJECT_NATIVE_EVIDENCE),
+        });
     }
     anchors
 }

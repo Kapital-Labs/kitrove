@@ -66,4 +66,8 @@ ADRs document foundational decisions and their consequences. Accepted ADRs are a
 
 | [0049](0049-agent-materialization-approval.md) | Agent materialization requires exact batch approval | Proposed; implementation pending review | NS-04, NS-05, NS-07, NS-09, NS-10 |
 
+| [0053](0053-unix-transaction-lock-release.md) | Unix transaction guards explicitly release locks | Proposed; validation in progress | NS-05, NS-07, NS-09 |
+
+| [0054](0054-patched-zip-and-rust-188.md) | Patched ZIP and Rust 1.88 minimum | Proposed; validation in progress | NS-05, NS-07, NS-09 |
+
 Use [`0000-template.md`](0000-template.md) for new records.

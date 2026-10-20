@@ -146,13 +146,13 @@ impl Validate for EnvironmentManifest {
                     ),
                 ));
             }
-            if let Some(parent) = &profile.extends {
-                if !self.profiles.contains_key(parent) {
-                    return Err(ValidationError::new(
-                        "manifest.unknown_profile_parent",
-                        format!("profile {id} extends unknown profile {parent}"),
-                    ));
-                }
+            if let Some(parent) = &profile.extends
+                && !self.profiles.contains_key(parent)
+            {
+                return Err(ValidationError::new(
+                    "manifest.unknown_profile_parent",
+                    format!("profile {id} extends unknown profile {parent}"),
+                ));
             }
             for asset in &profile.assets {
                 if !self.assets.contains_key(asset) && !self.packs.contains_key(asset) {

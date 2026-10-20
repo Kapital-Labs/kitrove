@@ -39,7 +39,7 @@ exclude = [
 [workspace.package]
 version = "0.1.0-rc.4.2"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 authors = ["Brandon Kaplan"]
 repository = "https://github.com/Kapital-Labs/kitrove"
 license = "MIT OR Apache-2.0"
@@ -114,7 +114,7 @@ kitrove-installer = { path = "crates/kitrove-installer" }
 kitrove-state-lifecycle = { path = "crates/kitrove-state-lifecycle" }
 windows-sys = "=0.61.2"
 x509-cert = { version = "=0.2.5", default-features = false }
-zip = { version = "=6.0.0", default-features = false }
+zip = { version = "=9.0.5", default-features = false }
 zlib-rs = { version = "=0.6.7", default-features = false, features = ["std"] }
 
 [workspace.lints.rust]
@@ -127,7 +127,7 @@ unimplemented = "deny"
 
 [patch.crates-io]
 # Upstream 0.32.1 supplies the strict JSONC controls Kitrove requires, but uses
-# let-chain syntax newer than the workspace's Rust 1.85 floor. This audited
+# let-chain syntax newer than the former Rust 1.85 floor. This retained audited
 # source patch changes syntax only; see third_party/jsonc-parser/KITROVE_PATCH.md.
 jsonc-parser = { path = "third_party/jsonc-parser" }
 

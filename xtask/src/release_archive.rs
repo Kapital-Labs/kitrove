@@ -687,12 +687,15 @@ fn rewrite_zip_archive(
             let entry = source
                 .by_index_raw(index)
                 .map_err(|error| format!("cannot read raw ZIP entry: {error}"))?;
-            if let Some(bytes) = replacements.get(entry.name()) {
+            let name = entry
+                .name()
+                .map_err(|error| format!("cannot decode ZIP entry name: {error}"))?;
+            if let Some(bytes) = replacements.get(name.as_ref()) {
                 let options = SimpleFileOptions::default()
                     .compression_method(CompressionMethod::Stored)
                     .unix_permissions(entry.unix_mode().unwrap_or(0o644));
                 archive
-                    .start_file(entry.name(), options)
+                    .start_file(name.as_ref(), options)
                     .map_err(|error| format!("cannot start ZIP manifest: {error}"))?;
                 archive
                     .write_all(bytes)

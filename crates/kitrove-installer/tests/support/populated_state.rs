@@ -182,7 +182,7 @@ fn real_aba_preserves_populated_state_and_sync_controls() {
             args.extend(release(&evidence, false, candidate_b));
             if let Some(b) = prior_b {
                 let prior = release(&evidence, true, b);
-                for pair in prior.chunks_exact(2) {
+                for pair in prior.as_chunks::<2>().0 {
                     if action.starts_with("retire-")
                         && matches!(pair[0].as_str(), "--prior-archive" | "--prior-bundle")
                     {

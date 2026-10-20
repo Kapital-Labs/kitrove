@@ -225,55 +225,55 @@ struct ProjectSelection {
 
 pub(crate) fn standard_roots(context: &RootContext<'_>) -> AdapterResult<Vec<ObservedRoot>> {
     let mut roots = Vec::new();
-    if scope_selected(context, HarnessScope::User) {
-        if let Some(home) = context.home {
-            roots.push(observed_root(
-                "pi.user.native.skills",
-                home.join(".pi/agent/skills"),
-                HarnessScope::User,
-                RootTier::User,
-                USER_NATIVE_RANK,
-                &BOTH_LAYOUTS,
-                evidence(USER_NATIVE_EVIDENCE),
-            ));
-            roots.push(observed_root(
-                "pi.user.compatibility.skills",
-                home.join(".agents/skills"),
-                HarnessScope::User,
-                RootTier::Compatibility,
-                USER_COMPATIBILITY_RANK,
-                &BOTH_LAYOUTS,
-                evidence(USER_COMPATIBILITY_EVIDENCE),
-            ));
-        }
+    if scope_selected(context, HarnessScope::User)
+        && let Some(home) = context.home
+    {
+        roots.push(observed_root(
+            "pi.user.native.skills",
+            home.join(".pi/agent/skills"),
+            HarnessScope::User,
+            RootTier::User,
+            USER_NATIVE_RANK,
+            &BOTH_LAYOUTS,
+            evidence(USER_NATIVE_EVIDENCE),
+        ));
+        roots.push(observed_root(
+            "pi.user.compatibility.skills",
+            home.join(".agents/skills"),
+            HarnessScope::User,
+            RootTier::Compatibility,
+            USER_COMPATIBILITY_RANK,
+            &BOTH_LAYOUTS,
+            evidence(USER_COMPATIBILITY_EVIDENCE),
+        ));
     }
 
-    if scope_selected(context, HarnessScope::Project) {
-        if let Some(selection) = project_selection(context) {
-            let state = trust_tag(selection.trust_state);
+    if scope_selected(context, HarnessScope::Project)
+        && let Some(selection) = project_selection(context)
+    {
+        let state = trust_tag(selection.trust_state);
+        roots.push(observed_root(
+            &format!("pi.project.native.skills.{state}"),
+            selection.anchor.join(".pi/skills"),
+            HarnessScope::Project,
+            RootTier::Project,
+            PROJECT_NATIVE_RANK,
+            &BOTH_LAYOUTS,
+            selection.trust_evidence.clone(),
+        ));
+        for (index, anchor) in ancestor_anchors(context, &selection.anchor)
+            .into_iter()
+            .enumerate()
+        {
             roots.push(observed_root(
-                &format!("pi.project.native.skills.{state}"),
-                selection.anchor.join(".pi/skills"),
+                &format!("pi.project.compatibility.skills.{index:04}.{state}"),
+                anchor.join(".agents/skills"),
                 HarnessScope::Project,
-                RootTier::Project,
-                PROJECT_NATIVE_RANK,
+                RootTier::Compatibility,
+                PROJECT_COMPATIBILITY_RANK,
                 &BOTH_LAYOUTS,
                 selection.trust_evidence.clone(),
             ));
-            for (index, anchor) in ancestor_anchors(context, &selection.anchor)
-                .into_iter()
-                .enumerate()
-            {
-                roots.push(observed_root(
-                    &format!("pi.project.compatibility.skills.{index:04}.{state}"),
-                    anchor.join(".agents/skills"),
-                    HarnessScope::Project,
-                    RootTier::Compatibility,
-                    PROJECT_COMPATIBILITY_RANK,
-                    &BOTH_LAYOUTS,
-                    selection.trust_evidence.clone(),
-                ));
-            }
         }
     }
 
@@ -287,69 +287,68 @@ pub(crate) fn standard_roots(context: &RootContext<'_>) -> AdapterResult<Vec<Obs
 
 pub(crate) fn extension_roots(context: &RootContext<'_>) -> Vec<kitrove_adapter_api::RelatedRoot> {
     let mut roots = Vec::new();
-    if scope_selected(context, HarnessScope::User) {
-        if let Some(home) = context.home {
-            roots.push(kitrove_adapter_api::RelatedRoot {
-                logical_id: RootId::parse("pi.user.native.extensions").unwrap(),
-                path: home.join(".pi/agent/extensions"),
-                scope: HarnessScope::User,
-                tier: RootTier::User,
-                policy_rank: USER_EXTENSION_RANK,
-                kind: kitrove_model::AssetKind::Extension,
-                pattern: kitrove_adapter_api::RelatedDocumentPattern::NativeExtensionAtRoot,
-                evidence: evidence(USER_EXTENSION_EVIDENCE),
-            });
-        }
+    if scope_selected(context, HarnessScope::User)
+        && let Some(home) = context.home
+    {
+        roots.push(kitrove_adapter_api::RelatedRoot {
+            logical_id: RootId::parse("pi.user.native.extensions").unwrap(),
+            path: home.join(".pi/agent/extensions"),
+            scope: HarnessScope::User,
+            tier: RootTier::User,
+            policy_rank: USER_EXTENSION_RANK,
+            kind: kitrove_model::AssetKind::Extension,
+            pattern: kitrove_adapter_api::RelatedDocumentPattern::NativeExtensionAtRoot,
+            evidence: evidence(USER_EXTENSION_EVIDENCE),
+        });
     }
-    if scope_selected(context, HarnessScope::Project) {
-        if let Some(selection) = project_selection(context) {
-            roots.push(kitrove_adapter_api::RelatedRoot {
-                // Project trust stays in local evidence and never enters portable provenance.
-                logical_id: RootId::parse("pi.project.native.extensions").unwrap(),
-                path: selection.anchor.join(".pi/extensions"),
-                scope: HarnessScope::Project,
-                tier: RootTier::Project,
-                policy_rank: PROJECT_EXTENSION_RANK,
-                kind: kitrove_model::AssetKind::Extension,
-                pattern: kitrove_adapter_api::RelatedDocumentPattern::NativeExtensionAtRoot,
-                evidence: selection.trust_evidence,
-            });
-        }
+    if scope_selected(context, HarnessScope::Project)
+        && let Some(selection) = project_selection(context)
+    {
+        roots.push(kitrove_adapter_api::RelatedRoot {
+            // Project trust stays in local evidence and never enters portable provenance.
+            logical_id: RootId::parse("pi.project.native.extensions").unwrap(),
+            path: selection.anchor.join(".pi/extensions"),
+            scope: HarnessScope::Project,
+            tier: RootTier::Project,
+            policy_rank: PROJECT_EXTENSION_RANK,
+            kind: kitrove_model::AssetKind::Extension,
+            pattern: kitrove_adapter_api::RelatedDocumentPattern::NativeExtensionAtRoot,
+            evidence: selection.trust_evidence,
+        });
     }
     roots
 }
 
 pub(crate) fn command_roots(context: &RootContext<'_>) -> Vec<RelatedRoot> {
     let mut roots = Vec::new();
-    if scope_selected(context, HarnessScope::User) {
-        if let Some(home) = context.home {
-            roots.push(RelatedRoot {
-                logical_id: RootId::parse("pi.user.native.commands").unwrap(),
-                path: home.join(".pi/agent/prompts"),
-                scope: HarnessScope::User,
-                tier: RootTier::User,
-                policy_rank: USER_COMMAND_RANK,
-                kind: AssetKind::Command,
-                pattern: RelatedDocumentPattern::MarkdownDirectChildren,
-                evidence: evidence(COMMAND_EVIDENCE),
-            });
-        }
+    if scope_selected(context, HarnessScope::User)
+        && let Some(home) = context.home
+    {
+        roots.push(RelatedRoot {
+            logical_id: RootId::parse("pi.user.native.commands").unwrap(),
+            path: home.join(".pi/agent/prompts"),
+            scope: HarnessScope::User,
+            tier: RootTier::User,
+            policy_rank: USER_COMMAND_RANK,
+            kind: AssetKind::Command,
+            pattern: RelatedDocumentPattern::MarkdownDirectChildren,
+            evidence: evidence(COMMAND_EVIDENCE),
+        });
     }
-    if scope_selected(context, HarnessScope::Project) {
-        if let Some(selection) = project_selection(context) {
-            if selection.trust_state == ProjectTrustState::Trusted {
-                roots.push(RelatedRoot {
-                    logical_id: RootId::parse("pi.project.native.commands").unwrap(),
-                    path: selection.anchor.join(".pi/prompts"),
-                    scope: HarnessScope::Project,
-                    tier: RootTier::Project,
-                    policy_rank: PROJECT_COMMAND_RANK,
-                    kind: AssetKind::Command,
-                    pattern: RelatedDocumentPattern::MarkdownDirectChildren,
-                    evidence: selection.trust_evidence,
-                });
-            }
-        }
+    if scope_selected(context, HarnessScope::Project)
+        && let Some(selection) = project_selection(context)
+        && selection.trust_state == ProjectTrustState::Trusted
+    {
+        roots.push(RelatedRoot {
+            logical_id: RootId::parse("pi.project.native.commands").unwrap(),
+            path: selection.anchor.join(".pi/prompts"),
+            scope: HarnessScope::Project,
+            tier: RootTier::Project,
+            policy_rank: PROJECT_COMMAND_RANK,
+            kind: AssetKind::Command,
+            pattern: RelatedDocumentPattern::MarkdownDirectChildren,
+            evidence: selection.trust_evidence,
+        });
     }
     roots
 }
@@ -386,23 +385,23 @@ pub(crate) fn unusual_roots(
 
 pub(crate) fn standard_receipt_anchors(context: &RootContext<'_>) -> Vec<ReceiptAnchor> {
     let mut anchors = Vec::new();
-    if scope_selected(context, HarnessScope::User) {
-        if let Some(home) = context.home {
-            anchors.push(ReceiptAnchor {
-                scope: HarnessScope::User,
-                path: home.join(".pi/agent/skills"),
-                evidence: evidence(USER_NATIVE_EVIDENCE),
-            });
-        }
+    if scope_selected(context, HarnessScope::User)
+        && let Some(home) = context.home
+    {
+        anchors.push(ReceiptAnchor {
+            scope: HarnessScope::User,
+            path: home.join(".pi/agent/skills"),
+            evidence: evidence(USER_NATIVE_EVIDENCE),
+        });
     }
-    if scope_selected(context, HarnessScope::Project) {
-        if let Some(selection) = project_selection(context) {
-            anchors.push(ReceiptAnchor {
-                scope: HarnessScope::Project,
-                path: selection.anchor.join(".pi/skills"),
-                evidence: evidence(PROJECT_NATIVE_EVIDENCE),
-            });
-        }
+    if scope_selected(context, HarnessScope::Project)
+        && let Some(selection) = project_selection(context)
+    {
+        anchors.push(ReceiptAnchor {
+            scope: HarnessScope::Project,
+            path: selection.anchor.join(".pi/skills"),
+            evidence: evidence(PROJECT_NATIVE_EVIDENCE),
+        });
     }
     anchors
 }
@@ -785,12 +784,14 @@ fn encode_hex(bytes: &[u8]) -> String {
 }
 
 fn decode_hex(value: &str) -> Option<Vec<u8>> {
-    if value.len() % 2 != 0 {
+    if !value.len().is_multiple_of(2) {
         return None;
     }
     value
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| {
             let high = hex_nibble(pair[0])?;
             let low = hex_nibble(pair[1])?;

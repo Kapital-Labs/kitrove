@@ -368,14 +368,14 @@ fn scan_mcp_documents(
                         record.receipt.logical_key.as_deref() == Some(observed.native_name())
                     });
                     let mut entry_findings = invalid_findings.clone();
-                    if let Some(record) = receipt {
-                        if !mcp_receipt_matches_manifest(authority, &record.receipt, &policy) {
-                            entry_findings.push(instruction_receipt_finding(
-                                "mcp.receipt_manifest_stale",
-                                &record.receipt_id,
-                                "reapply the MCP asset before trusting this receipt",
-                            ));
-                        }
+                    if let Some(record) = receipt
+                        && !mcp_receipt_matches_manifest(authority, &record.receipt, &policy)
+                    {
+                        entry_findings.push(instruction_receipt_finding(
+                            "mcp.receipt_manifest_stale",
+                            &record.receipt_id,
+                            "reapply the MCP asset before trusting this receipt",
+                        ));
                     }
                     if !block_reasons.is_empty() {
                         entry_findings.push(ScanFinding::new(
@@ -745,14 +745,14 @@ fn instruction_entries(
             .iter()
             .find(|record| record.receipt.asset_id == asset_id);
         let mut findings = invalid_findings.clone();
-        if let Some(record) = receipt {
-            if !instruction_receipt_matches_manifest(authority, &record.receipt) {
-                findings.push(instruction_receipt_finding(
-                    "instruction.receipt_manifest_stale",
-                    &record.receipt_id,
-                    "reapply the instruction asset before trusting this receipt",
-                ));
-            }
+        if let Some(record) = receipt
+            && !instruction_receipt_matches_manifest(authority, &record.receipt)
+        {
+            findings.push(instruction_receipt_finding(
+                "instruction.receipt_manifest_stale",
+                &record.receipt_id,
+                "reapply the instruction asset before trusting this receipt",
+            ));
         }
         let classified = classify_instruction_region(
             observation,

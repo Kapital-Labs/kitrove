@@ -178,7 +178,7 @@ fn replacement_process_cuts(rollback: bool, populated: bool, repeated: bool) {
         ] {
             let mut args = vec![action.clone()];
             args.extend(release(&evidence, false, !rollback));
-            for pair in release(&evidence, true, rollback).chunks_exact(2) {
+            for pair in release(&evidence, true, rollback).as_chunks::<2>().0 {
                 if !matches!(pair[0].as_str(), "--prior-archive" | "--prior-bundle") {
                     args.extend_from_slice(pair);
                 }

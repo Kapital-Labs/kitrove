@@ -107,7 +107,7 @@ class RequiredCiTests(unittest.TestCase):
         self.assertIn("timeout-minutes: ${{ matrix.os == 'windows-latest' && 45 || 30 }}", job)
         self.assertIn('run: cargo ci', job)
         self.assertIn('test-windows-installer-standard-user.ps1', job)
-        self.assertIn('cargo +1.85.0 check --locked --all-targets -p kitrove-cli', job)
+        self.assertIn('cargo +1.88.0 check --locked --all-targets -p kitrove-cli', job)
 
 
 if __name__ == '__main__':

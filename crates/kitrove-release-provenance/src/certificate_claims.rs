@@ -139,10 +139,10 @@ pub(super) fn validate(
         (LEGACY_REPOSITORY_OID, policy.repository_slug),
         (LEGACY_SOURCE_REF_OID, policy.source_ref),
     ] {
-        if let Some(observed) = optional_raw_extension(&certificate, oid)? {
-            if observed != expected {
-                return Err(ReleaseAttestationError::InvalidCertificateClaims);
-            }
+        if let Some(observed) = optional_raw_extension(&certificate, oid)?
+            && observed != expected
+        {
+            return Err(ReleaseAttestationError::InvalidCertificateClaims);
         }
     }
     let run_invocation = extension_utf8(&certificate, RUN_INVOCATION_URI_OID)?;

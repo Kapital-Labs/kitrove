@@ -25,7 +25,7 @@ destination, so you can see what would be lost.
 
 ## Try it from source
 
-You need Rust 1.85 or newer. Build from a source revision you have reviewed:
+You need Rust 1.88 or newer. Build from a source revision you have reviewed:
 
 ```sh
 cargo build --locked --release -p kitrove-cli

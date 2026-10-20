@@ -553,12 +553,17 @@ pub(crate) fn destination_path_component_count(
 }
 
 fn decode_path_hex(value: &str) -> Result<Vec<u8>, InvalidInstallerOperationRecord> {
-    if value.is_empty() || value.len() > MAX_DESTINATION_PATH_HEX_BYTES || value.len() % 2 != 0 {
+    if value.is_empty()
+        || value.len() > MAX_DESTINATION_PATH_HEX_BYTES
+        || !value.len().is_multiple_of(2)
+    {
         return Err(InvalidInstallerOperationRecord::INVALID);
     }
     value
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| {
             let high = hex_nibble(pair[0])?;
             let low = hex_nibble(pair[1])?;
@@ -589,11 +594,13 @@ fn unix_path_component_count(bytes: &[u8]) -> Result<usize, InvalidInstallerOper
 }
 
 fn windows_path_component_count(bytes: &[u8]) -> Result<usize, InvalidInstallerOperationRecord> {
-    if bytes.len() % 2 != 0 {
+    if !bytes.len().is_multiple_of(2) {
         return Err(InvalidInstallerOperationRecord::INVALID);
     }
     let units = bytes
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
         .collect::<Vec<_>>();
     if units.len() < 4

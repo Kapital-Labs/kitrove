@@ -85,10 +85,10 @@ jobs:
         run: rustup toolchain install stable --profile minimal --component clippy,rustfmt
       - name: Run canonical repository validation
         run: cargo xtask ci
-      - name: Install Rust 1.85.0
-        run: rustup toolchain install 1.85.0 --profile minimal
+      - name: Install Rust 1.88.0
+        run: rustup toolchain install 1.88.0 --profile minimal
       - name: Check every workspace target on the MSRV
-        run: cargo +1.85.0 check --locked --workspace --all-targets
+        run: cargo +1.88.0 check --locked --workspace --all-targets
 
   # Run 'dist plan' (or host) to determine what tasks we need to do
   plan:

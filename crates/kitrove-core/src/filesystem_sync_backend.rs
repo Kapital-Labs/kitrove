@@ -455,14 +455,13 @@ fn inspect_history_chain(
         if head_revision(&text)? != revision || head_path(&head, &text)? != path {
             return Err(invalid_remote());
         }
-        if let Some(child) = &child {
-            if child.prior_head_path.as_ref() != Some(&path)
+        if let Some(child) = &child
+            && (child.prior_head_path.as_ref() != Some(&path)
                 || child.prior_generation != Some(head.generation)
                 || child.prior_revision != revision
-                || child.generation != head.generation.checked_add(1).ok_or_else(invalid_remote)?
-            {
-                return Err(invalid_remote());
-            }
+                || child.generation != head.generation.checked_add(1).ok_or_else(invalid_remote)?)
+        {
+            return Err(invalid_remote());
         }
         entries.push(HistoryEntry {
             revision: revision.clone(),
