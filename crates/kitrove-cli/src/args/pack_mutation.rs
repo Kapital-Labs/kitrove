@@ -11,6 +11,7 @@ enum PackMemberOperation {
 }
 
 struct ParsedPackMutation {
+    authored: bool,
     pack_id: AssetId,
     expected_prior: Option<ContentHash>,
     members: BTreeSet<AssetId>,
@@ -24,6 +25,7 @@ pub(super) fn parse_pack_create(
 ) -> Result<PackCreateArgs, CliError> {
     let parsed = parse_pack_member_mutation(arguments, PackMemberOperation::Create)?;
     Ok(PackCreateArgs {
+        authored: parsed.authored,
         pack_id: parsed.pack_id,
         members: parsed.members,
         environment: parsed.environment,
@@ -57,6 +59,7 @@ fn parse_pack_member_mutation(
     operation: PackMemberOperation,
 ) -> Result<ParsedPackMutation, CliError> {
     let mut pack_id = None;
+    let mut authored = false;
     let mut expected_prior = None;
     let mut members = BTreeSet::new();
     let mut environment = None;
@@ -64,6 +67,9 @@ fn parse_pack_member_mutation(
     let mut approval = ApprovalMode::Interactive;
     while let Some(argument) = next_utf8(&mut arguments)? {
         match argument.as_str() {
+            "--authored" if matches!(operation, PackMemberOperation::Create) && !authored => {
+                authored = true;
+            }
             "--plan" | "--confirm" => {
                 parse_approval_flag(&argument, &mut approval, &mut arguments)?
             }
@@ -133,6 +139,7 @@ fn parse_pack_member_mutation(
         ));
     }
     Ok(ParsedPackMutation {
+        authored,
         pack_id,
         expected_prior,
         members,

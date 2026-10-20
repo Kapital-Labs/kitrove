@@ -54,6 +54,14 @@ Preview grouping existing members without changing the collection:
 kitrove pack create --pack suite --member tooling --plan --json
 ```
 
+For tools captured from native harnesses or multiple origins, explicitly use
+`pack create --authored --pack suite --member tooling --plan --json`, and repeat
+`--authored` with the exact approval digest. This creates an authored aggregate,
+not a claim that its members share an upstream distribution. Each member retains
+its original provenance. Update preserves the pack's mode automatically and still
+requires its exact prior revision. Both machines must support authored packs;
+older clients reject the new source kind. Cloud backends remain roadmap work.
+
 After reviewing and approving the full plan, repeat the selection with
 `--confirm <digest>` instead of `--plan`. Use the returned `digest`, not a pack
 revision. `pack update` supports the same flags and still requires

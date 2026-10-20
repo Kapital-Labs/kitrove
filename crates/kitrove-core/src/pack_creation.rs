@@ -197,6 +197,24 @@ pub fn plan_pack_creation(
     pack_id: AssetId,
     members: BTreeSet<AssetId>,
 ) -> Result<PackCreationPlan, PackCreationError> {
+    plan_pack_creation_inner(manifest, pack_id, members, false)
+}
+
+/// Plans an explicitly authored aggregate without changing any member provenance.
+pub fn plan_authored_pack_creation(
+    manifest: &EnvironmentManifest,
+    pack_id: AssetId,
+    members: BTreeSet<AssetId>,
+) -> Result<PackCreationPlan, PackCreationError> {
+    plan_pack_creation_inner(manifest, pack_id, members, true)
+}
+
+fn plan_pack_creation_inner(
+    manifest: &EnvironmentManifest,
+    pack_id: AssetId,
+    members: BTreeSet<AssetId>,
+    authored: bool,
+) -> Result<PackCreationPlan, PackCreationError> {
     manifest
         .validate()
         .map_err(|_| manifest_invalid(PackMutationKind::Create))?;
@@ -219,7 +237,11 @@ pub fn plan_pack_creation(
         ));
     }
 
-    let evidence = shared_source_evidence(PackMutationKind::Create, manifest, &members)?;
+    let evidence = if authored {
+        authored_evidence(&pack_id)
+    } else {
+        shared_source_evidence(PackMutationKind::Create, manifest, &members)?
+    };
     build_pack_mutation_plan(
         PackMutationKind::Create,
         manifest,
@@ -265,7 +287,11 @@ pub fn plan_pack_update(
         ));
     }
 
-    let evidence = shared_source_evidence(PackMutationKind::Update, manifest, &members)?;
+    let evidence = if current_pack.source == Source::AuthoredPack {
+        authored_evidence(&pack_id)
+    } else {
+        shared_source_evidence(PackMutationKind::Update, manifest, &members)?
+    };
     build_pack_mutation_plan(
         PackMutationKind::Update,
         manifest,
@@ -274,6 +300,15 @@ pub fn plan_pack_update(
         members,
         Some(current_pack),
     )
+}
+
+fn authored_evidence(id: &AssetId) -> SourceEvidence {
+    let (revision, exact_source_hash) = Pack::authored_source_resolution(id);
+    SourceEvidence {
+        source: Source::AuthoredPack,
+        revision,
+        exact_source_hash,
+    }
 }
 
 fn build_pack_mutation_plan(
@@ -416,7 +451,7 @@ fn member_source_evidence(
             .collect()
     } else if let Some(pack) = manifest.packs.get(member) {
         match &pack.source {
-            Source::Harness { .. } => BTreeMap::new(),
+            Source::Harness { .. } | Source::AuthoredPack => BTreeMap::new(),
             source => {
                 let evidence = SourceEvidence {
                     source: source.clone(),
@@ -447,7 +482,7 @@ impl SourceEvidence {
 
 fn provenance_evidence(provenance: &ComponentProvenance) -> Option<SourceEvidence> {
     match provenance.source() {
-        Source::Harness { .. } => None,
+        Source::Harness { .. } | Source::AuthoredPack => None,
         source => Some(SourceEvidence {
             source: source.clone(),
             revision: provenance.revision().clone(),
@@ -561,6 +596,10 @@ const fn plan_invalid(operation: PackMutationKind) -> PackCreationError {
         ),
     }
 }
+
+#[cfg(test)]
+#[path = "pack_creation/authored_tests.rs"]
+mod authored_tests;
 
 #[cfg(test)]
 pub(crate) mod tests {

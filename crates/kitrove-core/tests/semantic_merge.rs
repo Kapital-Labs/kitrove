@@ -508,6 +508,78 @@ fn divergent_concurrent_pack_creation_has_no_merged_authority() {
 }
 
 #[test]
+fn authored_pack_independent_membership_merges_with_original_provenance() {
+    let portable = portable("authored");
+    let native = native("authored", false);
+    let provenance = provenance("authored", &portable.tree().hash);
+    let review = asset((&portable, &provenance), (&native, &provenance));
+    let mut original = manifest(review.clone());
+    for name in ["local-member", "remote-member"] {
+        let asset = rename_asset(review.clone(), name);
+        original.assets.insert(asset.id.clone(), asset);
+    }
+    // The shared synthetic asset helper uses placeholder risk metadata. Establish
+    // the same verified derived metadata used by sync before testing preservation.
+    let catalog = VerifiedSkillObjectCatalog::new([portable], [native]).unwrap();
+    let original = merge_manifests(
+        &original,
+        &original,
+        &original,
+        &catalog,
+        &capabilities(),
+        SyncLimits::default(),
+    )
+    .unwrap()
+    .merged_manifest()
+    .unwrap()
+    .clone();
+    let id = AssetId::parse("authored-suite").unwrap();
+    let base = kitrove_core::plan_authored_pack_creation(
+        &original,
+        id.clone(),
+        BTreeSet::from([AssetId::parse("review").unwrap()]),
+    )
+    .unwrap();
+    let update = |name: &str| {
+        kitrove_core::plan_pack_update(
+            base.proposed_manifest(),
+            id.clone(),
+            base.pack().content_hash.clone(),
+            BTreeSet::from([
+                AssetId::parse("review").unwrap(),
+                AssetId::parse(name).unwrap(),
+            ]),
+        )
+        .unwrap()
+    };
+    let local = update("local-member");
+    let remote = update("remote-member");
+    let result = merge_manifests(
+        base.proposed_manifest(),
+        local.proposed_manifest(),
+        remote.proposed_manifest(),
+        &catalog,
+        &capabilities(),
+        SyncLimits::default(),
+    )
+    .unwrap();
+    let merged = result
+        .merged_manifest()
+        .expect("independent authored additions");
+    assert_eq!(merged.packs[&id].members.len(), 3);
+    assert_eq!(merged.packs[&id].source, Source::AuthoredPack);
+    for (id, asset) in &original.assets {
+        assert_eq!(merged.assets[id].provenance, asset.provenance);
+        assert_eq!(merged.assets[id].portable, asset.portable);
+        assert_eq!(merged.assets[id].native_variants, asset.native_variants);
+    }
+    assert_eq!(
+        result.merged_lock().unwrap(),
+        &derive_lockfile(merged).unwrap()
+    );
+}
+
+#[test]
 fn pack_member_deletion_and_divergent_source_are_nonmutating_conflicts() {
     let portable = portable("shared");
     let native = native("shared", false);

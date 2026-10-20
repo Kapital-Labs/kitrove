@@ -93,6 +93,15 @@ impl Validate for EnvironmentManifest {
 
         validate_pack_member_budget(&self.packs, "manifest.pack_member_limit_exceeded")?;
         for (id, pack) in &self.packs {
+            if pack.source == crate::Source::AuthoredPack
+                && (pack.revision.clone(), pack.exact_source_hash.clone())
+                    != crate::Pack::authored_source_resolution(&pack.id)
+            {
+                return Err(ValidationError::new(
+                    "manifest.authored_pack_resolution_invalid",
+                    "authored pack resolution does not match its declaration",
+                ));
+            }
             if id != &pack.id {
                 return Err(ValidationError::new(
                     "manifest.pack_key_mismatch",
@@ -293,6 +302,17 @@ impl Validate for Lockfile {
         }
         validate_locked_pack_member_budget(self)?;
         for (id, pack) in &self.packs {
+            if pack.resolved_source.source == crate::Source::AuthoredPack
+                && (
+                    pack.resolved_source.revision.clone(),
+                    pack.resolved_source.content_hash.clone(),
+                ) != crate::Pack::authored_source_resolution(&pack.id)
+            {
+                return Err(ValidationError::new(
+                    "lockfile.authored_pack_resolution_invalid",
+                    "locked authored pack resolution does not match its declaration",
+                ));
+            }
             if id != &pack.id {
                 return Err(ValidationError::new(
                     "lockfile.pack_key_mismatch",

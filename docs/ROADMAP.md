@@ -210,6 +210,26 @@ See [agent workflow](AGENT-WORKFLOW.md) for the current interface and limitation
 An MCP server remains optional and demand-driven after the CLI contracts are
 proven; any future wrapper must reuse those same authority boundaries.
 
+## Optional user-owned cloud sync
+
+Deliver after locally authored packs and real two-machine agent acceptance. This
+is optional storage transport, not a hosted Kitrove service or a source registry.
+
+- [ ] S3-compatible bucket backend, beginning with AWS S3; qualify other compatible
+  providers individually rather than claiming universal compatibility.
+- [ ] Native Google Cloud Storage and Azure Blob Storage backends.
+- [ ] Consider Dropbox/Google Drive convenience integrations only after demand and
+  separately reviewed conflict and consistency semantics justify them.
+- [ ] Shared backend contract: immutable verified objects, conditional head updates,
+  bounded history, explicit conflicts, recovery and corruption/concurrency tests.
+- [ ] Operation-local least-privilege authentication; never credentials in packs,
+  portable manifests, evidence or transferred machine state. No implicit execution,
+  trust, automatic approval, or replacement of tool provenance with bucket location.
+
+Cloud implementation, provider accounts and paid infrastructure are not part of the
+current increment. Locally authored packs are defined in
+[ADR-0056](adr/0056-locally-authored-packs.md); their acceptance is still pending.
+
 ## Engineering sustainability gate
 
 Large-module splitting and shared filesystem-traversal utilities are required engineering work rather
@@ -220,6 +240,6 @@ before additional feature work enlarges an affected area.
 
 ## Explicitly unplanned until after v1
 
-Hosted cloud, desktop GUI, enterprise policy server, marketplace monetization, general package
+A Kitrove-operated hosted cloud service, desktop GUI, enterprise policy server, marketplace monetization, general package
 management, and credential storage. Using an operating-system or Git credential provider is in scope;
 persisting credential values in Kitrove is not.

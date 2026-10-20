@@ -760,6 +760,7 @@ const fn content_class(class: ContentClass) -> &'static str {
 
 fn source_text(source: &Source) -> String {
     match source {
+        Source::AuthoredPack => "authored_pack".to_owned(),
         Source::Harness { harness, origin } => format!("harness:{harness}:{origin}"),
         Source::Local { path } => format!("local:{path}"),
         Source::Git {
@@ -869,6 +870,7 @@ mod tests {
 
         let result = run_pack_create(
             PackCreateArgs {
+                authored: false,
                 pack_id: AssetId::parse("suite").unwrap(),
                 members: [AssetId::parse("tooling").unwrap()].into_iter().collect(),
                 environment: Some(environment.clone()),

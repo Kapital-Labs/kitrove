@@ -13,7 +13,12 @@ pub(crate) fn run_pack_create(
 ) -> Result<CompletedCommand, CliError> {
     let root = resolve_required_environment_root(arguments.environment.as_deref())?;
     let manifest = load_manifest(&root)?;
-    let plan = plan_pack_creation(&manifest, arguments.pack_id, arguments.members)
+    let planner = if arguments.authored {
+        kitrove_core::plan_authored_pack_creation
+    } else {
+        plan_pack_creation
+    };
+    let plan = planner(&manifest, arguments.pack_id, arguments.members)
         .map_err(|error| CliError::new(error.code(), error.message()))?;
     finish(
         plan,
