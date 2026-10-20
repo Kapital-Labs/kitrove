@@ -285,17 +285,17 @@ jobs:
         run: cargo ci
 
   pull-request-msrv:
-    name: Check (Rust 1.85.0)
+    name: Check (Rust 1.88.0)
     needs: changes
     if: github.event_name == 'pull_request' && needs.changes.outputs.source == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install Rust 1.85.0
-        run: rustup toolchain install 1.85.0 --profile minimal
+      - name: Install Rust 1.88.0
+        run: rustup toolchain install 1.88.0 --profile minimal
       - name: Check all targets on the MSRV
-        run: cargo +1.85.0 check --locked --workspace --all-targets
+        run: cargo +1.88.0 check --locked --workspace --all-targets
 
   pull-request-os:
     name: Check (${{ matrix.os }})
@@ -324,12 +324,12 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./.github/scripts/test-windows-installer-standard-user.ps1
-      - name: Install Rust 1.85.0 for the Windows dependency boundary
+      - name: Install Rust 1.88.0 for the Windows dependency boundary
         if: runner.os == 'Windows'
-        run: rustup toolchain install 1.85.0 --profile minimal
-      - name: Check the complete Windows CLI boundary on Rust 1.85.0
+        run: rustup toolchain install 1.88.0 --profile minimal
+      - name: Check the complete Windows CLI boundary on Rust 1.88.0
         if: runner.os == 'Windows'
-        run: cargo +1.85.0 check --locked --all-targets -p kitrove-cli
+        run: cargo +1.88.0 check --locked --all-targets -p kitrove-cli
 
   ci:
     name: CI (${{ matrix.os }})
@@ -351,12 +351,12 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./.github/scripts/test-windows-installer-standard-user.ps1
-      - name: Install Rust 1.85.0 for the Windows dependency boundary
+      - name: Install Rust 1.88.0 for the Windows dependency boundary
         if: runner.os == 'Windows' && needs.changes.outputs.os-sensitive == 'true'
-        run: rustup toolchain install 1.85.0 --profile minimal
-      - name: Check the complete Windows CLI boundary on Rust 1.85.0
+        run: rustup toolchain install 1.88.0 --profile minimal
+      - name: Check the complete Windows CLI boundary on Rust 1.88.0
         if: runner.os == 'Windows' && needs.changes.outputs.os-sensitive == 'true'
-        run: cargo +1.85.0 check --locked --all-targets -p kitrove-cli
+        run: cargo +1.88.0 check --locked --all-targets -p kitrove-cli
       - name: Read the public Git smart-HTTPS fixture through production TLS
         if: runner.os == 'Linux'
         run: >-
@@ -527,31 +527,31 @@ jobs:
           cargo test --locked -p kitrove-cli
           --test windows_version_probe_cli
           --features windows-test-fixture
-      - name: Install Rust 1.85.0
-        run: rustup toolchain install 1.85.0 --profile minimal
+      - name: Install Rust 1.88.0
+        run: rustup toolchain install 1.88.0 --profile minimal
       - name: Compile the focused Windows boundary on the MSRV
         run: >-
-          cargo +1.85.0 check --locked --all-targets
+          cargo +1.88.0 check --locked --all-targets
           -p kitrove-windows-security
           -p kitrove-windows-process --features test-support
           -p kitrove-version-probe --features windows-test-fixture
       - name: Compile the complete CLI boundary on the MSRV
         run: >-
-          cargo +1.85.0 check --locked --all-targets
+          cargo +1.88.0 check --locked --all-targets
           -p kitrove-cli --features windows-test-fixture
 
   msrv:
-    name: CI (Rust 1.85.0)
+    name: CI (Rust 1.88.0)
     needs: changes
     if: github.event_name != 'pull_request' && needs.changes.outputs.source == 'true' && needs.changes.outputs.run-msrv == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install Rust 1.85.0 components
-        run: rustup toolchain install 1.85.0 --profile minimal --component clippy,rustfmt
+      - name: Install Rust 1.88.0 components
+        run: rustup toolchain install 1.88.0 --profile minimal --component clippy,rustfmt
       - name: Run canonical repository validation on the MSRV
-        run: cargo +1.85.0 ci
+        run: cargo +1.88.0 ci
 
   advisory-audit:
     name: Dependency advisory audit

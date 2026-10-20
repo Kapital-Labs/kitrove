@@ -220,10 +220,10 @@ fn parse(arguments: impl IntoIterator<Item = OsString>) -> Result<Parsed, String
     if matches!(action, Action::Status | Action::Sync) != operation.is_some() {
         return Err("--operation is required only for history commands".into());
     }
-    if let Some(operation) = &operation {
-        if !crate::record::is_operation_id(operation) {
-            return Err("operation ID must contain 32 lowercase hexadecimal digits".into());
-        }
+    if let Some(operation) = &operation
+        && !crate::record::is_operation_id(operation)
+    {
+        return Err("operation ID must contain 32 lowercase hexadecimal digits".into());
     }
     if !values.is_empty() {
         return Err("option is not applicable to this installer command".into());

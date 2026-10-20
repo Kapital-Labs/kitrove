@@ -95,10 +95,10 @@ pub(crate) fn plan_digest(
 
 pub(crate) fn same_adopted_authority(prior: &Asset, candidate: &Asset) -> bool {
     let mut normalized = candidate.clone();
-    if let (Some(prior), Some(candidate)) = (&prior.portable, &mut normalized.portable) {
-        if prior.object_hash == candidate.object_hash {
-            candidate.root = prior.root.clone();
-        }
+    if let (Some(prior), Some(candidate)) = (&prior.portable, &mut normalized.portable)
+        && prior.object_hash == candidate.object_hash
+    {
+        candidate.root = prior.root.clone();
     }
     for (harness, candidate) in &mut normalized.native_variants {
         if let Some(root) = prior

@@ -485,7 +485,7 @@ fn validate_tar_end(reader: &mut BoundedXzReader<'_>) -> Result<(), ArchiveIntak
             .ok_or(ArchiveIntakeError::InvalidTar)?;
     }
     if trailing_zeros < TAR_BLOCK_BYTES
-        || reader.total_out() % TAR_BLOCK_BYTES != 0
+        || !reader.total_out().is_multiple_of(TAR_BLOCK_BYTES)
         || !reader.finished_exactly()
     {
         return Err(ArchiveIntakeError::InvalidTar);

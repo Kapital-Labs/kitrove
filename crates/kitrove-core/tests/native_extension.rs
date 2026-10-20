@@ -43,8 +43,7 @@ fn standalone_capture_preserves_exact_bytes_without_execution() {
     let path = temporary.path().join("review.ts");
     let sentinel = temporary.path().join("must-not-exist");
     let bytes = format!(
-        "await Deno.writeTextFile({:?}, 'executed');\nthrow new Error('must never run');\n",
-        sentinel
+        "await Deno.writeTextFile({sentinel:?}, 'executed');\nthrow new Error('must never run');\n"
     );
     fs::write(&path, bytes.as_bytes()).unwrap();
 

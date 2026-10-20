@@ -78,6 +78,18 @@ reviewed update before different trust material can become authority.
 
 ## Enforcement
 
+The October 2026 security remediation replaces ZIP 6.0.0 with exact-pinned
+9.0.5 (MIT; Rust 1.88) for RUSTSEC-2026-0367/0368/0369. Default features
+remain disabled. The complete lock delta removes `arbitrary`/`derive_arbitrary`,
+adds `typed-path` 0.12.4 (MIT OR Apache-2.0; Rust 1.65; no dependencies or
+build script), and adds ZIP's macOS/BSD `nix` edge with its `fs` feature.
+`nix` 0.31.3 was already locked. No other package version changes.
+The new path library supports ZIP's path helpers; KitRove retains independent
+raw-name validation and does not call ZIP's filesystem extraction helpers.
+The source and feature review is recorded in
+[`review/zip9-linux-lock-remediation.md`](review/zip9-linux-lock-remediation.md).
+Earlier version/build statements below are historical dependency evidence.
+
 Shared ownership fixtures add Windows-only edges from the non-published testkit
 to existing `cap-std` and `kitrove-windows-security` dependencies. These reuse the
 workspace configuration without enabling new features. The complete lockfile

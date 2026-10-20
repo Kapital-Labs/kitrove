@@ -753,15 +753,14 @@ pub(crate) fn validate_isolated_portable_entry(
             .entries()
             .iter()
             .find(|entry| entry.native_name() == native_name)
+            && matches!(entry.portability(), McpPortability::Portable(_))
         {
-            if matches!(entry.portability(), McpPortability::Portable(_)) {
-                return Ok(observed_entry(
-                    native_name,
-                    exact,
-                    dialect,
-                    entry.portability().clone(),
-                ));
-            }
+            return Ok(observed_entry(
+                native_name,
+                exact,
+                dialect,
+                entry.portability().clone(),
+            ));
         }
     }
     Err(document_error("mcp.native_entry_invalid"))

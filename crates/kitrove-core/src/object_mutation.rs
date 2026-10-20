@@ -403,6 +403,24 @@ pub(crate) struct EnvironmentLock {
     _parent: Dir,
 }
 
+#[cfg(unix)]
+impl Drop for EnvironmentLock {
+    fn drop(&mut self) {
+        // A forked child can retain the open-file description until exec, even
+        // with close-on-exec set. Closing our descriptor alone would then leave
+        // this completed transaction's flock held by that child.
+        loop {
+            match fs2::FileExt::unlock(&self._file) {
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                // Drop cannot return an OS error. On any other failure, normal
+                // field destruction still closes our handle; later acquisition
+                // must continue to fail closed if another descriptor retains it.
+                Ok(()) | Err(_) => break,
+            }
+        }
+    }
+}
+
 impl ObjectStore {
     /// Opens an existing environment root without accepting link-like ancestors.
     pub fn open(environment_root: &Path) -> Result<Self, ObjectMutationError> {
@@ -6397,6 +6415,27 @@ mod internal_tests {
             panic!("a second writer acquired the environment lock");
         };
         assert_eq!(error.code(), "object.environment_locked");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn dropping_lock_releases_authority_even_with_a_duplicated_description() {
+        let temporary = trusted_tempdir();
+        let root = temporary.path().canonicalize().unwrap();
+        let store = ObjectStore::open(&root).unwrap();
+        let held = store.try_lock_environment().unwrap();
+        // dup and fork share the same open-file description. Keeping this clone
+        // alive models a child between fork and exec without a timing-dependent test.
+        let inherited = held._file.try_clone().unwrap();
+        assert!(store.try_lock_environment().is_err());
+        drop(held);
+        let reacquired = store
+            .try_lock_environment()
+            .expect("the completed transaction must release its own authority");
+        drop(inherited);
+        assert!(store.try_lock_environment().is_err());
+        drop(reacquired);
+        assert!(store.try_lock_environment().is_ok());
     }
 
     #[test]

@@ -588,7 +588,7 @@ fn duration_to_wait_millis(remaining: Duration) -> Result<u32, ContainedProcessE
     if remaining.is_zero() {
         return Err(ContainedProcessError::failed());
     }
-    let rounded = u128::from(remaining.subsec_nanos() % 1_000_000 != 0);
+    let rounded = u128::from(!remaining.subsec_nanos().is_multiple_of(1_000_000));
     let millis = remaining
         .as_millis()
         .checked_add(rounded)

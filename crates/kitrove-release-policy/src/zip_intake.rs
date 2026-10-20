@@ -266,7 +266,7 @@ fn cross_check_zip_library(
         ZipArchive::new(Cursor::new(bytes)).map_err(|_| ArchiveIntakeError::InvalidZip)?;
     if archive.offset() != 0
         || !archive.comment().is_empty()
-        || archive.zip64_comment().is_some()
+        || archive.raw_zip64_extensible_data_sector().is_some()
         || archive.len() != records.len()
     {
         return Err(ArchiveIntakeError::InvalidZip);
@@ -277,7 +277,7 @@ fn cross_check_zip_library(
             .map_err(|_| ArchiveIntakeError::InvalidZip)?;
         if entry.name_raw() != record.name
             || entry.header_start() != record.local_start
-            || entry.data_start() != record.data.start as u64
+            || entry.data_start() != Some(record.data.start as u64)
             || entry.compressed_size() != record.compressed_size
             || entry.size() != record.expanded_size
             || entry.crc32() != record.crc32
@@ -412,7 +412,11 @@ fn zip_entry_mode(system: u16, attributes: u32) -> Result<Option<u32>, ArchiveIn
                 return Err(ArchiveIntakeError::InvalidZip);
             }
             // Match zip::ZipFile::unix_mode's DOS regular-file interpretation.
-            let mode = if attributes & 1 != 0 { 0o444 } else { 0o100664 };
+            let mode = if attributes & 1 != 0 {
+                0o100444
+            } else {
+                0o100664
+            };
             Ok((attributes != 0).then_some(mode))
         }
         _ => Err(ArchiveIntakeError::InvalidZip),
@@ -478,6 +482,14 @@ mod tests {
     #[test]
     fn dos_file_attributes_match_the_library_without_hiding_special_entries() {
         for attributes in [0, 1, 0x20, 0x21, 0o100644 << 16, (0o100644 << 16) | 1] {
+            assert_eq!(
+                zip_entry_mode(0, attributes).unwrap(),
+                (attributes != 0).then_some(if attributes & 1 != 0 {
+                    0o100444
+                } else {
+                    0o100664
+                })
+            );
             let mut bytes = valid_zip();
             for index in 0..BINARY_COMPANIONS.len() + 1 {
                 let central = signature(&bytes, b"PK\x01\x02", index);
@@ -499,6 +511,19 @@ mod tests {
         let central = signature(&unknown, b"PK\x01\x02", 0);
         unknown[central + 5] = 11;
         assert!(inspect_zip_application_archive(APPLICATION_ARCHIVES[3], &unknown).is_err());
+    }
+
+    #[test]
+    fn library_permission_sanitization_does_not_admit_special_unix_modes() {
+        for mode in [0o104644_u32, 0o102644, 0o101644] {
+            let mut bytes = valid_zip();
+            let central = signature(&bytes, b"PK\x01\x02", 0);
+            // ZIP writers select the creator system from the build host.
+            // This fixture specifically exercises Unix permission semantics.
+            bytes[central + 5] = 3;
+            bytes[central + 38..central + 42].copy_from_slice(&(mode << 16).to_le_bytes());
+            assert!(inspect_zip_application_archive(APPLICATION_ARCHIVES[3], &bytes).is_err());
+        }
     }
 
     #[test]
@@ -763,6 +788,7 @@ mod tests {
         for mode in [0o120777_u32, 0o020666_u32] {
             let mut bytes = valid_zip();
             let central = signature(&bytes, b"PK\x01\x02", 0);
+            bytes[central + 5] = 3;
             bytes[central + 38..central + 42].copy_from_slice(&(mode << 16).to_le_bytes());
             assert_eq!(
                 inspect_zip_application_archive(APPLICATION_ARCHIVES[3], &bytes),

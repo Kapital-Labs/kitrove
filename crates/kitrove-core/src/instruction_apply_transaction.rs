@@ -729,17 +729,16 @@ fn validate_journal(
     {
         return Err(journal_invalid());
     }
-    if let Some(receipt) = &journal.observed_receipt {
-        if receipt.asset_id != journal.asset_id
+    if let Some(receipt) = &journal.observed_receipt
+        && (receipt.asset_id != journal.asset_id
             || receipt.destination != journal.destination
             || receipt.target != ReceiptTarget::ManagedInstructionRegion
             || !receipt.shared_with.is_empty()
             || receipt.harness != journal.proposed_receipt.harness
             || receipt.scope != journal.proposed_receipt.scope
-            || receipt.receipt_id().is_err()
-        {
-            return Err(journal_invalid());
-        }
+            || receipt.receipt_id().is_err())
+    {
+        return Err(journal_invalid());
     }
     Ok(())
 }

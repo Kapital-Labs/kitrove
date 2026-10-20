@@ -552,13 +552,12 @@ impl AtomicApplyBatchPlan {
         if instructions.is_none() && mcp.is_none() {
             return Err(item_state_invalid());
         }
-        if let (Some(instructions), Some(mcp)) = (&instructions, &mcp) {
-            if instructions.active_profile() != mcp.active_profile()
+        if let (Some(instructions), Some(mcp)) = (&instructions, &mcp)
+            && (instructions.active_profile() != mcp.active_profile()
                 || instructions.manifest_revision() != mcp.manifest_revision()
-                || instructions.observed_local_state_text() != mcp.observed_local_state_text()
-            {
-                return Err(item_state_invalid());
-            }
+                || instructions.observed_local_state_text() != mcp.observed_local_state_text())
+        {
+            return Err(item_state_invalid());
         }
         if let Some(instructions) = &instructions {
             items.extend(instructions.documents().iter().cloned().map(|document| {

@@ -11,13 +11,13 @@ mod release_archive;
 mod release_staging;
 
 const REVIEWED_CARGO_LOCK_BLAKE3: &str =
-    "c6137c4b6ce9e8560f26b660817ea40f869990e29f999458671ba274a38f6d95";
+    "4d3f87f1927982d8e2c7d63f6a9a5b4e06f17d07c65455cbfb71f9c3a8960683";
 const REVIEWED_SIGSTORE_REKOR_TREE_BLAKE3: &str =
     "898ca8f9c61bd79c3ef16bcc22650249eb4f32872540d281660f07b1c828c355";
 const REVIEWED_SIGSTORE_TSA_TREE_BLAKE3: &str =
     "c48b716039e6942cf81eba8cf3558d7fe6d08facf5353ca5de99b03072cfc8db";
 const REVIEWED_RELEASE_WORKFLOW_BLAKE3: &str =
-    "7a229cea68c70be8adb99d8cc417397eb44621569be6367b0b2c54420069bb88";
+    "02c98b1690a1fe9e6d82e34868e6b006f1514f2a93e712fa91b565f44d13fbc5";
 const REVIEWED_DIST_CONFIG_BLAKE3: &str =
     "6eeceed79e47b1673212b39a69064af206c28099868b1cfa6678f0d1ecb2b00d";
 const REVIEWED_RELEASE_POLICY_BLAKE3: &str =
@@ -1433,13 +1433,13 @@ fn check_repository(root: &Path) -> Result<(), String> {
     collect_files(root, &mut files)?;
 
     for path in &files {
-        if let Some(name) = path.file_name().and_then(|value| value.to_str()) {
-            if prohibited_names.contains(&name) {
-                return Err(format!(
-                    "prohibited credential-like file is present: {}",
-                    path.display()
-                ));
-            }
+        if let Some(name) = path.file_name().and_then(|value| value.to_str())
+            && prohibited_names.contains(&name)
+        {
+            return Err(format!(
+                "prohibited credential-like file is present: {}",
+                path.display()
+            ));
         }
 
         let metadata = fs::symlink_metadata(path)

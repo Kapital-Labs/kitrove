@@ -2351,14 +2351,13 @@ where
     {
         return Err(ObjectCreationError::Failed);
     }
-    if let Some(private) = &private_descriptor {
-        if unsafe { SetSecurityDescriptorDacl(descriptor_ptr, 1, private.acl.0.cast(), 0) } == 0
+    if let Some(private) = &private_descriptor
+        && (unsafe { SetSecurityDescriptorDacl(descriptor_ptr, 1, private.acl.0.cast(), 0) } == 0
             || unsafe {
                 SetSecurityDescriptorControl(descriptor_ptr, SE_DACL_PROTECTED, SE_DACL_PROTECTED)
-            } == 0
-        {
-            return Err(ObjectCreationError::Failed);
-        }
+            } == 0)
+    {
+        return Err(ObjectCreationError::Failed);
     }
 
     let mut unicode_name = UNICODE_STRING {

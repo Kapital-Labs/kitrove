@@ -145,12 +145,12 @@ fn windows_probe_rejects_noncanonical_or_wrong_named_targets() {
 fn read_pid(path: PathBuf) -> u32 {
     let deadline = Instant::now() + Duration::from_secs(3);
     loop {
-        if let Ok(value) = std::fs::read_to_string(&path) {
-            if let Some(complete) = value.strip_suffix('\n') {
-                let pid = complete.parse().expect("fixture PID");
-                assert_ne!(pid, 0, "fixture PID must identify a process");
-                return pid;
-            }
+        if let Ok(value) = std::fs::read_to_string(&path)
+            && let Some(complete) = value.strip_suffix('\n')
+        {
+            let pid = complete.parse().expect("fixture PID");
+            assert_ne!(pid, 0, "fixture PID must identify a process");
+            return pid;
         }
         assert!(Instant::now() < deadline, "fixture PID was not recorded");
         std::thread::sleep(Duration::from_millis(10));

@@ -102,13 +102,13 @@ impl DeploymentReceipt {
                 "only managed MCP entry receipts require a logical key and document identity",
             ));
         }
-        if let Some(key) = self.logical_key.as_deref() {
-            if !is_portable_mcp_server_name(key) {
-                return Err(ValidationError::new(
-                    "receipt.logical_key_invalid",
-                    "structured receipt key is not a conservative MCP identifier",
-                ));
-            }
+        if let Some(key) = self.logical_key.as_deref()
+            && !is_portable_mcp_server_name(key)
+        {
+            return Err(ValidationError::new(
+                "receipt.logical_key_invalid",
+                "structured receipt key is not a conservative MCP identifier",
+            ));
         }
         if is_mcp_entry
             && (!self.shared_with.is_empty() || !self.shared_adapter_versions.is_empty())

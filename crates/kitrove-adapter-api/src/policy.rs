@@ -208,13 +208,13 @@ impl CandidateDecision {
                 "accepted candidates require a native identity",
             ));
         }
-        if let Some(value) = native_id.as_deref() {
-            if value.is_empty() || value.len() > 256 || value.chars().any(char::is_control) {
-                return Err(AdapterError::new(
-                    "adapter.native_id_invalid",
-                    "native candidate identity must contain 1 to 256 UTF-8 bytes without control characters",
-                ));
-            }
+        if let Some(value) = native_id.as_deref()
+            && (value.is_empty() || value.len() > 256 || value.chars().any(char::is_control))
+        {
+            return Err(AdapterError::new(
+                "adapter.native_id_invalid",
+                "native candidate identity must contain 1 to 256 UTF-8 bytes without control characters",
+            ));
         }
         if acceptance == NativeAcceptance::Rejected
             && !matches!(portable, PortablePolicyDecision::Unavailable { .. })

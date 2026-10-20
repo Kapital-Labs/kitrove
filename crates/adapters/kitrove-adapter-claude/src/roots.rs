@@ -238,17 +238,17 @@ pub(crate) fn runtime_authority() -> PolicyRuntimeAuthority {
 
 pub(crate) fn standard_roots(context: &RootContext<'_>) -> AdapterResult<Vec<ObservedRoot>> {
     let mut roots = Vec::new();
-    if scope_selected(context, HarnessScope::User) {
-        if let Some(home) = context.home {
-            roots.push(observed_root(
-                "claude.user.skills",
-                home.join(".claude/skills"),
-                HarnessScope::User,
-                RootTier::User,
-                USER_RANK,
-                USER_EVIDENCE,
-            ));
-        }
+    if scope_selected(context, HarnessScope::User)
+        && let Some(home) = context.home
+    {
+        roots.push(observed_root(
+            "claude.user.skills",
+            home.join(".claude/skills"),
+            HarnessScope::User,
+            RootTier::User,
+            USER_RANK,
+            USER_EVIDENCE,
+        ));
     }
     if scope_selected(context, HarnessScope::Project) {
         for (index, anchor) in project_anchors(context).into_iter().enumerate() {
@@ -334,17 +334,17 @@ fn append_explicit_roots(
 
 pub(crate) fn command_roots(context: &RootContext<'_>) -> Vec<RelatedRoot> {
     let mut roots = Vec::new();
-    if scope_selected(context, HarnessScope::User) {
-        if let Some(home) = context.home {
-            roots.push(related_root(
-                "claude.user.commands",
-                home.join(".claude/commands"),
-                HarnessScope::User,
-                RootTier::User,
-                USER_RANK,
-                RelatedCapability::Command,
-            ));
-        }
+    if scope_selected(context, HarnessScope::User)
+        && let Some(home) = context.home
+    {
+        roots.push(related_root(
+            "claude.user.commands",
+            home.join(".claude/commands"),
+            HarnessScope::User,
+            RootTier::User,
+            USER_RANK,
+            RelatedCapability::Command,
+        ));
     }
     if scope_selected(context, HarnessScope::Project) {
         for (index, anchor) in project_anchors(context).into_iter().enumerate() {
@@ -363,17 +363,17 @@ pub(crate) fn command_roots(context: &RootContext<'_>) -> Vec<RelatedRoot> {
 
 pub(crate) fn agent_roots(context: &RootContext<'_>) -> Vec<RelatedRoot> {
     let mut roots = Vec::new();
-    if scope_selected(context, HarnessScope::User) {
-        if let Some(home) = context.home {
-            roots.push(related_root(
-                "claude.user.agents",
-                home.join(".claude/agents"),
-                HarnessScope::User,
-                RootTier::User,
-                USER_RANK,
-                RelatedCapability::Agent,
-            ));
-        }
+    if scope_selected(context, HarnessScope::User)
+        && let Some(home) = context.home
+    {
+        roots.push(related_root(
+            "claude.user.agents",
+            home.join(".claude/agents"),
+            HarnessScope::User,
+            RootTier::User,
+            USER_RANK,
+            RelatedCapability::Agent,
+        ));
     }
     if scope_selected(context, HarnessScope::Project) {
         for (index, anchor) in project_anchors(context).into_iter().enumerate() {
@@ -394,23 +394,23 @@ pub(crate) fn standard_receipt_anchors(
     context: &RootContext<'_>,
 ) -> Vec<kitrove_adapter_api::ReceiptAnchor> {
     let mut anchors = Vec::new();
-    if scope_selected(context, HarnessScope::User) {
-        if let Some(home) = context.home {
-            anchors.push(kitrove_adapter_api::ReceiptAnchor {
-                scope: HarnessScope::User,
-                path: home.join(".claude/skills"),
-                evidence: evidence(USER_EVIDENCE),
-            });
-        }
+    if scope_selected(context, HarnessScope::User)
+        && let Some(home) = context.home
+    {
+        anchors.push(kitrove_adapter_api::ReceiptAnchor {
+            scope: HarnessScope::User,
+            path: home.join(".claude/skills"),
+            evidence: evidence(USER_EVIDENCE),
+        });
     }
-    if scope_selected(context, HarnessScope::Project) {
-        if let Some(anchor) = project_anchors(context).into_iter().last() {
-            anchors.push(kitrove_adapter_api::ReceiptAnchor {
-                scope: HarnessScope::Project,
-                path: anchor.join(".claude/skills"),
-                evidence: evidence(PROJECT_EVIDENCE),
-            });
-        }
+    if scope_selected(context, HarnessScope::Project)
+        && let Some(anchor) = project_anchors(context).into_iter().last()
+    {
+        anchors.push(kitrove_adapter_api::ReceiptAnchor {
+            scope: HarnessScope::Project,
+            path: anchor.join(".claude/skills"),
+            evidence: evidence(PROJECT_EVIDENCE),
+        });
     }
     anchors
 }
@@ -743,12 +743,14 @@ fn indexed_rank(base: u32, index: usize) -> u32 {
 }
 
 fn decode_hex(value: &str) -> Option<Vec<u8>> {
-    if value.len() % 2 != 0 {
+    if !value.len().is_multiple_of(2) {
         return None;
     }
     value
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| Some((hex_nibble(pair[0])? << 4) | hex_nibble(pair[1])?))
         .collect()
 }
