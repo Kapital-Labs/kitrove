@@ -11,7 +11,7 @@ mod release_archive;
 mod release_staging;
 
 const REVIEWED_CARGO_LOCK_BLAKE3: &str =
-    "4d3f87f1927982d8e2c7d63f6a9a5b4e06f17d07c65455cbfb71f9c3a8960683";
+    "a3a49791e7fcbb71605f5dc78edb2d55a3c42ea027f3ab824b26eca3d140e8d6";
 const REVIEWED_SIGSTORE_REKOR_TREE_BLAKE3: &str =
     "898ca8f9c61bd79c3ef16bcc22650249eb4f32872540d281660f07b1c828c355";
 const REVIEWED_SIGSTORE_TSA_TREE_BLAKE3: &str =
@@ -1308,7 +1308,7 @@ fn check_git_dependency_boundary(root: &Path) -> Result<(), String> {
     for token in [
         "ureq = { version = \"=3.4.0\", default-features = false, features = [\"rustls\"] }",
         "rustls = { version = \"=0.23.46\", default-features = false, features = [\"ring\", \"logging\", \"std\", \"tls12\"] }",
-        "webpki-roots = \"=1.0.9\"",
+        "webpki-roots = \"=1.0.10\"",
         "url = \"=2.5.8\"",
         "gix-hash = { version = \"=0.26.2\", default-features = false, features = [\"sha1\"] }",
         "gix-object = { version = \"=0.64.1\", default-features = false }",
@@ -1408,7 +1408,7 @@ fn check_git_dependency_boundary(root: &Path) -> Result<(), String> {
         "rpassword v7.5.4",
         "rtoolbox v0.0.6",
         "zlib-rs v0.6.7",
-        "webpki-roots v1.0.9",
+        "webpki-roots v1.0.10",
     ] {
         if !graph.contains(required) {
             return Err(format!(

@@ -103,7 +103,7 @@ rustls = { version = "=0.23.46", default-features = false, features = ["ring", "
 tokio = { version = "=1.53.1", default-features = false, features = ["io-util", "net", "rt", "sync", "time"] }
 ureq = { version = "=3.4.0", default-features = false, features = ["rustls"] }
 url = "=2.5.8"
-webpki-roots = "=1.0.9"
+webpki-roots = "=1.0.10"
 zeroize = "=1.9.0"
 kitrove-windows-security = { path = "crates/kitrove-windows-security" }
 kitrove-windows-process = { path = "crates/kitrove-windows-process" }
