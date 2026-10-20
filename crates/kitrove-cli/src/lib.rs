@@ -51,13 +51,22 @@ pub fn main_entry() -> ExitCode {
 }
 
 fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
+    let mut arguments = arguments.into_iter().peekable();
+    let json_errors = arguments.peek().is_some_and(|arg| arg == "--json-errors");
+    if json_errors {
+        arguments.next();
+    }
     let command = match parse_args(arguments) {
         Ok(command) => command,
         Err(error) => {
-            eprintln!(
-                "error[{}]: {error}\n\n{HELP}{ADDITIONAL_MCP_HELP}{ADDITIONAL_SYNC_HELP}{ADDITIONAL_PACK_HELP}",
-                error.code
-            );
+            if json_errors {
+                report_error(true, error.code, &error, 2);
+            } else {
+                eprintln!(
+                    "error[{}]: {error}\n\n{HELP}{ADDITIONAL_MCP_HELP}{ADDITIONAL_SYNC_HELP}{ADDITIONAL_PACK_HELP}",
+                    error.code
+                );
+            }
             return 2;
         }
     };
@@ -65,7 +74,13 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         Command::Setup => return setup::entry(None, false),
         Command::Configure(arguments) => {
             if arguments.json {
-                eprintln!("configure is interactive; use explicit commands for JSON automation");
+                if json_errors {
+                    report_error(true, "cli.interactive_required", &"", 2);
+                } else {
+                    eprintln!(
+                        "configure is interactive; use explicit commands for JSON automation"
+                    );
+                }
                 return 2;
             }
             return setup::entry(arguments.environment, true);
@@ -74,8 +89,11 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
             let registry = match try_tier_one_registry() {
                 Ok(registry) => registry,
                 Err(_) => {
-                    eprintln!(
-                        "error[scan.registry_invalid]: the compiled policy registry is invalid"
+                    report_error(
+                        json_errors,
+                        "scan.registry_invalid",
+                        &"the compiled policy registry is invalid",
+                        1,
                     );
                     return 1;
                 }
@@ -86,12 +104,15 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                     return completed.status;
                 }
                 Err(error) => {
-                    eprintln!("error[{}]: {error}", error.code);
+                    report_error(json_errors, error.code, &error, 1);
                     return 1;
                 }
             }
         }
         Command::Help => {
+            println!(
+                "MACHINE-READABLE ERRORS:\n    kitrove --json-errors <command> [arguments]\n    Emits versioned error codes on stderr; use --json for command results.\n    Does not change approval, recovery or interactive behavior.\n"
+            );
             println!(
                 "AUTHORED PACKS:\n    kitrove pack create --authored --pack <id> --member <id>... --plan --json\n    Repeat --authored and the same selection with --confirm <digest>.\n    Member provenance is preserved; update retains the selected pack mode.\n    Without --authored, create requires one shared distribution source.\n"
             );
@@ -125,7 +146,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                 return completed.status;
             }
             Err(error) => {
-                eprintln!("error[{}]: {error}", error.code);
+                report_error(json_errors, error.code, &error, 1);
                 return 1;
             }
         },
@@ -135,7 +156,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                 return completed.status;
             }
             Err(error) => {
-                eprintln!("error[{}]: {error}", error.code);
+                report_error(json_errors, error.code, &error, 1);
                 return 1;
             }
         },
@@ -145,7 +166,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                 return completed.status;
             }
             Err(error) => {
-                eprintln!("error[{}]: {error}", error.code);
+                report_error(json_errors, error.code, &error, 1);
                 return 1;
             }
         },
@@ -155,7 +176,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                 return completed.status;
             }
             Err(error) => {
-                eprintln!("error[{}]: {error}", error.code);
+                report_error(json_errors, error.code, &error, 1);
                 return 1;
             }
         },
@@ -166,7 +187,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                 return completed.status;
             }
             Err(error) => {
-                eprintln!("error[{}]: {error}", error.code);
+                report_error(json_errors, error.code, &error, 1);
                 return 1;
             }
         },
@@ -176,7 +197,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                 return completed.status;
             }
             Err(error) => {
-                eprintln!("error[{}]: {error}", error.code);
+                report_error(json_errors, error.code, &error, 1);
                 return 1;
             }
         },
@@ -186,7 +207,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                 return completed.status;
             }
             Err(error) => {
-                eprintln!("error[{}]: {error}", error.code);
+                report_error(json_errors, error.code, &error, 1);
                 return 1;
             }
         },
@@ -196,7 +217,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                 return completed.status;
             }
             Err(error) => {
-                eprintln!("error[{}]: {error}", error.code);
+                report_error(json_errors, error.code, &error, 1);
                 return 1;
             }
         },
@@ -206,7 +227,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                 return completed.status;
             }
             Err(error) => {
-                eprintln!("error[{}]: {error}", error.code);
+                report_error(json_errors, error.code, &error, 1);
                 return 1;
             }
         },
@@ -216,7 +237,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                 return completed.status;
             }
             Err(error) => {
-                eprintln!("error[{}]: {error}", error.code);
+                report_error(json_errors, error.code, &error, 1);
                 return 1;
             }
         },
@@ -226,7 +247,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                 return completed.status;
             }
             Err(error) => {
-                eprintln!("error[{}]: {error}", error.code);
+                report_error(json_errors, error.code, &error, 1);
                 return 1;
             }
         },
@@ -236,7 +257,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                 return completed.status;
             }
             Err(error) => {
-                eprintln!("error[{}]: {error}", error.code);
+                report_error(json_errors, error.code, &error, 1);
                 return 1;
             }
         },
@@ -246,7 +267,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                 return completed.status;
             }
             Err(error) => {
-                eprintln!("error[{}]: {error}", error.code);
+                report_error(json_errors, error.code, &error, 1);
                 return 1;
             }
         },
@@ -256,7 +277,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                 return completed.status;
             }
             Err(error) => {
-                eprintln!("error[{}]: {error}", error.code);
+                report_error(json_errors, error.code, &error, 1);
                 return 1;
             }
         },
@@ -266,7 +287,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                 return completed.status;
             }
             Err(error) => {
-                eprintln!("error[{}]: {error}", error.code);
+                report_error(json_errors, error.code, &error, 1);
                 return 1;
             }
         },
@@ -276,7 +297,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                 return completed.status;
             }
             Err(error) => {
-                eprintln!("error[{}]: {error}", error.code);
+                report_error(json_errors, error.code, &error, 1);
                 return 1;
             }
         },
@@ -286,7 +307,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                 return completed.status;
             }
             Err(error) => {
-                eprintln!("error[{}]: {error}", error.code);
+                report_error(json_errors, error.code, &error, 1);
                 return 1;
             }
         },
@@ -297,7 +318,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                     return completed.status;
                 }
                 Err(error) => {
-                    eprintln!("error[{}]: {error}", error.code);
+                    report_error(json_errors, error.code, &error, 1);
                     return 1;
                 }
             }
@@ -308,7 +329,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                 return completed.status;
             }
             Err(error) => {
-                eprintln!("error[{}]: {error}", error.code);
+                report_error(json_errors, error.code, &error, 1);
                 return 1;
             }
         },
@@ -318,7 +339,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                 return completed.status;
             }
             Err(error) => {
-                eprintln!("error[{}]: {error}", error.code);
+                report_error(json_errors, error.code, &error, 1);
                 return 1;
             }
         },
@@ -326,8 +347,11 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
             let registry = match try_tier_one_registry() {
                 Ok(registry) => registry,
                 Err(_) => {
-                    eprintln!(
-                        "error[scan.registry_invalid]: the compiled policy registry is invalid"
+                    report_error(
+                        json_errors,
+                        "scan.registry_invalid",
+                        &"the compiled policy registry is invalid",
+                        1,
                     );
                     return 1;
                 }
@@ -338,7 +362,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                     return completed.status;
                 }
                 Err(error) => {
-                    eprintln!("error[{}]: {error}", error.code);
+                    report_error(json_errors, error.code, &error, 1);
                     return 1;
                 }
             }
@@ -347,8 +371,11 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
             let registry = match try_tier_one_registry() {
                 Ok(registry) => registry,
                 Err(_) => {
-                    eprintln!(
-                        "error[scan.registry_invalid]: the compiled policy registry is invalid"
+                    report_error(
+                        json_errors,
+                        "scan.registry_invalid",
+                        &"the compiled policy registry is invalid",
+                        1,
                     );
                     return 1;
                 }
@@ -359,13 +386,28 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                     return completed.status;
                 }
                 Err(error) => {
-                    eprintln!("error[{}]: {error}", error.code);
+                    report_error(json_errors, error.code, &error, 1);
                     return 1;
                 }
             }
         }
     }
     0
+}
+
+fn report_error(json: bool, code: &str, message: &dyn std::fmt::Display, exit_code: u8) {
+    if json {
+        eprintln!(
+            "{}",
+            serde_json::json!({
+                "schema_version": 1,
+                "error": { "code": code },
+                "exit_code": exit_code,
+            })
+        );
+    } else {
+        eprintln!("error[{code}]: {message}");
+    }
 }
 
 fn confirm_adoption(plan: &str) -> bool {

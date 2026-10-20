@@ -193,16 +193,19 @@ distribution approvals or time-sensitive repository metadata renewal.
 - [ ] Stable, documented JSON plans/results and exit codes, including stale
   approval, conflicts, unsupported capabilities, trust requirements, and recovery
   errors. Unattended commands must never wait for interactive input.
+  [ADR-0057](adr/0057-agent-json-errors.md) adds opt-in versioned code-only
+  error envelopes; broader result-contract consistency remains a separate gate.
 - [ ] Approval binds the selected content, destinations, ownership changes and
   other effects. Changed plans require fresh authorization; no automatic
   reapproval, credential transfer, implicit executable trust or unattended
   recovery is permitted. A digest protects plan freshness, not user identity.
-- [ ] End-to-end agent acceptance on real Mac and Linux machines: package a
+- [x] Bounded end-to-end agent acceptance on real Mac and Linux machines: package a
   synthetic capability, transfer it, inspect and approve the destination plan,
   apply it, return an edit, and prove stale approval and unmanaged-file
-  protection. The bounded RC4.2 filesystem-backend roundtrip establishes a
-  baseline, not acceptance of the new agent-facing command contracts or every
-  capability/transport.
+  protection. Authored-pack candidate `85ac15f` passed the closed-stdin synthetic
+  skill roundtrip, including member provenance, reverse edits, historical claim
+  removal, rollback and machine-local authority exclusion. This is not acceptance
+  of live harness execution, every capability/transport, or cloud support.
 
 Deliver these as reviewed, independently tested increments using the existing
 planning and commit coordinators. Keep ordinary interactive workflows compatible.
@@ -228,7 +231,8 @@ is optional storage transport, not a hosted Kitrove service or a source registry
 
 Cloud implementation, provider accounts and paid infrastructure are not part of the
 current increment. Locally authored packs are defined in
-[ADR-0056](adr/0056-locally-authored-packs.md); their acceptance is still pending.
+[ADR-0056](adr/0056-locally-authored-packs.md); bounded synthetic skill acceptance
+passed as described above. Provider-specific acceptance remains future work.
 
 ## Engineering sustainability gate
 

@@ -4,6 +4,26 @@ Agents can inspect and invoke Kitrove through its CLI. No MCP server is required
 The agent must still obtain the user's authorization for the selected operation;
 a digest is a stale-plan safeguard, not a substitute for that authorization.
 
+## Machine-readable failures
+
+Put `--json-errors` first to opt into versioned JSON errors on stderr:
+`kitrove --json-errors adopt ... --plan --json`. Success stdout and existing
+command-specific `--json` reports are unchanged. Handled usage/operational
+failures emit only `{"schema_version":1,"error":{"code":"..."},"exit_code":1}`.
+Exit1 is operational failure/refusal; exit2 is usage failure. No raw diagnostic
+message or input content is included. Without the selector, human errors remain
+unchanged. The selector is not a value-scanning global flag: only its leading
+position is recognized. See [ADR-0057](adr/0057-agent-json-errors.md).
+
+Nonzero attention/conflict reports can still be structured command results on
+stdout, not error envelopes. Inspect exit status and the appropriate stream.
+Error codes may grow; unknown codes require stopping for review. Never infer
+retry, new approval or additional privilege from an unfamiliar code. This output
+selector does not make legacy interactive flows unattended; use the documented
+preview/exact-confirm forms with closed stdin. Legacy interactive prompts may
+still precede an error on stderr; those flows are not a JSON-only stream. Guided setup, process termination,
+panic and output-stream failure are outside this error-envelope contract.
+
 Use the field returned by the matching command; these existing JSON contracts
 do not all use the same field name:
 
@@ -131,3 +151,11 @@ filesystem-backend transfer, reverse editing, exact native preservation, local
 canary exclusion, conflicts, and unmanaged-target refusal. It does not establish
 live harness execution, all capability types, all transport providers, or stable
 production support.
+
+The authored-pack candidate at `85ac15f` additionally passed a closed-stdin real
+Mac/Linux filesystem-backend roundtrip: native adoption, explicit authored pack
+creation, selective import, apply, Linux member update, reverse Mac apply,
+stale-digest refusal on both machines, unmanaged-target refusal, historical
+pack-claim removal and rollback. Member provenance and machine-local authority
+boundaries were checked. This remains synthetic skill acceptance, not live
+harness execution, all capability types, or cloud support.
