@@ -35,13 +35,32 @@ explicitly through the existing operator workflow, review its outcome, then
 generate and approve a new plan. Do not delete journals or local state to force
 the command through. The ordinary interactive `apply` workflow is unchanged.
 
+## Pack authoring
+
+Preview grouping existing members without changing the collection:
+
+```sh
+kitrove pack create --pack suite --member tooling --plan --json
+```
+
+After reviewing and approving the full plan, repeat the selection with
+`--confirm <digest>` instead of `--plan`. Use the returned `digest`, not a pack
+revision. `pack update` supports the same flags and still requires
+`--expected-prior <pack-revision>`. These modes do not read stdin; the flags are
+mutually exclusive. Existing interactive behavior is unchanged.
+
+The approved commit refuses pending portable recovery under the environment lock.
+It changes only portable pack authority, never installed projections or trust.
+A fresh plan is required after changing members, collection authority, or
+handling recovery. Do not automatically approve a replacement digest.
+
 ## Other operations and limits
 
 `sync plan` / `sync apply --confirm` and `trust plan` / `trust apply --confirm`
 already have explicit digest approval. Sync can publish as well as receive.
 Each machine keeps its own credentials, bindings, trust and receipts.
 
-Ordinary adoption, removal, and pack create/update still use their existing
+Ordinary adoption and removal still use their existing
 confirmation interfaces. Pack adopt/rollback retain their existing `--yes`
 option; it is not equivalent to externally approving a previously inspected
 digest. Those operations are not covered by this materialization increment.

@@ -1,5 +1,8 @@
 #![forbid(unsafe_code)]
 
+#[path = "pack_cli/approval.rs"]
+mod approval;
+
 use kitrove_testkit::owned_fixture;
 
 use std::collections::{BTreeMap, BTreeSet};

@@ -151,56 +151,8 @@ fn adopt_with_backend<B: SyncBackend>(
     })
 }
 
-pub(crate) fn run_pack_create(
-    arguments: PackCreateArgs,
-    mut confirm: impl FnMut(&str) -> bool,
-) -> Result<CompletedCommand, CliError> {
-    let root = resolve_required_environment_root(arguments.environment.as_deref())?;
-    let manifest = load_manifest(&root)?;
-    let plan = plan_pack_creation(&manifest, arguments.pack_id, arguments.members)
-        .map_err(|error| CliError::new(error.code(), error.message()))?;
-    let rendered = render_pack_mutation_plan(&plan, arguments.json)?;
-    if !confirm(&rendered) {
-        return Err(CliError::new(
-            "pack_create.confirmation_required",
-            "the pack creation plan was not confirmed; no changes were made",
-        ));
-    }
-    let outcome = commit_pack_creation(&plan, &root, CaptureLimits::default())
-        .map_err(|error| CliError::new(error.code(), error.message()))?;
-    Ok(CompletedCommand {
-        output: render_pack_mutation_result(&plan, outcome, arguments.json)?,
-        status: 0,
-    })
-}
-
-pub(crate) fn run_pack_update(
-    arguments: PackUpdateArgs,
-    mut confirm: impl FnMut(&str) -> bool,
-) -> Result<CompletedCommand, CliError> {
-    let root = resolve_required_environment_root(arguments.environment.as_deref())?;
-    let manifest = load_manifest(&root)?;
-    let plan = plan_pack_update(
-        &manifest,
-        arguments.pack_id,
-        arguments.expected_prior,
-        arguments.members,
-    )
-    .map_err(|error| CliError::new(error.code(), error.message()))?;
-    let rendered = render_pack_mutation_plan(&plan, arguments.json)?;
-    if !confirm(&rendered) {
-        return Err(CliError::new(
-            "pack_update.confirmation_required",
-            "the pack update plan was not confirmed; no changes were made",
-        ));
-    }
-    let outcome = commit_pack_update(&plan, &root, CaptureLimits::default())
-        .map_err(|error| CliError::new(error.code(), error.message()))?;
-    Ok(CompletedCommand {
-        output: render_pack_mutation_result(&plan, outcome, arguments.json)?,
-        status: 0,
-    })
-}
+mod authoring;
+pub(crate) use authoring::{run_pack_create, run_pack_update};
 
 pub(crate) fn run_pack_rollback(
     arguments: PackRollbackArgs,
@@ -889,6 +841,7 @@ mod tests {
                 members: [AssetId::parse("tooling").unwrap()].into_iter().collect(),
                 environment: Some(environment.clone()),
                 json: false,
+                approval: crate::args::PackApproval::Interactive,
             },
             |_| false,
         );

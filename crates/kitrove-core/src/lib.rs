@@ -248,12 +248,13 @@ pub use portable_transaction::{
     AdoptionCommitOutcome, LockRepairOutcome, LockRepairPlan, PortableJournalStatus,
     PortableManifestCommitOutcome, PortableRecoveryOutcome, PortableStatus,
     PortableTransactionError, UpdateCommitOutcome, UpdateRecoveryOutcome, commit_adoption,
-    commit_agent_adoption, commit_agent_update, commit_instruction_adoption,
-    commit_instruction_update, commit_lock_repair, commit_mcp_adoption, commit_mcp_update,
-    commit_pack_creation, commit_pack_distribution_adoption, commit_pack_rollback,
-    commit_pack_update, commit_prompt_command_adoption, commit_prompt_command_update,
-    commit_update_adoption, inspect_portable_environment, inspect_portable_journal,
-    plan_lock_repair, recover_portable_environment, recover_update_adoption,
+    commit_agent_adoption, commit_agent_update, commit_approved_pack_mutation,
+    commit_instruction_adoption, commit_instruction_update, commit_lock_repair,
+    commit_mcp_adoption, commit_mcp_update, commit_pack_creation,
+    commit_pack_distribution_adoption, commit_pack_rollback, commit_pack_update,
+    commit_prompt_command_adoption, commit_prompt_command_update, commit_update_adoption,
+    inspect_portable_environment, inspect_portable_journal, plan_lock_repair,
+    recover_portable_environment, recover_update_adoption,
 };
 pub use profile_resolution::{ProfileResolutionError, ResolvedProfile, resolve_profile};
 pub use prompt_command_adoption::{

@@ -93,7 +93,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         }
         Command::Help => {
             println!(
-                "AGENT APPROVAL:\n    kitrove plan [selection] --json\n    kitrove apply [same selection] --confirm <batch_digest> [--json]\n    Approval uses the complete batch_digest, never an individual plan_digest.\n    Pending recovery requires explicit handling and a fresh plan.\n"
+                "AGENT APPROVAL:\n    kitrove plan [selection] --json\n    kitrove apply [same selection] --confirm <batch_digest> [--json]\n    Approval uses the complete batch_digest, never an individual plan_digest.\n    kitrove pack create|update [selection] --plan --json\n    kitrove pack create|update [same selection] --confirm <digest> --json\n    Pack update still requires --expected-prior <pack-revision>.\n    Pending recovery requires explicit handling and a fresh plan.\n"
             );
             println!(
                 "GUIDED SETUP:\n    kitrove init        Interactive first/second computer setup\n    kitrove configure [--environment <path>]    Revisit setup\n    kitrove scan --verbose    Full diagnostic text (JSON unchanged)\n    kitrove adopt <skill-name> --harness <tool>    Select an exact unique name\n"
