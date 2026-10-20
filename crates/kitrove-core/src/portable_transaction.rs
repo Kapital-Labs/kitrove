@@ -1296,35 +1296,8 @@ pub fn commit_lock_repair(
     commit_lock_repair_inner(plan, environment_root, limits, None)
 }
 
-/// Commits a confirmed pack-creation plan without writing or replacing immutable objects.
-pub fn commit_pack_creation(
-    plan: &PackCreationPlan,
-    environment_root: &Path,
-    limits: CaptureLimits,
-) -> Result<PortableManifestCommitOutcome, PortableTransactionError> {
-    commit_pack_mutation_inner(
-        plan,
-        PackMutationKind::Create,
-        environment_root,
-        limits,
-        None,
-    )
-}
-
-/// Commits a confirmed pack-update plan without writing or replacing immutable objects.
-pub fn commit_pack_update(
-    plan: &PackUpdatePlan,
-    environment_root: &Path,
-    limits: CaptureLimits,
-) -> Result<PortableManifestCommitOutcome, PortableTransactionError> {
-    commit_pack_mutation_inner(
-        plan,
-        PackMutationKind::Update,
-        environment_root,
-        limits,
-        None,
-    )
-}
+mod pack_approval;
+pub use pack_approval::{commit_approved_pack_mutation, commit_pack_creation, commit_pack_update};
 
 /// Commits a confirmed selective pack rollback after all required immutable objects are present.
 pub fn commit_pack_rollback(
@@ -2224,6 +2197,31 @@ fn commit_manifest_plan_inner(
     limits: CaptureLimits,
     interrupt_after: Option<JournalPhase>,
 ) -> Result<PortableManifestCommitOutcome, PortableTransactionError> {
+    commit_manifest_plan_with_recovery(
+        plan,
+        kind,
+        objects,
+        environment_root,
+        limits,
+        interrupt_after,
+        RecoveryPolicy::Recover,
+    )
+}
+
+enum RecoveryPolicy {
+    Recover,
+    Refuse,
+}
+
+fn commit_manifest_plan_with_recovery(
+    plan: &impl ManifestCommitPlan,
+    kind: ManifestCommitKind,
+    objects: Option<&[VerifiedObjectEnvelope]>,
+    environment_root: &Path,
+    limits: CaptureLimits,
+    interrupt_after: Option<JournalPhase>,
+    recovery_policy: RecoveryPolicy,
+) -> Result<PortableManifestCommitOutcome, PortableTransactionError> {
     let (forward_work, rollback_work) = PortableMutationKind::Manifest {
         rollback_objects: objects.map_or(0, <[VerifiedObjectEnvelope]>::len),
     }
@@ -2234,8 +2232,25 @@ fn commit_manifest_plan_inner(
         .try_lock_environment()
         .map_err(|error| store_error_at(error, "transaction.environment_lock_io"))?;
     ensure_no_foreign_environment_journal(&store)?;
-    let recovery = recover_with_store(&store, environment_root, limits)
-        .map_err(|error| transaction_error_at(error, "transaction.recovery_io"))?;
+    let recovery = match recovery_policy {
+        RecoveryPolicy::Recover => recover_with_store(&store, environment_root, limits)
+            .map_err(|error| transaction_error_at(error, "transaction.recovery_io"))?,
+        RecoveryPolicy::Refuse => {
+            if local_state_authority::any_journal_present(
+                &store,
+                local_state_authority::ALL_PORTABLE_RECOVERY,
+                MAX_JOURNAL_BYTES,
+            )
+            .map_err(store_error)?
+            {
+                return Err(PortableTransactionError::new(
+                    "transaction.recovery_required",
+                    "pending recovery requires operator handling and a fresh approved plan",
+                ));
+            }
+            PortableRecoveryOutcome::NoJournal
+        }
+    };
     let cleanup_budget =
         cleanup_locked_stores(&[&store], forward_work, rollback_work).map_err(cleanup_error)?;
     let _mutation_budget = cleanup_budget.begin_forward().map_err(cleanup_error)?;
@@ -4193,7 +4208,7 @@ mod tests {
             .unwrap();
     }
 
-    fn pack_creation_environment() -> (TempDir, std::path::PathBuf, PackCreationPlan) {
+    pub(super) fn pack_creation_environment() -> (TempDir, std::path::PathBuf, PackCreationPlan) {
         let root = tempfile::tempdir().unwrap();
         let environment = root.path().canonicalize().unwrap();
         let manifest = crate::pack_creation::tests::manifest();
@@ -4218,7 +4233,7 @@ mod tests {
         (root, environment, plan)
     }
 
-    fn pack_update_environment() -> (TempDir, std::path::PathBuf, PackUpdatePlan) {
+    pub(super) fn pack_update_environment() -> (TempDir, std::path::PathBuf, PackUpdatePlan) {
         let root = tempfile::tempdir().unwrap();
         let environment = root.path().canonicalize().unwrap();
         let base = crate::pack_creation::tests::manifest();
