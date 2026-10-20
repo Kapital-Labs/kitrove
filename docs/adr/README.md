@@ -70,6 +70,8 @@ ADRs document foundational decisions and their consequences. Accepted ADRs are a
 
 | [0051](0051-agent-removal-approval.md) | Agent removal approves complete receipt-backed batches | Proposed; validation pending | NS-05, NS-07, NS-09, NS-10 |
 
+| [0052](0052-agent-adoption-approval.md) | Adoption approval refuses implicit recovery | Proposed; validation pending | NS-05, NS-07, NS-09, NS-10 |
+
 | [0053](0053-unix-transaction-lock-release.md) | Unix transaction guards explicitly release locks | Proposed; validation in progress | NS-05, NS-07, NS-09 |
 
 | [0054](0054-patched-zip-and-rust-188.md) | Patched ZIP and Rust 1.88 minimum | Proposed; validation in progress | NS-05, NS-07, NS-09 |

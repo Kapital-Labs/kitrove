@@ -1,8 +1,18 @@
-# Agent-facing materialization approval
+# Agent-facing plan and approval workflows
 
 Agents can inspect and invoke Kitrove through its CLI. No MCP server is required.
 The agent must still obtain the user's authorization for the selected operation;
 a digest is a stale-plan safeguard, not a substitute for that authorization.
+
+Use the field returned by the matching command; these existing JSON contracts
+do not all use the same field name:
+
+| Preview command | Field to pass to the matching `--confirm` |
+| --- | --- |
+| `plan` (for `apply`) | `batch_digest` |
+| `remove --plan` or `pack remove --plan` | `batch_digest` |
+| `pack create --plan` or `pack update --plan` | `digest` |
+| `adopt --plan`, including `adopt --update … --plan` | `plan_digest` |
 
 ## Preview, approve, apply
 
@@ -54,6 +64,29 @@ It changes only portable pack authority, never installed projections or trust.
 A fresh plan is required after changing members, collection authority, or
 handling recovery. Do not automatically approve a replacement digest.
 
+## Adoption and exact-prior updates
+
+`adopt --plan` previews a selected current scan observation without writing or
+reading stdin. After operator authorization, repeat the identical selection with
+`--confirm <digest>` instead of `--plan`, using the returned `plan_digest`.
+The flags are mutually exclusive. This applies to skills, instructions, prompt
+commands, agents, MCP entries and native extensions within their existing
+capability policies.
+
+`adopt --update <asset-id> --expected-prior <content-hash>` accepts the same
+approval flags. Existing source eligibility and receipt requirements remain:
+approval does not turn an unmanaged standard-root file into a managed update.
+Skill/instruction approved updates require an initialized local-state directory;
+they do not silently initialize one. Native extensions remain executable and
+require separate machine-local trust before application.
+
+Neither mode performs recovery. A pending adoption journal stops preview;
+approved commits also refuse pending recovery under their mutation locks,
+including the portable sync journal used by native extensions.
+Even a valid pending journal from the same plan requires operator recovery and
+fresh review. Stale approval never triggers automatic reapproval. Interactive
+adoption and its explicit recovery behavior remain unchanged.
+
 ## Other operations and limits
 
 Direct `remove` and `pack remove` also accept mutually exclusive `--plan` and
@@ -70,10 +103,9 @@ ownership where available.
 already have explicit digest approval. Sync can publish as well as receive.
 Each machine keeps its own credentials, bindings, trust and receipts.
 
-Ordinary adoption still uses its existing
-confirmation interfaces. Pack adopt/rollback retain their existing `--yes`
+Pack adopt/rollback retain their existing `--yes`
 option; it is not equivalent to externally approving a previously inspected
-digest. Those operations are not covered by this materialization increment.
+digest. Those operations are not covered by these exact-digest approval modes.
 Guided `init` and `configure` require a terminal; explicit initialization is
 available for scripts.
 

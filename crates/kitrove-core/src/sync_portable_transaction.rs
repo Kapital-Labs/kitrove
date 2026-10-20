@@ -148,12 +148,57 @@ pub fn commit_sync_portable_snapshot(
     plan_digest: &ContentHash,
     limits: SyncLimits,
 ) -> Result<SyncPortableCommitOutcome, SyncPortableTransactionError> {
+    commit_snapshot_with_recovery(
+        environment_root,
+        expected_local,
+        merged,
+        objects,
+        plan_digest,
+        limits,
+        true,
+    )
+}
+
+pub(crate) fn commit_approved_sync_portable_snapshot(
+    environment_root: &Path,
+    expected_local: &PortableSnapshotV1,
+    merged: &PortableSnapshotV1,
+    objects: &[VerifiedObjectEnvelope],
+    plan_digest: &ContentHash,
+    limits: SyncLimits,
+) -> Result<SyncPortableCommitOutcome, SyncPortableTransactionError> {
+    commit_snapshot_with_recovery(
+        environment_root,
+        expected_local,
+        merged,
+        objects,
+        plan_digest,
+        limits,
+        false,
+    )
+}
+
+fn commit_snapshot_with_recovery(
+    environment_root: &Path,
+    expected_local: &PortableSnapshotV1,
+    merged: &PortableSnapshotV1,
+    objects: &[VerifiedObjectEnvelope],
+    plan_digest: &ContentHash,
+    limits: SyncLimits,
+    recover_pending: bool,
+) -> Result<SyncPortableCommitOutcome, SyncPortableTransactionError> {
     let inventory = SyncPortableMutationInventory::from_objects(merged.objects().iter().cloned())?;
     let store = ObjectStore::open(environment_root).map_err(store_error)?;
     let _lock = store.try_lock_environment().map_err(store_error)?;
     ensure_no_foreign_environment_journal(&store, limits)?;
     let journal_binding = bind_sync_portable_journal(&store, limits)?;
     if !journal_binding.is_absent() {
+        if !recover_pending {
+            return Err(SyncPortableTransactionError {
+                code: "sync_portable.recovery_required",
+                message: "pending recovery requires operator handling and a fresh approved plan",
+            });
+        }
         let (forward, rollback) = inventory.recovery_work(limits)?;
         let budget = cleanup_locked_stores(&[&store], forward, rollback)
             .map_err(cleanup_coordinator_error)?;
@@ -1766,6 +1811,71 @@ mod tests {
             assert_eq!(
                 std::fs::read_to_string(&prior_canary).unwrap(),
                 "PRIOR-IMMUTABLE-CANARY"
+            );
+            assert!(!root.join(JOURNAL_PATH).exists());
+        }
+    }
+
+    #[test]
+    fn approved_commit_preserves_valid_pending_journals_for_operator_recovery() {
+        let limits = SyncLimits::default();
+        let local = snapshot(None);
+        let (merged, objects) = populated_snapshot();
+        for phase in [
+            SyncPortablePhase::Prepared,
+            SyncPortablePhase::ObjectsInstalled,
+            SyncPortablePhase::ManifestCommitted,
+            SyncPortablePhase::LockCommitted,
+            SyncPortablePhase::Complete,
+        ] {
+            let (_temporary, root) = environment(&local);
+            let store = ObjectStore::open(&root).unwrap();
+            let interrupted = commit_sync_portable_snapshot_with_checkpoints(
+                &store,
+                &local,
+                &merged,
+                &objects,
+                &plan(),
+                limits,
+                |checkpoint| {
+                    if checkpoint == PortableCheckpoint::AfterJournal(phase) {
+                        Err(test_interrupted())
+                    } else {
+                        Ok(())
+                    }
+                },
+            )
+            .unwrap_err();
+            assert_eq!(interrupted.code(), "sync_portable.test_interrupted");
+            let journal = std::fs::read(root.join(JOURNAL_PATH)).unwrap();
+            let manifest = std::fs::read(root.join(MANIFEST_PATH)).unwrap();
+            let lock = std::fs::read(root.join(LOCK_PATH)).unwrap();
+
+            let refused = commit_approved_sync_portable_snapshot(
+                &root,
+                &local,
+                &merged,
+                &objects,
+                &plan(),
+                limits,
+            )
+            .unwrap_err();
+            assert_eq!(refused.code(), "sync_portable.recovery_required");
+            assert_eq!(std::fs::read(root.join(JOURNAL_PATH)).unwrap(), journal);
+            assert_eq!(std::fs::read(root.join(MANIFEST_PATH)).unwrap(), manifest);
+            assert_eq!(std::fs::read(root.join(LOCK_PATH)).unwrap(), lock);
+
+            assert_eq!(
+                recover_sync_portable_snapshot(&root, &merged, &objects, &plan(), limits).unwrap(),
+                SyncPortableRecoveryOutcome::Completed
+            );
+            assert_eq!(
+                std::fs::read_to_string(root.join(MANIFEST_PATH)).unwrap(),
+                merged.manifest_toml()
+            );
+            assert_eq!(
+                std::fs::read_to_string(root.join(LOCK_PATH)).unwrap(),
+                merged.lock_json()
             );
             assert!(!root.join(JOURNAL_PATH).exists());
         }

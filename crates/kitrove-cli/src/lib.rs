@@ -93,6 +93,9 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         }
         Command::Help => {
             println!(
+                "ADOPTION APPROVAL:\n    kitrove adopt [selection] <observation-id> --plan --json\n    kitrove adopt [same selection] <observation-id> --confirm <digest> --json\n    Updates also require --update <asset-id> --expected-prior <content-hash>.\n    Approval never authorizes pending recovery or executable trust.\n"
+            );
+            println!(
                 "REMOVAL APPROVAL:\n    kitrove remove [selection] --plan --json\n    kitrove remove [same selection] --confirm <batch_digest> --json\n    kitrove pack remove [selection including --expected-prior] --plan --json\n    kitrove pack remove [same selection] --confirm <batch_digest> --json\n"
             );
             println!(

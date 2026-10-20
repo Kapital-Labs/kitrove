@@ -343,6 +343,7 @@ fn collect<R: BufRead, W: Write>(
             break id;
         };
         let args = AdoptArgs {
+            approval: crate::args::ApprovalMode::Interactive,
             observation_id: entry
                 .observation_id
                 .as_ref()

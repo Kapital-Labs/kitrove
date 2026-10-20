@@ -80,6 +80,7 @@ pub(crate) struct InitArgs {
 
 #[derive(Debug)]
 pub(crate) struct AdoptArgs {
+    pub approval: ApprovalMode,
     pub observation_id: String,
     pub asset_id: Option<AssetId>,
     pub update_asset_id: Option<AssetId>,
@@ -1053,6 +1054,7 @@ fn parse_environment(
 }
 
 fn parse_adopt(mut arguments: impl Iterator<Item = OsString>) -> Result<AdoptArgs, CliError> {
+    let mut approval = ApprovalMode::Interactive;
     let mut observation_id = None;
     let mut asset_id = None;
     let mut update_asset_id = None;
@@ -1066,6 +1068,9 @@ fn parse_adopt(mut arguments: impl Iterator<Item = OsString>) -> Result<AdoptArg
     let mut json = false;
     while let Some(argument) = next_utf8(&mut arguments)? {
         match argument.as_str() {
+            "--plan" | "--confirm" => {
+                parse_approval_flag(&argument, &mut approval, &mut arguments)?
+            }
             "--id" => {
                 if asset_id.is_some() {
                     return Err(CliError::new(
@@ -1187,6 +1192,7 @@ fn parse_adopt(mut arguments: impl Iterator<Item = OsString>) -> Result<AdoptArg
         harnesses = tier_one_harnesses();
     }
     Ok(AdoptArgs {
+        approval,
         observation_id,
         asset_id,
         update_asset_id,

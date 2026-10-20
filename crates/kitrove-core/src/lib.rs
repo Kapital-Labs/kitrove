@@ -209,7 +209,9 @@ pub use native_extension_adoption::{
     NativeExtensionDisposition, NativeExtensionObservation, NativeExtensionPlan,
     NativeExtensionPlanningError, plan_native_extension_adoption, plan_native_extension_update,
 };
-pub use native_extension_transaction::{NativeExtensionCommitError, commit_native_extension_plan};
+pub use native_extension_transaction::{
+    NativeExtensionCommitError, commit_approved_native_extension_plan, commit_native_extension_plan,
+};
 pub use object_mutation::{
     ObjectInstallOutcome, ObjectMutationError, ObjectStageOutcome, ObjectStore,
     initialize_empty_authority, preflight_empty_authority_initialization,
@@ -248,9 +250,13 @@ pub use portable_transaction::{
     AdoptionCommitOutcome, LockRepairOutcome, LockRepairPlan, PortableJournalStatus,
     PortableManifestCommitOutcome, PortableRecoveryOutcome, PortableStatus,
     PortableTransactionError, UpdateCommitOutcome, UpdateRecoveryOutcome, commit_adoption,
-    commit_agent_adoption, commit_agent_update, commit_approved_pack_mutation,
-    commit_instruction_adoption, commit_instruction_update, commit_lock_repair,
-    commit_mcp_adoption, commit_mcp_update, commit_pack_creation,
+    commit_agent_adoption, commit_agent_update, commit_approved_adoption,
+    commit_approved_agent_adoption, commit_approved_agent_update,
+    commit_approved_instruction_adoption, commit_approved_instruction_update,
+    commit_approved_mcp_adoption, commit_approved_mcp_update, commit_approved_pack_mutation,
+    commit_approved_prompt_command_adoption, commit_approved_prompt_command_update,
+    commit_approved_update_adoption, commit_instruction_adoption, commit_instruction_update,
+    commit_lock_repair, commit_mcp_adoption, commit_mcp_update, commit_pack_creation,
     commit_pack_distribution_adoption, commit_pack_rollback, commit_pack_update,
     commit_prompt_command_adoption, commit_prompt_command_update, commit_update_adoption,
     inspect_portable_environment, inspect_portable_journal, plan_lock_repair,
