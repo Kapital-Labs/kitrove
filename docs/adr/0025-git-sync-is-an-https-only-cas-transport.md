@@ -159,6 +159,18 @@ Apache-2.0 OR ISC OR MIT and upstream MSRV is 1.71. Retain the exact feature set
 Ring provider, pinned roots, and all transport limits. Refresh the reviewed lock
 digest only after reviewing this single-package change. No advisory is ignored.
 
+### 2026-10-20 certificate distrust maintenance
+
+The current roots pin is webpki-roots1.0.10 and the locked verifier is
+rustls-webpki0.103.16, resolving RUSTSEC-2026-0381/0382. Upstream removes the
+emSign ECC Root CA G3 trust anchor and rejects affected intermediate public keys.
+Registry package identities/checksums and source changes were reviewed. Licenses
+remain CDLA-Permissive-2.0 and ISC respectively; both declare Rust1.71 and retain
+compatibility with Kitrove's approved Rust1.88 floor. Refresh the exact lock digest
+and required roots-version assertions only after that review. Keep Ring, all
+transport limits, certificate verification and no-ambient-root policy unchanged.
+No advisories are suppressed and no existing released assets are replaced.
+
 ## Consequences
 
 - Git remains transport and history, not the merge engine or user workflow.
