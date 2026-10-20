@@ -184,7 +184,11 @@ distribution approvals or time-sensitive repository metadata renewal.
 - [ ] Consistent read-only previews and exact-digest approval for adoption,
   pack creation/update/import, application, and removal. Materialization's first
   increment is defined in [ADR-0049](adr/0049-agent-materialization-approval.md);
-  implementation alone does not complete this milestone.
+  pack authoring, removal, and adoption/update approval are described in
+  [ADR-0050](adr/0050-agent-pack-authoring-approval.md),
+  [ADR-0051](adr/0051-agent-removal-approval.md), and
+  [ADR-0052](adr/0052-agent-adoption-approval.md).
+  Implementation alone does not complete this milestone.
 - [ ] Stable, documented JSON plans/results and exit codes, including stale
   approval, conflicts, unsupported capabilities, trust requirements, and recovery
   errors. Unattended commands must never wait for interactive input.

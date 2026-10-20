@@ -1,6 +1,8 @@
 #![forbid(unsafe_code)]
 
 use kitrove_testkit::owned_fixture;
+#[path = "portable_cli/adoption_approval.rs"]
+mod adoption_approval;
 #[path = "portable_cli/removal_approval.rs"]
 mod removal_approval;
 mod support;

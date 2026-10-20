@@ -57,6 +57,49 @@ pub fn commit_native_extension_plan(
     proposed_objects: &[VerifiedObjectEnvelope],
     limits: SyncLimits,
 ) -> Result<SyncPortableCommitOutcome, NativeExtensionCommitError> {
+    commit_plan_with_recovery(
+        environment_root,
+        plan,
+        reread_observation,
+        current_objects,
+        proposed_objects,
+        limits,
+        true,
+    )
+}
+
+/// Commits an explicitly approved native-extension plan without implicit recovery.
+///
+/// The caller must compare the exact plan digest with approval first. This
+/// preserves content only and never grants materialization or execution trust.
+pub fn commit_approved_native_extension_plan(
+    environment_root: &Path,
+    plan: &NativeExtensionPlan,
+    reread_observation: &NativeExtensionObservation,
+    current_objects: &[VerifiedObjectEnvelope],
+    proposed_objects: &[VerifiedObjectEnvelope],
+    limits: SyncLimits,
+) -> Result<SyncPortableCommitOutcome, NativeExtensionCommitError> {
+    commit_plan_with_recovery(
+        environment_root,
+        plan,
+        reread_observation,
+        current_objects,
+        proposed_objects,
+        limits,
+        false,
+    )
+}
+
+fn commit_plan_with_recovery(
+    environment_root: &Path,
+    plan: &NativeExtensionPlan,
+    reread_observation: &NativeExtensionObservation,
+    current_objects: &[VerifiedObjectEnvelope],
+    proposed_objects: &[VerifiedObjectEnvelope],
+    limits: SyncLimits,
+    recover_pending: bool,
+) -> Result<SyncPortableCommitOutcome, NativeExtensionCommitError> {
     let store = ObjectStore::open(environment_root).map_err(|_| storage_error())?;
     let manifest_text = store
         .read_text(
@@ -99,7 +142,12 @@ pub fn commit_native_extension_plan(
     }
     drop(store);
 
-    commit_sync_portable_snapshot(
+    let commit = if recover_pending {
+        commit_sync_portable_snapshot
+    } else {
+        crate::sync_portable_transaction::commit_approved_sync_portable_snapshot
+    };
+    commit(
         environment_root,
         &expected_local,
         &merged,
@@ -107,7 +155,13 @@ pub fn commit_native_extension_plan(
         plan.digest(),
         limits,
     )
-    .map_err(|_| {
+    .map_err(|error| {
+        if error.code() == "sync_portable.recovery_required" {
+            return commit_error(
+                "native_extension.recovery_required",
+                "pending recovery requires operator handling and a fresh approved plan",
+            );
+        }
         commit_error(
             "native_extension.commit_failed",
             "native extension transaction did not commit",

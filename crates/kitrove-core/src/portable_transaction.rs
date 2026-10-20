@@ -1298,6 +1298,8 @@ pub fn commit_lock_repair(
 
 mod pack_approval;
 pub use pack_approval::{commit_approved_pack_mutation, commit_pack_creation, commit_pack_update};
+mod adoption_approval;
+pub use adoption_approval::*;
 
 /// Commits a confirmed selective pack rollback after all required immutable objects are present.
 pub fn commit_pack_rollback(
@@ -1577,6 +1579,24 @@ fn commit_adoption_authority(
     limits: CaptureLimits,
     interrupt_after: Option<JournalPhase>,
 ) -> Result<AdoptionCommitOutcome, PortableTransactionError> {
+    commit_adoption_authority_with_recovery(
+        plan,
+        reread_observation,
+        environment_root,
+        limits,
+        interrupt_after,
+        RecoveryPolicy::Recover,
+    )
+}
+
+fn commit_adoption_authority_with_recovery(
+    plan: AdoptionPlanRef<'_>,
+    reread_observation: AdoptionObservationRef<'_>,
+    environment_root: &Path,
+    limits: CaptureLimits,
+    interrupt_after: Option<JournalPhase>,
+    recovery_policy: RecoveryPolicy,
+) -> Result<AdoptionCommitOutcome, PortableTransactionError> {
     let (forward_work, rollback_work) = PortableMutationKind::Adoption.commit_work(limits)?;
     let store = ObjectStore::open(environment_root)
         .map_err(|error| store_error_at(error, "transaction.environment_open_io"))?;
@@ -1584,8 +1604,14 @@ fn commit_adoption_authority(
         .try_lock_environment()
         .map_err(|error| store_error_at(error, "transaction.environment_lock_io"))?;
     ensure_no_foreign_environment_journal(&store)?;
-    let recovery = recover_with_store(&store, environment_root, limits)
-        .map_err(|error| transaction_error_at(error, "transaction.recovery_io"))?;
+    let recovery = match recovery_policy {
+        RecoveryPolicy::Recover => recover_with_store(&store, environment_root, limits)
+            .map_err(|error| transaction_error_at(error, "transaction.recovery_io"))?,
+        RecoveryPolicy::Refuse => {
+            require_no_portable_recovery(&store)?;
+            PortableRecoveryOutcome::NoJournal
+        }
+    };
     let cleanup_budget =
         cleanup_locked_stores(&[&store], forward_work, rollback_work).map_err(cleanup_error)?;
     let _mutation_budget = cleanup_budget.begin_forward().map_err(cleanup_error)?;
@@ -1777,13 +1803,36 @@ fn commit_update_authority(
     limits: CaptureLimits,
     interrupt_after: Option<JournalPhase>,
 ) -> Result<UpdateCommitOutcome, PortableTransactionError> {
+    commit_update_authority_with_recovery(
+        plan,
+        reread_observation,
+        environment_root,
+        state_root,
+        limits,
+        interrupt_after,
+        RecoveryPolicy::Recover,
+    )
+}
+
+fn commit_update_authority_with_recovery(
+    plan: UpdatePlanRef<'_>,
+    reread_observation: UpdateObservationRef<'_>,
+    environment_root: &Path,
+    state_root: &Path,
+    limits: CaptureLimits,
+    interrupt_after: Option<JournalPhase>,
+    recovery_policy: RecoveryPolicy,
+) -> Result<UpdateCommitOutcome, PortableTransactionError> {
     let local_state = plan.proposed_local_state_text().is_some();
     let (forward_work, rollback_work) =
         PortableMutationKind::Update { local_state }.commit_work(limits)?;
     let environment = ObjectStore::open(environment_root)
         .map_err(|error| store_error_at(error, "transaction.environment_open_io"))?;
-    let state = ObjectStore::open_or_create_private_state(state_root)
-        .map_err(|error| store_error_at(error, "transaction.local_state_open_io"))?;
+    let state = match recovery_policy {
+        RecoveryPolicy::Recover => ObjectStore::open_or_create_private_state(state_root),
+        RecoveryPolicy::Refuse => ObjectStore::open_private_state_for_mutation(state_root),
+    }
+    .map_err(|error| store_error_at(error, "transaction.local_state_open_io"))?;
     environment
         .require_non_overlapping_root(&state)
         .map_err(|error| store_error_at(error, "transaction.local_state_open_io"))?;
@@ -1791,7 +1840,15 @@ fn commit_update_authority(
         .map_err(|error| store_error_at(error, "transaction.local_state_lock_io"))?;
     ensure_no_foreign_environment_journal(&environment)?;
     ensure_no_foreign_local_state_journal(&state)?;
-    let recovery = recover_update_with_stores(&environment, environment_root, &state, limits)?;
+    let recovery = match recovery_policy {
+        RecoveryPolicy::Recover => {
+            recover_update_with_stores(&environment, environment_root, &state, limits)?
+        }
+        RecoveryPolicy::Refuse => {
+            require_no_portable_recovery(&environment)?;
+            UpdateRecoveryOutcome::NoJournal
+        }
+    };
     if recovery == UpdateRecoveryOutcome::CompletedWithReceipt {
         return Ok(UpdateCommitOutcome::RecoveredWithReceipt);
     }
@@ -2213,6 +2270,26 @@ enum RecoveryPolicy {
     Refuse,
 }
 
+fn approved_recovery_required() -> PortableTransactionError {
+    PortableTransactionError::new(
+        "transaction.recovery_required",
+        "pending recovery requires operator handling and a fresh approved plan",
+    )
+}
+
+fn require_no_portable_recovery(store: &ObjectStore) -> Result<(), PortableTransactionError> {
+    if local_state_authority::any_journal_present(
+        store,
+        local_state_authority::ALL_PORTABLE_RECOVERY,
+        MAX_JOURNAL_BYTES,
+    )
+    .map_err(store_error)?
+    {
+        return Err(approved_recovery_required());
+    }
+    Ok(())
+}
+
 fn commit_manifest_plan_with_recovery(
     plan: &impl ManifestCommitPlan,
     kind: ManifestCommitKind,
@@ -2236,18 +2313,7 @@ fn commit_manifest_plan_with_recovery(
         RecoveryPolicy::Recover => recover_with_store(&store, environment_root, limits)
             .map_err(|error| transaction_error_at(error, "transaction.recovery_io"))?,
         RecoveryPolicy::Refuse => {
-            if local_state_authority::any_journal_present(
-                &store,
-                local_state_authority::ALL_PORTABLE_RECOVERY,
-                MAX_JOURNAL_BYTES,
-            )
-            .map_err(store_error)?
-            {
-                return Err(PortableTransactionError::new(
-                    "transaction.recovery_required",
-                    "pending recovery requires operator handling and a fresh approved plan",
-                ));
-            }
+            require_no_portable_recovery(&store)?;
             PortableRecoveryOutcome::NoJournal
         }
     };
@@ -6220,6 +6286,76 @@ mod tests {
     }
 
     #[test]
+    fn approved_update_preserves_every_local_recovery_artifact() {
+        for path in local_state_authority::ALL_LOCAL_STATE_RECOVERY {
+            let fixture = update_environment();
+            let artifact = fixture.state.join(path);
+            fs::create_dir_all(artifact.parent().unwrap()).unwrap();
+            fs::write(&artifact, b"pending-recovery-canary").unwrap();
+            let manifest_before = fs::read(fixture.environment.join(MANIFEST_PATH)).unwrap();
+            let lock_before = fs::read(fixture.environment.join(LOCK_PATH)).unwrap();
+            let state_before = fs::read(fixture.state.join("state.json")).unwrap();
+            assert_eq!(
+                commit_approved_update_adoption(
+                    &fixture.plan,
+                    &fixture.reread,
+                    &fixture.environment,
+                    &fixture.state,
+                    CaptureLimits::default(),
+                )
+                .unwrap_err()
+                .code(),
+                "transaction.local_state_recovery_required"
+            );
+            assert_eq!(fs::read(&artifact).unwrap(), b"pending-recovery-canary");
+            assert_eq!(
+                fs::read(fixture.environment.join(MANIFEST_PATH)).unwrap(),
+                manifest_before
+            );
+            assert_eq!(
+                fs::read(fixture.environment.join(LOCK_PATH)).unwrap(),
+                lock_before
+            );
+            assert_eq!(
+                fs::read(fixture.state.join("state.json")).unwrap(),
+                state_before
+            );
+            assert!(!fixture.environment.join(JOURNAL_PATH).exists());
+        }
+    }
+
+    #[test]
+    fn approved_update_does_not_initialize_missing_local_state() {
+        let fixture = update_environment();
+        let missing = fixture.state.with_file_name("missing-approved-state");
+        assert!(!missing.exists());
+        let manifest_before = fs::read(fixture.environment.join(MANIFEST_PATH)).unwrap();
+        let lock_before = fs::read(fixture.environment.join(LOCK_PATH)).unwrap();
+        assert_eq!(
+            commit_approved_update_adoption(
+                &fixture.plan,
+                &fixture.reread,
+                &fixture.environment,
+                &missing,
+                CaptureLimits::default(),
+            )
+            .unwrap_err()
+            .code(),
+            "object.unsafe_environment_root"
+        );
+        assert!(!missing.exists());
+        assert_eq!(
+            fs::read(fixture.environment.join(MANIFEST_PATH)).unwrap(),
+            manifest_before
+        );
+        assert_eq!(
+            fs::read(fixture.environment.join(LOCK_PATH)).unwrap(),
+            lock_before
+        );
+        assert!(!fixture.environment.join(JOURNAL_PATH).exists());
+    }
+
+    #[test]
     fn every_update_phase_recovers_without_false_receipt_ownership() {
         for phase in [
             JournalPhase::Prepared,
@@ -6244,6 +6380,37 @@ mod tests {
             let journal = fs::read_to_string(fixture.environment.join(JOURNAL_PATH)).unwrap();
             assert!(!journal.contains(fixture.target.to_str().unwrap()));
             assert!(!journal.contains("Inspect the newest change"));
+            let manifest_before = fs::read(fixture.environment.join(MANIFEST_PATH)).unwrap();
+            let lock_before = fs::read(fixture.environment.join(LOCK_PATH)).unwrap();
+            let state_before = fs::read(fixture.state.join("state.json")).unwrap();
+            assert_eq!(
+                commit_approved_update_adoption(
+                    &fixture.plan,
+                    &fixture.reread,
+                    &fixture.environment,
+                    &fixture.state,
+                    CaptureLimits::default(),
+                )
+                .unwrap_err()
+                .code(),
+                "transaction.recovery_required"
+            );
+            assert_eq!(
+                fs::read_to_string(fixture.environment.join(JOURNAL_PATH)).unwrap(),
+                journal
+            );
+            assert_eq!(
+                fs::read(fixture.environment.join(MANIFEST_PATH)).unwrap(),
+                manifest_before
+            );
+            assert_eq!(
+                fs::read(fixture.environment.join(LOCK_PATH)).unwrap(),
+                lock_before
+            );
+            assert_eq!(
+                fs::read(fixture.state.join("state.json")).unwrap(),
+                state_before
+            );
             assert_eq!(
                 recover_portable_environment(&fixture.environment, CaptureLimits::default())
                     .unwrap_err()
@@ -6810,6 +6977,29 @@ mod tests {
                 inspect_portable_journal(&environment_root).unwrap(),
                 PortableJournalStatus::Pending
             );
+
+            // An agent's exact-plan approval must not authorize recovery of even
+            // a valid journal from that same plan.
+            let journal_before = fs::read(root.path().join(JOURNAL_PATH)).unwrap();
+            let manifest_before = fs::read(root.path().join(MANIFEST_PATH)).unwrap();
+            let lock_before = fs::read(root.path().join(LOCK_PATH)).ok();
+            let refused = commit_approved_adoption(
+                &plan,
+                &candidate,
+                &environment_root,
+                CaptureLimits::default(),
+            )
+            .unwrap_err();
+            assert_eq!(refused.code(), "transaction.recovery_required");
+            assert_eq!(
+                fs::read(root.path().join(JOURNAL_PATH)).unwrap(),
+                journal_before
+            );
+            assert_eq!(
+                fs::read(root.path().join(MANIFEST_PATH)).unwrap(),
+                manifest_before
+            );
+            assert_eq!(fs::read(root.path().join(LOCK_PATH)).ok(), lock_before);
 
             let recovered =
                 recover_portable_environment(&environment_root, CaptureLimits::default()).unwrap();
