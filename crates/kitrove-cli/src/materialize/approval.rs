@@ -1,14 +1,11 @@
 use kitrove_agent_skills::CaptureLimits;
-use kitrove_core::{
-    AtomicApplyBatchJournalStatus, commit_atomic_apply_batch, inspect_atomic_apply_batch_journal,
-};
+use kitrove_core::commit_atomic_apply_batch;
 use kitrove_model::ContentHash;
 
 use super::{build_atomic_batch, build_plans, render_batch_result, render_plans};
 use crate::args::{CliError, MaterializeArgs};
-use crate::batch_recovery::recover_pending_batch;
+use crate::batch_recovery::{recover_pending_batch, require_no_pending_batch};
 use crate::portable::CompletedCommand;
-use crate::scan::resolve_required_state_root;
 
 pub(crate) fn run_apply(
     arguments: MaterializeArgs,
@@ -24,19 +21,6 @@ pub(crate) fn run_confirmed_apply(
     run_apply_with_approval(arguments, Some(expected), |_| false)
 }
 
-fn require_no_pending_batch() -> Result<(), CliError> {
-    let state_root = resolve_required_state_root()?;
-    match inspect_atomic_apply_batch_journal(&state_root)
-        .map_err(|error| CliError::new(error.code(), error.message()))?
-    {
-        AtomicApplyBatchJournalStatus::NoJournal => Ok(()),
-        AtomicApplyBatchJournalStatus::Pending { .. } => Err(CliError::new(
-            "apply.recovery_required",
-            "pending batch recovery requires explicit handling before a new confirmed apply",
-        )),
-    }
-}
-
 fn run_apply_with_approval(
     arguments: MaterializeArgs,
     expected: Option<&ContentHash>,
@@ -44,7 +28,7 @@ fn run_apply_with_approval(
 ) -> Result<CompletedCommand, CliError> {
     let json = arguments.json;
     if expected.is_some() {
-        require_no_pending_batch()?;
+        require_no_pending_batch("apply.recovery_required")?;
     } else {
         recover_pending_batch(arguments.environment.as_deref())?;
     }
@@ -65,7 +49,7 @@ fn run_apply_with_approval(
         ));
     }
     if expected.is_some() {
-        require_no_pending_batch()?;
+        require_no_pending_batch("apply.recovery_required")?;
     } else {
         recover_pending_batch(arguments.environment.as_deref())?;
     }

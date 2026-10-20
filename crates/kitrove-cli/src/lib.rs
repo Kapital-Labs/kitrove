@@ -93,6 +93,9 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         }
         Command::Help => {
             println!(
+                "REMOVAL APPROVAL:\n    kitrove remove [selection] --plan --json\n    kitrove remove [same selection] --confirm <batch_digest> --json\n    kitrove pack remove [selection including --expected-prior] --plan --json\n    kitrove pack remove [same selection] --confirm <batch_digest> --json\n"
+            );
+            println!(
                 "AGENT APPROVAL:\n    kitrove plan [selection] --json\n    kitrove apply [same selection] --confirm <batch_digest> [--json]\n    Approval uses the complete batch_digest, never an individual plan_digest.\n    kitrove pack create|update [selection] --plan --json\n    kitrove pack create|update [same selection] --confirm <digest> --json\n    Pack update still requires --expected-prior <pack-revision>.\n    Pending recovery requires explicit handling and a fresh plan.\n"
             );
             println!(

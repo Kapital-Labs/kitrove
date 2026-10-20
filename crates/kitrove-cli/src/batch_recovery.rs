@@ -8,6 +8,19 @@ use kitrove_core::{
 use crate::args::CliError;
 use crate::scan::{resolve_required_environment_root, resolve_required_state_root};
 
+pub(crate) fn require_no_pending_batch(code: &'static str) -> Result<(), CliError> {
+    let state_root = resolve_required_state_root()?;
+    match inspect_atomic_apply_batch_journal(&state_root)
+        .map_err(|error| CliError::new(error.code(), error.message()))?
+    {
+        AtomicApplyBatchJournalStatus::NoJournal => Ok(()),
+        AtomicApplyBatchJournalStatus::Pending { .. } => Err(CliError::new(
+            code,
+            "pending batch recovery requires operator handling and a fresh approved plan",
+        )),
+    }
+}
+
 pub(crate) fn recover_pending_batch(environment: Option<&Path>) -> Result<(), CliError> {
     let state_root = resolve_required_state_root()?;
     match inspect_atomic_apply_batch_journal(&state_root) {
