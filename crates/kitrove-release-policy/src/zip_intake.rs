@@ -518,6 +518,9 @@ mod tests {
         for mode in [0o104644_u32, 0o102644, 0o101644] {
             let mut bytes = valid_zip();
             let central = signature(&bytes, b"PK\x01\x02", 0);
+            // ZIP writers select the creator system from the build host.
+            // This fixture specifically exercises Unix permission semantics.
+            bytes[central + 5] = 3;
             bytes[central + 38..central + 42].copy_from_slice(&(mode << 16).to_le_bytes());
             assert!(inspect_zip_application_archive(APPLICATION_ARCHIVES[3], &bytes).is_err());
         }
@@ -785,6 +788,7 @@ mod tests {
         for mode in [0o120777_u32, 0o020666_u32] {
             let mut bytes = valid_zip();
             let central = signature(&bytes, b"PK\x01\x02", 0);
+            bytes[central + 5] = 3;
             bytes[central + 38..central + 42].copy_from_slice(&(mode << 16).to_le_bytes());
             assert_eq!(
                 inspect_zip_application_archive(APPLICATION_ARCHIVES[3], &bytes),

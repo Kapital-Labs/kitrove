@@ -71,3 +71,11 @@ native Windows runtime evidence. Exact native public checks remain required
 before merge. Early compile/test failures exposed changed ZIP APIs and DOS mode
 semantics; corrections above preserve fail-closed checks rather than removing
 tests. No advisory exception or CI rerun was used to hide a failure.
+
+The first exact public run passed Linux, macOS and Rust 1.88, but native Windows
+exposed two host-dependent test fixtures: ZIP 9's writer marks Windows-created
+archives as DOS. Mutating only the upper attributes did not create a Unix-mode
+fixture there. Both Unix-mode tests now explicitly set the creator-system byte
+to Unix before changing its attributes. DOS-policy fixtures remain independently
+covered. No intake policy or expected refusal was relaxed; fresh native checks
+are required for this correction.
