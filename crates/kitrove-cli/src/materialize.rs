@@ -8,9 +8,9 @@ use kitrove_core::{
     AtomicApplyBatchPlan, AtomicApplyItem, CoalescedInstructionApplyPlan, CoalescedMcpApplyPlan,
     ExtensionApplyAuthority, ExtensionApplyPlan, InstructionProjection, McpProjection,
     NativeExtensionLayout, PackApplicationSelection, PiProjectTrustEvidence, PiProjectTrustStatus,
-    PromptCommandApplyPlan, authorize_extension_apply, commit_atomic_apply_batch,
-    guard_asset_materialization, inspect_pi_project_trust, load_native_extension_object,
-    load_portable_agent_object, load_portable_instruction_object, load_portable_mcp_object,
+    PromptCommandApplyPlan, authorize_extension_apply, guard_asset_materialization,
+    inspect_pi_project_trust, load_native_extension_object, load_portable_agent_object,
+    load_portable_instruction_object, load_portable_mcp_object,
     load_portable_prompt_command_object, load_portable_skill_object, observe_agent_destination,
     observe_extension_destination, observe_instruction_document, observe_mcp_document,
     observe_prompt_command_destination, observe_skill_destination, plan_agent_apply,
@@ -32,7 +32,6 @@ use crate::adapters::{
 #[cfg(test)]
 use crate::adapters::{instruction_target_policy, mcp_target_policy};
 use crate::args::{CliError, MaterializeArgs};
-use crate::batch_recovery::recover_pending_batch;
 use crate::portable::CompletedCommand;
 use crate::scan::{
     read_portable_text, resolve_materialization_anchor, resolve_required_environment_root,
@@ -52,44 +51,8 @@ pub(crate) fn run_plan(arguments: MaterializeArgs) -> Result<CompletedCommand, C
     })
 }
 
-pub(crate) fn run_apply(
-    arguments: MaterializeArgs,
-    mut confirm: impl FnMut(&str) -> bool,
-) -> Result<CompletedCommand, CliError> {
-    let json = arguments.json;
-    recover_pending_batch(arguments.environment.as_deref())?;
-    let first = build_plans(&arguments)?;
-    let first_batch = build_atomic_batch(&first)?;
-    let plan_output = render_plans(&first, &first_batch, json)?;
-    if !confirm(&plan_output) {
-        return Err(CliError::new(
-            "apply.confirmation_required",
-            "the apply plan was not confirmed; no changes were made",
-        ));
-    }
-    recover_pending_batch(arguments.environment.as_deref())?;
-    let refreshed = build_plans(&arguments)?;
-    let refreshed_batch = build_atomic_batch(&refreshed)?;
-    if refreshed_batch.digest() != first_batch.digest()
-        || refreshed.pack_selections != first.pack_selections
-    {
-        return Err(CliError::new(
-            "apply.plan_stale",
-            "materialization authority changed after confirmation",
-        ));
-    }
-    let outcome = commit_atomic_apply_batch(
-        &refreshed_batch,
-        &refreshed.environment_root,
-        &refreshed.state_root,
-        CaptureLimits::default(),
-    )
-    .map_err(|error| CliError::new(error.code(), error.message()))?;
-    Ok(CompletedCommand {
-        output: render_batch_result(&refreshed_batch, outcome, json)?,
-        status: 0,
-    })
-}
+mod approval;
+pub(crate) use approval::{run_apply, run_confirmed_apply};
 
 #[derive(Clone)]
 enum MaterializationPlan {

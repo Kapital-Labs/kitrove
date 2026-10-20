@@ -174,6 +174,37 @@ handle-bound private directory/file ACL enforcement and shared retained-tree val
 with native Windows runtime evidence. Stable failure behavior and the explicit operator repair
 boundary are documented in `docs/QUARANTINE-RECOVERY.md`.
 
+## Agent-safe CLI workflows
+
+This bounded milestone is required before advertising autonomous agent use.
+It builds on the existing capability lifecycle and transaction machinery, not
+general package management or a second mutation engine. It must not delay
+distribution approvals or time-sensitive repository metadata renewal.
+
+- [ ] Consistent read-only previews and exact-digest approval for adoption,
+  pack creation/update/import, application, and removal. Materialization's first
+  increment is defined in [ADR-0049](adr/0049-agent-materialization-approval.md);
+  implementation alone does not complete this milestone.
+- [ ] Stable, documented JSON plans/results and exit codes, including stale
+  approval, conflicts, unsupported capabilities, trust requirements, and recovery
+  errors. Unattended commands must never wait for interactive input.
+- [ ] Approval binds the selected content, destinations, ownership changes and
+  other effects. Changed plans require fresh authorization; no automatic
+  reapproval, credential transfer, implicit executable trust or unattended
+  recovery is permitted. A digest protects plan freshness, not user identity.
+- [ ] End-to-end agent acceptance on real Mac and Linux machines: package a
+  synthetic capability, transfer it, inspect and approve the destination plan,
+  apply it, return an edit, and prove stale approval and unmanaged-file
+  protection. The bounded RC4.2 filesystem-backend roundtrip establishes a
+  baseline, not acceptance of the new agent-facing command contracts or every
+  capability/transport.
+
+Deliver these as reviewed, independently tested increments using the existing
+planning and commit coordinators. Keep ordinary interactive workflows compatible.
+See [agent workflow](AGENT-WORKFLOW.md) for the current interface and limitations.
+An MCP server remains optional and demand-driven after the CLI contracts are
+proven; any future wrapper must reuse those same authority boundaries.
+
 ## Engineering sustainability gate
 
 Large-module splitting and shared filesystem-traversal utilities are required engineering work rather

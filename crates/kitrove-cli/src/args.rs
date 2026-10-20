@@ -18,6 +18,7 @@ pub(crate) enum Command {
     Lock(EnvironmentArgs),
     Plan(MaterializeArgs),
     Apply(MaterializeArgs),
+    ConfirmedApply(MaterializeArgs, ContentHash),
     SyncPlan(SyncArgs),
     SyncApply(SyncArgs),
     TrustPlan(TrustPlanArgs),
@@ -373,8 +374,11 @@ pub(crate) fn parse_args(
         "remove" => parse_remove(arguments).map(Command::Remove),
         "status" => parse_environment(arguments, "status").map(Command::Status),
         "lock" => parse_environment(arguments, "lock").map(Command::Lock),
-        "plan" => parse_materialize(arguments, "plan").map(Command::Plan),
-        "apply" => parse_materialize(arguments, "apply").map(Command::Apply),
+        "plan" => parse_materialize(arguments, "plan").map(|(args, _)| Command::Plan(args)),
+        "apply" => parse_materialize(arguments, "apply").map(|(args, confirm)| match confirm {
+            Some(digest) => Command::ConfirmedApply(args, digest),
+            None => Command::Apply(args),
+        }),
         "sync" => parse_sync(arguments),
         "trust" => parse_trust(arguments),
         "pack" => parse_pack(arguments),
@@ -1081,7 +1085,7 @@ fn parse_sync(mut arguments: impl Iterator<Item = OsString>) -> Result<Command, 
 fn parse_materialize(
     mut arguments: impl Iterator<Item = OsString>,
     command: &'static str,
-) -> Result<MaterializeArgs, CliError> {
+) -> Result<(MaterializeArgs, Option<ContentHash>), CliError> {
     let mut assets = BTreeSet::new();
     let mut packs = BTreeSet::new();
     let mut targets = BTreeSet::new();
@@ -1091,8 +1095,19 @@ fn parse_materialize(
     let mut version_binaries = Vec::new();
     let mut environment = None;
     let mut json = false;
+    let mut confirm = None;
     while let Some(argument) = next_utf8(&mut arguments)? {
         match argument.as_str() {
+            "--confirm" if command == "apply" && confirm.is_none() => {
+                confirm = Some(ContentHash::parse(required_value(&mut arguments)?).map_err(
+                    |_| {
+                        CliError::new(
+                            "cli.apply_confirmation_invalid",
+                            "--confirm requires a valid batch digest",
+                        )
+                    },
+                )?);
+            }
             "--profile" => {
                 if profile.is_some() {
                     return Err(CliError::new(
@@ -1156,17 +1171,20 @@ fn parse_materialize(
             "--profile cannot be combined with --asset, --pack, or --target",
         ));
     }
-    Ok(MaterializeArgs {
-        profile,
-        assets,
-        packs,
-        targets,
-        scope: scope.unwrap_or(HarnessScope::User),
-        project_root,
-        version_binaries,
-        environment,
-        json,
-    })
+    Ok((
+        MaterializeArgs {
+            profile,
+            assets,
+            packs,
+            targets,
+            scope: scope.unwrap_or(HarnessScope::User),
+            project_root,
+            version_binaries,
+            environment,
+            json,
+        },
+        confirm,
+    ))
 }
 
 fn parse_init(mut arguments: impl Iterator<Item = OsString>) -> Result<InitArgs, CliError> {

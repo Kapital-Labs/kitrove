@@ -112,6 +112,9 @@ kitrove scan --verbose
 kitrove scan --json
 ```
 
+For exact non-interactive materialization approvals, see
+[the agent workflow](AGENT-WORKFLOW.md).
+
 To adopt one uniquely named skill without the walkthrough:
 
 ```sh
