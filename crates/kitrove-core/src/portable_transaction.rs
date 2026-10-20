@@ -6290,8 +6290,13 @@ mod tests {
         for path in local_state_authority::ALL_LOCAL_STATE_RECOVERY {
             let fixture = update_environment();
             let artifact = fixture.state.join(path);
-            fs::create_dir_all(artifact.parent().unwrap()).unwrap();
-            fs::write(&artifact, b"pending-recovery-canary").unwrap();
+            if let Some((parent, _)) = path.rsplit_once('/')
+                && !fixture.state.join(parent).exists()
+            {
+                crate::test_authority::create_owned_fixture_directory(&fixture.state, parent);
+            }
+            crate::test_authority::write_owned_fixture_file(&artifact, b"pending-recovery-canary")
+                .unwrap();
             let manifest_before = fs::read(fixture.environment.join(MANIFEST_PATH)).unwrap();
             let lock_before = fs::read(fixture.environment.join(LOCK_PATH)).unwrap();
             let state_before = fs::read(fixture.state.join("state.json")).unwrap();

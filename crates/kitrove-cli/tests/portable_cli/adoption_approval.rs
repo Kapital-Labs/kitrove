@@ -30,7 +30,7 @@ fn fixture(kind: &str) -> (Fixture, PathBuf) {
         _ => unreachable!(),
     };
     fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(&path, text).unwrap();
+    owned_fixture::create(&path, text.as_bytes());
     fs::write(
         fixture.environment.join("kitrove.toml"),
         EnvironmentManifest::from_toml(EMPTY_MANIFEST)
