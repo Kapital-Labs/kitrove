@@ -4,6 +4,12 @@ Agents can inspect and invoke Kitrove through its CLI. No MCP server is required
 The agent must still obtain the user's authorization for the selected operation;
 a digest is a stale-plan safeguard, not a substitute for that authorization.
 
+The new adoption, pack, application and removal approval interfaces described
+here, including `--authored` and `--json-errors`, are post-RC4.2 development work.
+They are not included in the immutable published RC4.2 packages. Use a build that
+contains the corresponding changes on each machine; merging these changes does
+not update installed clients or publish a new release.
+
 ## Machine-readable failures
 
 Put `--json-errors` first to opt into versioned JSON errors on stderr:
