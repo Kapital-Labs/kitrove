@@ -56,11 +56,21 @@ handling recovery. Do not automatically approve a replacement digest.
 
 ## Other operations and limits
 
+Direct `remove` and `pack remove` also accept mutually exclusive `--plan` and
+`--confirm <batch_digest>`. Preview does not recover earlier transactions or
+change files. Approval covers the complete receipt-backed batch, including
+retained pack co-owners. Pack removal still requires `--expected-prior` for the
+historical application revision. Modified or unmanaged destinations are refused,
+and portable assets remain in the collection. These flags do not add support
+for new asset kinds: direct removal currently supports instructions, prompt
+commands, agents and MCP entries; skill/extension removal uses existing pack
+ownership where available.
+
 `sync plan` / `sync apply --confirm` and `trust plan` / `trust apply --confirm`
 already have explicit digest approval. Sync can publish as well as receive.
 Each machine keeps its own credentials, bindings, trust and receipts.
 
-Ordinary adoption and removal still use their existing
+Ordinary adoption still uses its existing
 confirmation interfaces. Pack adopt/rollback retain their existing `--yes`
 option; it is not equivalent to externally approving a previously inspected
 digest. Those operations are not covered by this materialization increment.

@@ -6,8 +6,8 @@ use kitrove_agent_skills::CaptureLimits;
 use kitrove_core::{
     AtomicApplyBatchCommitOutcome, AtomicApplyBatchPlan, AtomicApplyItem,
     InstructionRemovalProjection, InstructionRemovalSelection, McpProjection, McpRemovalSelection,
-    commit_atomic_apply_batch, load_native_extension_object, load_portable_agent_object,
-    load_portable_mcp_object, load_portable_prompt_command_object, load_portable_skill_object,
+    load_native_extension_object, load_portable_agent_object, load_portable_mcp_object,
+    load_portable_prompt_command_object, load_portable_skill_object,
     observe_agent_receipt_destination, observe_extension_destination, observe_instruction_document,
     observe_mcp_document, observe_prompt_command_receipt_destination, observe_skill_destination,
     pi_extension_removal_policy, plan_agent_apply, plan_agent_removal,
@@ -27,8 +27,6 @@ use crate::adapters::{
     receipt_prompt_command_target_policy, target_policy,
 };
 use crate::args::{CliError, PackRemoveArgs, RemoveArgs};
-use crate::batch_recovery::recover_pending_batch;
-use crate::portable::CompletedCommand;
 use crate::scan::{
     read_portable_text, resolve_materialization_anchor, resolve_required_environment_root,
     resolve_required_state_root,
@@ -36,73 +34,8 @@ use crate::scan::{
 
 const MAX_CONTROL_BYTES: usize = 32 * 1024 * 1024;
 
-pub(crate) fn run_remove(
-    arguments: RemoveArgs,
-    mut confirm: impl FnMut(&str) -> bool,
-) -> Result<CompletedCommand, CliError> {
-    recover_pending(&arguments)?;
-    let first = build_removal(&arguments)?;
-    let output = render_plan(&first.batch, arguments.json)?;
-    if !confirm(&output) {
-        return Err(CliError::new(
-            "remove.confirmation_required",
-            "the removal plan was not confirmed; no changes were made",
-        ));
-    }
-    recover_pending(&arguments)?;
-    let refreshed = build_removal(&arguments)?;
-    if refreshed.batch.digest() != first.batch.digest() {
-        return Err(CliError::new(
-            "remove.plan_stale",
-            "removal authority changed after confirmation",
-        ));
-    }
-    let outcome = commit_atomic_apply_batch(
-        &refreshed.batch,
-        &refreshed.environment_root,
-        &refreshed.state_root,
-        CaptureLimits::default(),
-    )
-    .map_err(|error| CliError::new(error.code(), error.message()))?;
-    Ok(CompletedCommand {
-        output: render_result(&refreshed.batch, outcome, arguments.json)?,
-        status: 0,
-    })
-}
-
-pub(crate) fn run_pack_remove(
-    arguments: PackRemoveArgs,
-    mut confirm: impl FnMut(&str) -> bool,
-) -> Result<CompletedCommand, CliError> {
-    recover_pending_batch(arguments.environment.as_deref())?;
-    let first = build_pack_removal(&arguments)?;
-    let output = render_pack_removal_plan(&arguments, &first.batch)?;
-    if !confirm(&output) {
-        return Err(CliError::new(
-            "pack_remove.confirmation_required",
-            "the pack removal plan was not confirmed; no changes were made",
-        ));
-    }
-    recover_pending_batch(arguments.environment.as_deref())?;
-    let refreshed = build_pack_removal(&arguments)?;
-    if refreshed.batch.digest() != first.batch.digest() {
-        return Err(CliError::new(
-            "pack_remove.plan_stale",
-            "pack removal authority changed after confirmation",
-        ));
-    }
-    let outcome = commit_atomic_apply_batch(
-        &refreshed.batch,
-        &refreshed.environment_root,
-        &refreshed.state_root,
-        CaptureLimits::default(),
-    )
-    .map_err(|error| CliError::new(error.code(), error.message()))?;
-    Ok(CompletedCommand {
-        output: render_pack_removal_result(&arguments, &refreshed.batch, outcome)?,
-        status: 0,
-    })
-}
+mod approval;
+pub(crate) use approval::{run_pack_remove, run_remove};
 
 struct PlannedRemoval {
     batch: AtomicApplyBatchPlan,
@@ -859,10 +792,6 @@ fn require_resolved_anchor(
         "remove.harness_configuration_anchor_unavailable",
         "the selected harness configuration root has not been verified locally",
     ))
-}
-
-fn recover_pending(arguments: &RemoveArgs) -> Result<(), CliError> {
-    recover_pending_batch(arguments.environment.as_deref())
 }
 
 fn render_pack_removal_plan(

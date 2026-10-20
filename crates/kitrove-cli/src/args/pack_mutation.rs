@@ -1,7 +1,7 @@
 use super::{
-    AssetId, BTreeSet, CliError, ContentHash, OsString, PackApproval, PackCreateArgs,
-    PackUpdateArgs, PathBuf, next_utf8, parse_asset_id, repeated_json, required_value,
-    set_environment,
+    ApprovalMode, AssetId, BTreeSet, CliError, ContentHash, OsString, PackCreateArgs,
+    PackUpdateArgs, PathBuf, next_utf8, parse_approval_flag, parse_asset_id, repeated_json,
+    required_value, set_environment,
 };
 
 #[derive(Clone, Copy)]
@@ -16,7 +16,7 @@ struct ParsedPackMutation {
     members: BTreeSet<AssetId>,
     environment: Option<PathBuf>,
     json: bool,
-    approval: PackApproval,
+    approval: ApprovalMode,
 }
 
 pub(super) fn parse_pack_create(
@@ -61,21 +61,11 @@ fn parse_pack_member_mutation(
     let mut members = BTreeSet::new();
     let mut environment = None;
     let mut json = false;
-    let mut approval = PackApproval::Interactive;
+    let mut approval = ApprovalMode::Interactive;
     while let Some(argument) = next_utf8(&mut arguments)? {
         match argument.as_str() {
-            "--plan" if matches!(approval, PackApproval::Interactive) => {
-                approval = PackApproval::Preview;
-            }
-            "--confirm" if matches!(approval, PackApproval::Interactive) => {
-                approval = PackApproval::Confirm(
-                    ContentHash::parse(required_value(&mut arguments)?).map_err(|_| {
-                        CliError::new(
-                            "cli.pack_confirmation_invalid",
-                            "--confirm requires a valid plan digest",
-                        )
-                    })?,
-                );
+            "--plan" | "--confirm" => {
+                parse_approval_flag(&argument, &mut approval, &mut arguments)?
             }
             "--pack" if pack_id.is_none() => {
                 pack_id = Some(parse_asset_id(&required_value(&mut arguments)?, "--pack")?);

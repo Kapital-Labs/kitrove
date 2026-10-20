@@ -3,7 +3,7 @@ use super::{
     commit_pack_creation, commit_pack_update, load_manifest, plan_pack_creation, plan_pack_update,
     render_pack_mutation_plan, render_pack_mutation_result, resolve_required_environment_root,
 };
-use crate::args::PackApproval;
+use crate::args::ApprovalMode;
 use kitrove_core::commit_approved_pack_mutation;
 use std::path::Path;
 
@@ -51,20 +51,20 @@ pub(crate) fn run_pack_update(
 fn finish(
     plan: PackMutationPlan,
     root: &Path,
-    approval: PackApproval,
+    approval: ApprovalMode,
     json: bool,
     confirm: &mut impl FnMut(&str) -> bool,
     create: bool,
 ) -> Result<CompletedCommand, CliError> {
     let rendered = render_pack_mutation_plan(&plan, json)?;
     let unattended = match approval {
-        PackApproval::Preview => {
+        ApprovalMode::Preview => {
             return Ok(CompletedCommand {
                 output: rendered,
                 status: 0,
             });
         }
-        PackApproval::Confirm(expected) => {
+        ApprovalMode::Confirm(expected) => {
             if plan.digest() != &expected {
                 return Err(CliError::new(
                     "pack.plan_stale",
@@ -73,7 +73,7 @@ fn finish(
             }
             true
         }
-        PackApproval::Interactive => {
+        ApprovalMode::Interactive => {
             if !confirm(&rendered) {
                 return Err(CliError::new(
                     if create {

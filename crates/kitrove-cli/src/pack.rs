@@ -841,7 +841,7 @@ mod tests {
                 members: [AssetId::parse("tooling").unwrap()].into_iter().collect(),
                 environment: Some(environment.clone()),
                 json: false,
-                approval: crate::args::PackApproval::Interactive,
+                approval: crate::args::ApprovalMode::Interactive,
             },
             |_| false,
         );
