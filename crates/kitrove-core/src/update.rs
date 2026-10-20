@@ -475,7 +475,7 @@ pub fn plan_update_adoption(
         .assets
         .insert(source.asset_id().clone(), asset.clone());
     proposed_manifest
-        .validate()
+        .refresh_pack_revisions()
         .map_err(|_| planning_error("update.proposed_manifest_invalid"))?;
     let proposed_lock = derive_lockfile(&proposed_manifest)
         .map_err(|_| planning_error("update.proposed_lock_invalid"))?;

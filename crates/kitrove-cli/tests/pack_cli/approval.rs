@@ -130,6 +130,82 @@ fn preview_and_exact_create_update_work_without_stdin() {
 }
 
 #[test]
+fn explicit_authored_creation_binds_mode_and_preserves_members() {
+    let fixture = Fixture::new();
+    let original = manifest();
+    let before = fixture.authority();
+    let args = [
+        "create",
+        "--authored",
+        "--pack",
+        "suite",
+        "--member",
+        "alpha",
+    ];
+    let preview = fixture.run(&[args.as_slice(), &["--plan"]].concat());
+    assert!(preview.status.success(), "{preview:?}");
+    assert_eq!(fixture.authority(), before);
+    let plan: serde_json::Value = serde_json::from_slice(&preview.stdout).unwrap();
+    let digest = plan["digest"].as_str().unwrap();
+    let wrong = fixture.run(
+        &[
+            args.as_slice(),
+            &["--confirm", ContentHash::digest(b"wrong").as_str()],
+        ]
+        .concat(),
+    );
+    assert_eq!(wrong.status.code(), Some(1));
+    assert_eq!(fixture.authority(), before);
+    let implicit = fixture.run(&[
+        "create",
+        "--pack",
+        "suite",
+        "--member",
+        "alpha",
+        "--confirm",
+        digest,
+    ]);
+    assert_eq!(implicit.status.code(), Some(1));
+    assert_eq!(fixture.authority(), before);
+    let duplicate = fixture.run(&[args.as_slice(), &["--authored", "--plan"]].concat());
+    assert_eq!(duplicate.status.code(), Some(2));
+    let created = fixture.run(&[args.as_slice(), &["--confirm", digest]].concat());
+    assert!(created.status.success(), "{created:?}");
+    let created =
+        EnvironmentManifest::from_toml(&String::from_utf8(fixture.authority().0).unwrap()).unwrap();
+    assert_eq!(created.assets, original.assets);
+    let suite = &created.packs[&AssetId::parse("suite").unwrap()];
+    assert_eq!(suite.source, Source::AuthoredPack);
+    let update_args = [
+        "update",
+        "--pack",
+        "suite",
+        "--expected-prior",
+        suite.content_hash.as_str(),
+        "--member",
+        "tooling",
+    ];
+    let preview = fixture.run(&[update_args.as_slice(), &["--plan"]].concat());
+    assert!(preview.status.success(), "{preview:?}");
+    let plan: serde_json::Value = serde_json::from_slice(&preview.stdout).unwrap();
+    let updated = fixture.run(
+        &[
+            update_args.as_slice(),
+            &["--confirm", plan["digest"].as_str().unwrap()],
+        ]
+        .concat(),
+    );
+    assert!(updated.status.success(), "{updated:?}");
+    let updated =
+        EnvironmentManifest::from_toml(&String::from_utf8(fixture.authority().0).unwrap()).unwrap();
+    assert_eq!(updated.assets, original.assets);
+    assert_eq!(
+        updated.packs[&AssetId::parse("suite").unwrap()].source,
+        Source::AuthoredPack
+    );
+}
+
+#[test]
 fn approval_refuses_all_portable_recovery_authorities_without_modifying_them() {
     for name in [
         "adoption-journal.json",

@@ -26,6 +26,8 @@ pub enum AssetKind {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Source {
+    /// An authored pack declaration, not captured upstream content or an author identity.
+    AuthoredPack,
     Harness {
         harness: HarnessId,
         origin: PortablePath,
@@ -66,6 +68,12 @@ impl ComponentProvenance {
         origin_scope: Option<crate::HarnessScope>,
     ) -> Result<Self, ValidationError> {
         match (&source, origin_scope) {
+            (Source::AuthoredPack, _) => {
+                return Err(ValidationError::new(
+                    "provenance.authored_pack_not_component",
+                    "authored pack declarations cannot be component provenance",
+                ));
+            }
             (Source::Harness { .. }, None) => {
                 return Err(ValidationError::new(
                     "provenance.origin_scope_required",
@@ -263,6 +271,9 @@ impl Asset {
 
 fn hash_source(hasher: &mut blake3::Hasher, source: &Source) {
     match source {
+        Source::AuthoredPack => {
+            hasher.update(&[3]);
+        }
         Source::Harness { harness, origin } => {
             hasher.update(&[0]);
             write_text_record(hasher, harness.as_str());
@@ -379,6 +390,19 @@ pub struct Pack {
 }
 
 impl Pack {
+    /// Resolution of the authored declaration, separate from exact aggregate content.
+    #[must_use]
+    pub fn authored_source_resolution(id: &AssetId) -> (Revision, ContentHash) {
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(b"kitrove-authored-pack-declaration-v1\0");
+        write_text_record(&mut hasher, id.as_str());
+        (
+            Revision::parse("authored-pack-v1").expect("fixed valid revision"),
+            ContentHash::parse(format!("blake3:{}", hasher.finalize().to_hex()))
+                .expect("valid BLAKE3 digest"),
+        )
+    }
+
     /// Computes the complete version-1 aggregate pack revision.
     #[must_use]
     pub fn expected_content_hash(&self) -> ContentHash {

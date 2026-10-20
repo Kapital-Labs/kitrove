@@ -228,7 +228,8 @@ pub use object_store::{
 };
 pub use pack_creation::{
     PackCreationError, PackCreationPlan, PackMutationError, PackMutationKind, PackMutationPlan,
-    PackRevisionChange, PackUpdateError, PackUpdatePlan, plan_pack_creation, plan_pack_update,
+    PackRevisionChange, PackUpdateError, PackUpdatePlan, plan_authored_pack_creation,
+    plan_pack_creation, plan_pack_update,
 };
 pub use pack_distribution::{
     PackDistributionError, PackDistributionSelection, select_pack_distribution,

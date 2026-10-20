@@ -122,6 +122,15 @@ fn authority(fixture: &Fixture) -> [Vec<u8>; 2] {
 
 #[test]
 fn every_adoption_and_update_accepts_only_exact_approval_with_closed_stdin() {
+    exercise_adoption_and_update(false);
+}
+
+#[test]
+fn every_member_update_refreshes_nested_authored_packs_under_exact_approval() {
+    exercise_adoption_and_update(true);
+}
+
+fn exercise_adoption_and_update(with_packs: bool) {
     for kind in [
         "skill",
         "command",
@@ -157,6 +166,44 @@ fn every_adoption_and_update_accepts_only_exact_approval_with_closed_stdin() {
         assert!(adopted.stderr.is_empty(), "{kind}: {adopted:?}");
         assert_eq!(fs::read(&source).unwrap(), original);
         assert!(!fixture.state_home.exists());
+
+        if with_packs {
+            for (pack, member) in [("inner", "review"), ("outer", "inner")] {
+                let args = [
+                    "pack",
+                    "create",
+                    "--authored",
+                    "--pack",
+                    pack,
+                    "--member",
+                    member,
+                ];
+                let plan = fixture
+                    .command()
+                    .args(args)
+                    .args(["--environment"])
+                    .arg(&fixture.environment)
+                    .args(["--plan", "--json"])
+                    .stdin(Stdio::null())
+                    .output()
+                    .unwrap();
+                assert!(plan.status.success(), "{kind}: {plan:?}");
+                let created = fixture
+                    .command()
+                    .args(args)
+                    .args(["--environment"])
+                    .arg(&fixture.environment)
+                    .args([
+                        "--confirm",
+                        json(&plan)["digest"].as_str().unwrap(),
+                        "--json",
+                    ])
+                    .stdin(Stdio::null())
+                    .output()
+                    .unwrap();
+                assert!(created.status.success(), "{kind}: {created:?}");
+            }
+        }
 
         fixture.initialize_local_state();
         if kind == "instruction" {
@@ -200,6 +247,34 @@ fn every_adoption_and_update_accepts_only_exact_approval_with_closed_stdin() {
         assert!(result.status.success(), "{kind}: {result:?}");
         assert!(result.stderr.is_empty());
         assert_ne!(authority(&fixture), before);
+        if with_packs {
+            let updated = EnvironmentManifest::from_toml(
+                &fs::read_to_string(fixture.environment.join("kitrove.toml")).unwrap(),
+            )
+            .unwrap();
+            for (pack, member) in [("inner", "review"), ("outer", "inner")] {
+                let pack = AssetId::parse(pack).unwrap();
+                let member = AssetId::parse(member).unwrap();
+                assert_ne!(
+                    updated.packs[&pack].content_hash,
+                    manifest.packs[&pack].content_hash
+                );
+                assert_eq!(updated.packs[&pack].source, manifest.packs[&pack].source);
+                let expected = updated
+                    .assets
+                    .get(&member)
+                    .map(|asset| &asset.content_hash)
+                    .unwrap_or_else(|| &updated.packs[&member].content_hash);
+                assert_eq!(&updated.packs[&pack].members[&member], expected);
+            }
+            assert_eq!(
+                fs::read_to_string(fixture.environment.join("kitrove.lock.json")).unwrap(),
+                kitrove_core::derive_lockfile(&updated)
+                    .unwrap()
+                    .to_json()
+                    .unwrap()
+            );
+        }
         let local_after = fs::read(fixture.state_home.join("state.json")).unwrap();
         if kind == "instruction" {
             assert_ne!(local_after, local_before);

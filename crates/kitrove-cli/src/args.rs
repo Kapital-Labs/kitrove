@@ -197,6 +197,7 @@ use approval::parse_approval_flag;
 
 #[derive(Debug)]
 pub(crate) struct PackCreateArgs {
+    pub authored: bool,
     pub pack_id: AssetId,
     pub members: BTreeSet<AssetId>,
     pub environment: Option<PathBuf>,

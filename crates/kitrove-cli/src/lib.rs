@@ -93,6 +93,9 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         }
         Command::Help => {
             println!(
+                "AUTHORED PACKS:\n    kitrove pack create --authored --pack <id> --member <id>... --plan --json\n    Repeat --authored and the same selection with --confirm <digest>.\n    Member provenance is preserved; update retains the selected pack mode.\n    Without --authored, create requires one shared distribution source.\n"
+            );
+            println!(
                 "PACK IMPORT APPROVAL:\n    kitrove pack adopt|rollback [selection] --plan --json\n    kitrove pack adopt|rollback [same selection] --confirm <digest> --json\n    These flags conflict with legacy --yes; rollback requires --expected-prior and --to.\n"
             );
             println!(
