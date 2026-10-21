@@ -11,7 +11,7 @@ mod release_archive;
 mod release_staging;
 
 const REVIEWED_CARGO_LOCK_BLAKE3: &str =
-    "a3a49791e7fcbb71605f5dc78edb2d55a3c42ea027f3ab824b26eca3d140e8d6";
+    "8cb2d14cf33a6d6bdbae9e16b3f41ac724e4992dba267877ecf4bd324149a14b";
 const REVIEWED_SIGSTORE_REKOR_TREE_BLAKE3: &str =
     "898ca8f9c61bd79c3ef16bcc22650249eb4f32872540d281660f07b1c828c355";
 const REVIEWED_SIGSTORE_TSA_TREE_BLAKE3: &str =
@@ -23,7 +23,7 @@ const REVIEWED_DIST_CONFIG_BLAKE3: &str =
 const REVIEWED_RELEASE_POLICY_BLAKE3: &str =
     "03be092bae87eddbc776daed227c8ed0b45d92ec0fcc2548e8218c25ef2dad5d";
 const REVIEWED_APPLICATION_COMPATIBILITY_BLAKE3: &str =
-    "dc782d428e7bfaf1345d18482c3c546f1ded146fad793bf0c332664a500d882f";
+    "ebf5c22a4a6e34c331da9888a959b8708bb9adfd4b850e5588b0d419f632e849";
 const RELEASE_ACTION_PINS: [(&str, &str); 5] = [
     ("azure/login", "8216e11d8cd9b42fe925c852af8e76311ff067ac"),
     ("actions/attest", "1e69f48acb82d1966a394da916b4c1698aa569d6"),
