@@ -78,4 +78,8 @@ ADRs document foundational decisions and their consequences. Accepted ADRs are a
 
 | [0055](0055-agent-pack-import-approval.md) | Pack import approval preserves verified authority | Proposed; validation pending | NS-04, NS-05, NS-07, NS-09, NS-10 |
 
+| [0056](0056-locally-authored-packs.md) | Locally authored packs preserve member provenance | Accepted; bounded synthetic acceptance passed | NS-01, NS-03, NS-05, NS-06, NS-07, NS-10 |
+
+| [0057](0057-agent-json-errors.md) | Opt-in versioned machine-readable errors | Accepted; exact public validation pending | NS-01, NS-05, NS-06, NS-10 |
+
 Use [`0000-template.md`](0000-template.md) for new records.
