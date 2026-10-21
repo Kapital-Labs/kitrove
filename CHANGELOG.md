@@ -4,6 +4,35 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.5 (prepared; not published)
+
+### Added
+
+- Exact plan/approval CLI interfaces for applying, adopting, updating and removing
+  tools, and for pack creation, import and rollback. Stale approvals are refused.
+- Explicit locally authored packs that preserve each member's provenance rather
+  than assigning a shared upstream origin.
+- Opt-in versioned JSON errors for agent integrations, without embedding raw
+  error details or local paths in the error envelope.
+
+### Fixed
+
+- Release Unix locks correctly and update ZIP to 9.0.5 for reviewed security fixes.
+- Update certificate trust dependencies to address reviewed security advisories.
+
+### Changed
+
+- Source builds now require Rust 1.88 or newer.
+- Signed Linux APT/DNF preview repositories and platform-specific setup guidance
+  are available for the existing RC4.2 packages.
+
+These changes are not a new published application release. Cloud-provider sync is
+roadmap work only. RC4.2 cannot deserialize the new `authored_pack` source kind;
+do not assume an older binary can read collections containing locally authored
+packs. Binary rollback does not roll back collection data. The next release's
+compatibility catalog deliberately declares no rollback-compatible predecessor.
+Exact published-artifact acceptance remains pending separate publication approval.
+
 ## 0.1.0-rc.4.2
 
 ### Security
