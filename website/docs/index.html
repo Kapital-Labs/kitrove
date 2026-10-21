@@ -37,7 +37,7 @@
         ><a href="#help">More documentation</a>
       </nav>
       <main id="main" class="docs-content">
-        <p class="eyebrow">Getting started · RC4.1</p>
+        <p class="eyebrow">Getting started · RC4.2</p>
         <h1>Your first collection.</h1>
         <p>
           Kitrove collects skills from your agent tools and helps you apply
@@ -56,8 +56,9 @@ brew upgrade --cask kapital-labs/tap/kitrove-rc</code></pre>
           replace Homebrew-managed files.
         </p>
         <p>
-          Linux x86-64 users can follow the
-          <a href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/LINUX-INSTALL.md">APT and DNF setup guide</a>.
+          Linux x86-64 users can choose
+          <a href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/LINUX-INSTALL.md#ubuntu--apt">Ubuntu / APT</a>
+          or <a href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/LINUX-INSTALL.md#fedora--dnf">Fedora / DNF</a>.
           WinGet community approval is pending. Intel Mac and Windows x86_64 users can consult the
           <a
             href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/RELEASES.md"
@@ -154,7 +155,7 @@ brew upgrade --cask kapital-labs/tap/kitrove-rc</code></pre>
         </p>
         <p>
           Conflicting content under the same identity stops the operation for
-          review. RC4.1 does not choose an automatic winner or create a
+          review. RC4.2 does not choose an automatic winner or create a
           keep-both rewrite.
         </p>
         <h2 id="scan">Inspect skills and choose by name</h2>
@@ -200,10 +201,18 @@ kitrove adopt humanizer --harness claude --scope user</code></pre>
           </li>
         </ul>
         <p>
-          RC4.1 remains a prerelease. Tests on the existing Apple Silicon
-          signing host do not establish clean-Mac quarantined online/offline
-          first launch, other native target acceptance, or real two-machine
-          product acceptance.
+          RC4.2 remains a prerelease. A bounded skill round trip between an
+          existing Apple Silicon Mac and Ubuntu passed with disposable collections
+          and a filesystem snapshot backend transferred between steps. The test
+          covered applying an update in each direction, conflict refusal and
+          unmanaged-file protection. It did not establish clean-Mac quarantined
+          online/offline first launch, all capability types, live agent-tool
+          execution, Git-provider acceptance or concurrent sync.
+        </p>
+        <p>
+          The newer agent plan/approval interfaces and locally authored packs on
+          the development branch are not included in the published RC4.2 packages.
+          Cloud-provider sync is roadmap work, not an available feature.
         </p>
         <h2 id="help">Go deeper or get help</h2>
         <p>

@@ -43,8 +43,8 @@
         <div class="hero-copy">
           <a
             class="release"
-            href="https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.4.1"
-            ><span class="dot"></span> RC4.1 · Guided setup is here
+            href="https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.4.2"
+            ><span class="dot"></span> RC4.2 · Install the preview
             <span aria-hidden="true">↗</span></a
           >
           <h1>
@@ -294,12 +294,14 @@ kitrove configure</code></pre>
               <span class="status pending">Manual preview</span>
             </div>
             <p>
-              Windows x86_64 release artifacts are available. We have not
-              published a WinGet or Chocolatey package.
+              Windows x86-64 release downloads are available for manual setup.
+              WinGet community approval is pending. No Chocolatey package is
+              published.
             </p>
             <p>
               Use the release verification instructions before running a
-              download. Windows lifecycle acceptance remains open.
+              download. See the release guide for tested workflows and remaining
+              Windows acceptance limits.
             </p>
             <a
               class="text-link"
@@ -318,9 +320,11 @@ kitrove configure</code></pre>
               Ubuntu 24.04 and Fedora 44.
             </p>
             <p>
-              Follow the <a href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/LINUX-INSTALL.md">Linux setup guide</a>
-              to check the signing key and add the repository, then run
-              <code>kitrove init</code> as your normal user.
+              Choose your setup guide:
+              <a href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/LINUX-INSTALL.md#ubuntu--apt">Ubuntu / APT</a>
+              or <a href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/LINUX-INSTALL.md#fedora--dnf">Fedora / DNF</a>.
+              Check the signing key and add the repository before installing,
+              then run <code>kitrove init</code> as your normal user.
             </p>
             <a
               class="text-link"
@@ -381,9 +385,11 @@ kitrove configure</code></pre>
         <details>
           <summary>Is this a stable release?</summary>
           <p>
-            No. RC4.1 is a prerelease. Clean-Mac online/offline first-launch
-            testing, other native target coverage, and real two-machine
-            acceptance remain separate open gates.
+            No. RC4.2 is a prerelease. A bounded skill round trip between an
+            existing Apple Silicon Mac and Ubuntu passed using a filesystem
+            snapshot backend transferred between steps. That does not establish
+            clean-Mac online/offline first launch, all capability types, live
+            agent-tool execution, or concurrent sync.
           </p>
         </details>
       </section>
