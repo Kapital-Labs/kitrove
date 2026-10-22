@@ -17,6 +17,46 @@ class ReleaseBuildWorkflowTests(unittest.TestCase):
         self.local = self.workflow.split('  build-local-artifacts:\n', 1)[1].split(
             '  build-global-artifacts:\n', 1)[0]
 
+    @unittest.skipUnless(os.name == 'posix', 'executes the explicit Bash publication body')
+    def test_publication_requires_reviewed_version_notes_before_any_github_write(self):
+        step = self.workflow.split('      - name: Create GitHub Release\n', 1)[1].split(
+            '\n  announce:', 1)[0]
+        self.assertNotIn('announcement_github_body', step)
+        script = textwrap.dedent(step.split('        run: |\n', 1)[1])
+        stub = 'gh() { printf "%s\\n" "$*" >> calls; }\n'
+        for kind in ('missing', 'empty', 'symlink', 'valid'):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                notes = root / 'release/notes/v0.1.0-rc.5.md'
+                notes.parent.mkdir(parents=True)
+                (root / 'tmp').mkdir()
+                (root / 'verified-artifacts').mkdir()
+                (root / 'verified-artifacts/archive').write_text('verified fixture')
+                if kind == 'empty':
+                    notes.touch()
+                elif kind == 'symlink':
+                    (root / 'other').write_text('not accepted')
+                    notes.symlink_to(root / 'other')
+                elif kind == 'valid':
+                    notes.write_text('Reviewed notes, not executable: $(touch injected)\n')
+                result = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', stub + script],
+                    cwd=root, env={**os.environ, 'RELEASE_TAG': 'v0.1.0-rc.5',
+                    'RELEASE_COMMIT': 'a' * 40, 'RUNNER_TEMP': str(root / 'tmp'),
+                    'ANNOUNCEMENT_TITLE': 'RC5', 'PRERELEASE_FLAG': '--prerelease'},
+                    capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode == 0, kind == 'valid', result.stderr)
+                self.assertFalse((root / 'injected').exists())
+                if kind == 'valid':
+                    self.assertEqual((root / 'tmp/notes.txt').read_text(),
+                        notes.read_text() + '\nRelease source commit: `' + 'a' * 40 + '`\n')
+                    calls = (root / 'calls').read_text().splitlines()
+                    self.assertEqual(len(calls), 2)
+                    self.assertIn('--draft --target ' + 'a' * 40, calls[0])
+                    self.assertIn('--notes-file ' + str(root / 'tmp/notes.txt'), calls[0])
+                    self.assertEqual(calls[1], 'release edit v0.1.0-rc.5 --draft=false')
+                else:
+                    self.assertFalse((root / 'calls').exists())
+
     def test_native_staging_handoff_without_signing_credentials(self):
         step = self.local.split('      - id: verified-local\n', 1)[1].split(
             '      - name: Attest the exact application archive', 1)[0]

@@ -313,15 +313,19 @@ class ReleaseArchiveVerifierTests(unittest.TestCase):
                 (artifacts / 'artifact with spaces.zip').write_bytes(b'fixture')
                 recorded = root / 'arguments'
                 body = '-n\nLiteral $(touch injected) and `touch injected`\nbackslash \\ text'
+                notes = root / 'release/notes/v1.2.3.md'
+                notes.parent.mkdir(parents=True)
+                notes.write_text(body + '\n')
                 title = 'Title with spaces; $(touch injected)'
                 result = subprocess.run(['/bin/bash', '-e', '-c', stub + script], cwd=root,
                     env={'PATH': '/usr/bin:/bin', 'RUNNER_TEMP': str(runner_temp),
                          'TEST_GH_ARGS': str(recorded), 'TEST_GH_EXIT': str(client_exit),
                          'RELEASE_TAG': 'v1.2.3', 'RELEASE_COMMIT': 'a' * 40,
-                         'ANNOUNCEMENT_TITLE': title, 'ANNOUNCEMENT_BODY': body,
+                         'ANNOUNCEMENT_TITLE': title,
                          'PRERELEASE_FLAG': flag}, capture_output=True, text=True, timeout=10)
                 self.assertEqual(result.returncode == 0, expected_calls == 2)
-                self.assertEqual((runner_temp / 'notes.txt').read_text(), body + '\n')
+                self.assertEqual((runner_temp / 'notes.txt').read_text(),
+                    body + '\n\nRelease source commit: `' + 'a' * 40 + '`\n')
                 self.assertFalse((root / 'injected').exists())
                 arguments = recorded.read_bytes().decode().split('\0')[:-1] if recorded.exists() else []
                 expected = ['release', 'create', 'v1.2.3', '--draft', '--target', 'a' * 40,

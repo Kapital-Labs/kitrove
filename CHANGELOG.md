@@ -4,7 +4,7 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
-## 0.1.0-rc.5 (prepared; not published)
+## 0.1.0-rc.5
 
 ### Added
 
@@ -26,12 +26,13 @@ Notable changes to Kitrove are recorded here.
 - Signed Linux APT/DNF preview repositories and platform-specific setup guidance
   are available for the existing RC4.2 packages.
 
-These changes are not a new published application release. Cloud-provider sync is
-roadmap work only. RC4.2 cannot deserialize the new `authored_pack` source kind;
+RC5 is a fresh-install evaluation preview, not a stable release or supported
+in-place upgrade. Cloud-provider sync is roadmap work only. RC4.2 cannot
+deserialize the new `authored_pack` source kind;
 do not assume an older binary can read collections containing locally authored
 packs. Binary rollback does not roll back collection data. The next release's
 compatibility catalog deliberately declares no rollback-compatible predecessor.
-Exact published-artifact acceptance remains pending separate publication approval.
+Use a new isolated collection and destination; do not reuse irreplaceable state.
 
 ## 0.1.0-rc.4.2
 
