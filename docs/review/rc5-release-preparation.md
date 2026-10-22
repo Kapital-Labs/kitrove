@@ -1,8 +1,8 @@
 # RC5 release preparation
 
 The maintainer approved preparation of 0.1.0-rc.5 and its conservative rollback
-policy on 2026-10-21. Tag creation, signing activation and publication require
-separate approval. Existing releases and the pending RC4.2 WinGet submission stay
+policy on 2026-10-21, then explicitly approved fresh-install preview scope and
+normal protected signing/tag/publication after green checks. Existing releases and the pending RC4.2 WinGet submission stay
 unchanged. Public installation pages continue to describe published RC4.2.
 
 ## Scope and compatibility
@@ -49,3 +49,13 @@ version-specific nonpublishing dist 0.32.0 plan, and smoke-test local developmen
 archives. Require exact public checks and green latest main before merge.
 After separate publication approval, verify production artifact provenance and
 native lifecycle behavior before updating distribution channels or support claims.
+
+## Final publication copy
+
+The publication job now requires nonempty regular version-specific notes from the
+reviewed checkout and appends the exact workflow source commit. It refuses missing,
+empty or symlink notes before GitHub writes rather than publishing generated
+download-and-execute guidance. Credential-free shell regressions cover those
+refusals, literal note handling and draft-before-publication ordering. This does
+not change artifact identity, signing, permissions, attestations or review gates.
+Fresh installation is the only approved RC5 scope; no migration work is planned.

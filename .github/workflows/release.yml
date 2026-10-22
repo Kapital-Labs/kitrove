@@ -581,10 +581,15 @@ jobs:
         env:
           PRERELEASE_FLAG: "${{ fromJson(steps.host.outputs.manifest).announcement_is_prerelease && '--prerelease' || '' }}"
           ANNOUNCEMENT_TITLE: "${{ fromJson(steps.host.outputs.manifest).announcement_title }}"
-          ANNOUNCEMENT_BODY: "${{ fromJson(steps.host.outputs.manifest).announcement_github_body }}"
           RELEASE_COMMIT: "${{ github.sha }}"
         run: |
-          printf '%s\n' "$ANNOUNCEMENT_BODY" > "$RUNNER_TEMP/notes.txt"
+          notes_source="release/notes/$RELEASE_TAG.md"
+          if [[ ! -f "$notes_source" || -L "$notes_source" || ! -s "$notes_source" ]]; then
+            echo 'Reviewed release notes must be a nonempty regular file' >&2
+            exit 1
+          fi
+          cp "$notes_source" "$RUNNER_TEMP/notes.txt"
+          printf '\nRelease source commit: `%s`\n' "$RELEASE_COMMIT" >> "$RUNNER_TEMP/notes.txt"
           release_args=("$RELEASE_TAG" --draft --target "$RELEASE_COMMIT"
             --title "$ANNOUNCEMENT_TITLE" --notes-file "$RUNNER_TEMP/notes.txt")
           case "$PRERELEASE_FLAG" in

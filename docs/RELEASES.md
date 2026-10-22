@@ -43,6 +43,9 @@ before Phase 6 is complete. See [platform signing](RELEASE-SIGNING.md) and the
 ## Prepare a release
 
 1. Set the workspace version to the intended semantic version and update `CHANGELOG.md`.
+   Add reviewed `release/notes/v<version>.md` copy with accurate support limits and
+   exact artifact-verification guidance. Publication refuses missing, empty or
+   symlink notes instead of using generated download-and-execute instructions.
 2. Run the full stable and Rust 1.88 validation locally. The tag workflow repeats canonical stable
    validation and an MSRV workspace check against the exact tagged commit before packaging.
 3. Run `cargo xtask governance`, then run `dist plan` with the pinned 0.32.0 binary and inspect every
