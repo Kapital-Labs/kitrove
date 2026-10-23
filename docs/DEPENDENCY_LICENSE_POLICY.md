@@ -78,6 +78,12 @@ reviewed update before different trust material can become authority.
 
 ## Enforcement
 
+The hosted signing repair also updates ctutils 0.4.2 to 0.4.4 and Tokio 1.53.1 to
+1.53.3 for RUSTSEC-2026-0385 and RUSTSEC-2026-0386. No package, feature or dependency
+edge is added; licenses remain Apache-2.0 OR MIT and MIT, respectively. Rust 1.88
+remains sufficient. The exact source/checksum review is recorded in
+[`review/signing-repairs-dependency-review.md`](review/signing-repairs-dependency-review.md).
+
 The October 2026 security remediation replaces ZIP 6.0.0 with exact-pinned
 9.0.5 (MIT; Rust 1.88) for RUSTSEC-2026-0367/0368/0369. Default features
 remain disabled. The complete lock delta removes `arbitrary`/`derive_arbitrary`,

@@ -13,7 +13,7 @@ import hosted_apple_signing as signing
 
 
 class HostedAppleSigningTests(unittest.TestCase):
-    def scenario(self, failure=None, overrides=None, container=False):
+    def scenario(self, failure=None, overrides=None, container=False, failure_exception=RuntimeError):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
             for name in ('kitrove-release-xtask', 'kitrove-apple-import'):
@@ -21,7 +21,7 @@ class HostedAppleSigningTests(unittest.TestCase):
             environment = dict(P12='archive-canary', P12_PASSWORD='wrapping-canary',
                 APPLE_ID='account-canary', TEAM_ID='98RZ36ES7A', NOTARY_PASSWORD='notary-canary',
                 RUNNER_TEMP=str(root), RUNNER_ENVIRONMENT='github-hosted',
-                DIST_TARGET='aarch64-apple-darwin', RELEASE_TAG='v0.0.0')
+                DIST_TARGET='aarch64-apple-darwin', RELEASE_TAG='v0.0.0', GITHUB_SHA='a' * 40)
             environment.update(overrides or {})
             if container:
                 environment['KITROVE_PREPARE_DMG'] = '1'
@@ -48,6 +48,7 @@ class HostedAppleSigningTests(unittest.TestCase):
                         f'target/distrib/{product}-aarch64-apple-darwin.tar.xz', 'aarch64-apple-darwin',
                         'v0.0.0', 'release/application-compatibility.json', 'dist-manifest.json'])
                     self.assertEqual(env['KITROVE_NOTARY_PROFILE'], 'kitrove-release')
+                    self.assertEqual(env['KITROVE_NOTARY_SOURCE_COMMIT'], 'a' * 40)
                     self.assertTrue(Path(env['KITROVE_SIGNING_KEYCHAIN']).is_file())
                     for secret in ('P12', 'P12_PASSWORD', 'APPLE_ID', 'TEAM_ID', 'NOTARY_PASSWORD'):
                         self.assertNotIn(secret, env)
@@ -64,7 +65,7 @@ class HostedAppleSigningTests(unittest.TestCase):
                     self.assertEqual(Path(args[-1]).parent.parent, root)
                     Path(args[-1]).unlink()
                 if failure == operation:
-                    raise RuntimeError('synthetic failure')
+                    raise failure_exception('synthetic failure')
                 return types.SimpleNamespace(stdout=b'', stderr=b'')
 
             def authenticate(args, password):
@@ -72,9 +73,16 @@ class HostedAppleSigningTests(unittest.TestCase):
                 self.assertNotIn(password, args)
                 self.assertIn('--keychain', args)
                 if failure == 'authentication':
-                    raise RuntimeError('synthetic failure')
+                    raise failure_exception('synthetic failure')
+
+            @contextlib.contextmanager
+            def synthetic_cancellation_scope():
+                # This scenario mocks every child process; actual signal/process
+                # ownership is covered by the POSIX process tests separately.
+                yield {'cancelled': False}
 
             with patch.dict(os.environ, environment, clear=True), patch.object(signing.sys, 'platform', 'darwin'), \
+                 patch.object(signing, 'cancellation_scope', side_effect=synthetic_cancellation_scope), \
                  patch.object(signing, 'native', side_effect=native), \
                  patch.object(signing, 'authenticate', side_effect=authenticate), \
                  contextlib.redirect_stdout(io.StringIO()):
@@ -83,10 +91,23 @@ class HostedAppleSigningTests(unittest.TestCase):
                         signing.prepare_release()
                 else:
                     signing.prepare_release()
-            if failure != 'snapshot' and not overrides:
+            if failure_exception is signing.ProcessCleanupError:
+                self.assertNotIn('Keychain cleanup', calls)
+                if failure != 'Keychain search-list restoration':
+                    self.assertNotIn('Keychain search-list restoration', calls)
+                preserved = [path for path in root.iterdir() if path.is_dir()]
+                self.assertEqual(len(preserved), 1)
+                # This orchestration fixture also runs on Windows, whose stat
+                # mode bits do not express POSIX directory permissions. The
+                # real signing host is macOS; keep its privacy assertion exact.
+                if os.name == 'posix':
+                    self.assertEqual(preserved[0].stat().st_mode & 0o777, 0o700)
+                self.assertTrue((preserved[0] / 'signing.keychain-db').is_file())
+            elif failure != 'snapshot' and not overrides:
                 self.assertEqual(calls[-2:], ['Keychain search-list restoration', 'Keychain cleanup'])
-            self.assertEqual(sorted(path.name for path in root.iterdir()),
-                ['kitrove-apple-import', 'kitrove-release-xtask'])
+            if failure_exception is not signing.ProcessCleanupError:
+                self.assertEqual(sorted(path.name for path in root.iterdir()),
+                    ['kitrove-apple-import', 'kitrove-release-xtask'])
             return calls
 
     def test_both_archives_share_one_credential_lifetime(self):
@@ -115,10 +136,22 @@ class HostedAppleSigningTests(unittest.TestCase):
     def test_invalid_snapshot_does_not_import(self):
         self.assertEqual(self.scenario('snapshot'), ['Keychain search-list snapshot'])
 
+    def test_unconfirmed_process_cleanup_preserves_private_keychain_without_restoration(self):
+        for operation in ('identity import', 'authentication', 'application archive preparation',
+                          'installer archive preparation', 'Keychain search-list restoration'):
+            with self.subTest(operation=operation):
+                self.scenario(operation, failure_exception=signing.ProcessCleanupError)
+
+    def test_cancellation_with_confirmed_child_cleanup_still_cleans_keychain(self):
+        for operation in ('authentication', 'application archive preparation',
+                          'Keychain search-list restoration'):
+            with self.subTest(operation=operation):
+                self.scenario(operation, failure_exception=signing.ProcessCancelled)
+
     def test_missing_credentials_or_wrong_host_never_start_native_tools(self):
         for overrides in ({'NOTARY_PASSWORD': ''}, {'TEAM_ID': 'wrong'},
                           {'RUNNER_ENVIRONMENT': 'self-hosted'}, {'DIST_TARGET': 'unknown'},
-                          {'RELEASE_TAG': ''}):
+                          {'RELEASE_TAG': ''}, {'GITHUB_SHA': ''}, {'GITHUB_SHA': 'SECRET'}):
             with self.subTest(overrides=overrides):
                 self.assertEqual(self.scenario(overrides=overrides), [])
 
@@ -129,16 +162,17 @@ class HostedAppleSigningTests(unittest.TestCase):
                                  (b'unknown', 'unclassified-native-failure')):
             output = io.StringIO()
             result = types.SimpleNamespace(returncode=1, stderr=marker + b' SECRET', stdout=b'SECRET')
-            with patch.object(signing.subprocess, 'run', return_value=result), \
+            with patch.object(signing, 'run_owned', return_value=result), \
                  contextlib.redirect_stdout(output), self.assertRaises(RuntimeError):
                 signing.native(['SECRET_ARG'], payload=b'SECRET_INPUT', operation='identity import')
             self.assertIn(category, output.getvalue())
             self.assertNotIn('SECRET', output.getvalue())
 
     def test_timeout_and_launch_errors_are_redacted(self):
-        for error in (signing.subprocess.TimeoutExpired(['SECRET'], 1, output=b'SECRET'), OSError('SECRET')):
+        for error in (signing.ProcessTimeout('SECRET'), OSError('SECRET'),
+                      signing.ProcessCancelled('SECRET'), signing.ProcessCleanupError('SECRET')):
             output = io.StringIO()
-            with patch.object(signing.subprocess, 'run', side_effect=error), \
+            with patch.object(signing, 'run_owned', side_effect=error), \
                  contextlib.redirect_stdout(output), self.assertRaises(RuntimeError):
                 signing.native(['SECRET'], operation='identity import')
             self.assertNotIn('SECRET', output.getvalue())
@@ -150,7 +184,7 @@ class HostedAppleSigningTests(unittest.TestCase):
                 result = types.SimpleNamespace(returncode=1,
                     stderr=b'SECRET_ACCOUNT\n' + marker.upper() + b' /SECRET_PATH\n',
                     stdout=b'SECRET_PROVIDER_OUTPUT')
-                with patch.object(signing.subprocess, 'run', return_value=result), \
+                with patch.object(signing, 'run_owned', return_value=result), \
                      contextlib.redirect_stdout(output), self.assertRaises(RuntimeError):
                     signing.native(['SECRET_ARG'], operation='installer container preparation')
                 self.assertEqual(output.getvalue(),

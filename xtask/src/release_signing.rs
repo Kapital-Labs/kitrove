@@ -10,7 +10,8 @@ use kitrove_release_policy::APPLICATION_ARCHIVE_LIMITS;
 use kitrove_release_policy::native_signature::{
     APPLE_REQUIREMENT, WINDOWS_VERIFY, validate_apple_signature_detail,
 };
-use serde::Deserialize;
+#[path = "release_signing/notary_receipt.rs"]
+mod notary_receipt;
 
 const APPLE_IDENTITY: &str = "Developer ID Application: Kapital Labs LLC (98RZ36ES7A)";
 
@@ -96,7 +97,12 @@ impl Signer {
         }
     }
 
-    fn sign_and_verify(&self, file: &Path, directory: &Path) -> Result<Vec<u8>, String> {
+    fn sign_and_verify(
+        &self,
+        file: &Path,
+        directory: &Path,
+        target: &str,
+    ) -> Result<Vec<u8>, String> {
         match self {
             Self::Apple { profile, keychain } => {
                 run(
@@ -126,7 +132,7 @@ impl Signer {
                         .arg(&upload),
                     "notarization ZIP creation",
                 )?;
-                notarize(&upload, profile, keychain.as_deref())?;
+                notarize(&upload, profile, keychain.as_deref(), target)?;
                 signed.revalidate()?;
                 Ok(signed.bytes)
             }
@@ -222,20 +228,44 @@ pub(super) fn verify_apple_signature(file: &Path, executable: bool) -> Result<()
     validate_apple_signature_detail(&detail.stderr, executable).map_err(str::to_owned)
 }
 
-fn notarize(file: &Path, profile: &OsString, keychain: Option<&Path>) -> Result<(), String> {
-    let response = run(
-        select_keychain(
-            Command::new("/usr/bin/xcrun")
-                .args(["notarytool", "submit"])
-                .arg(file)
-                .arg("--keychain-profile")
-                .arg(profile)
-                .args(["--wait", "--timeout", "20m", "--output-format", "json"]),
-            keychain,
-        ),
-        "Apple notarization (a timeout may leave a pending Apple submission)",
+fn notarize(
+    file: &Path,
+    profile: &OsString,
+    keychain: Option<&Path>,
+    target: &str,
+) -> Result<(), String> {
+    let mut submitted = super::read_bounded_archive(file, false)
+        .map_err(|_| "cannot retain Apple notarization artifact".to_owned())?;
+    let context = notary_receipt::Context::new(
+        &submitted.bytes,
+        target,
+        env::var_os("KITROVE_NOTARY_SOURCE_COMMIT"),
     )?;
-    verify_notary_response(&response.stdout)
+    submitted
+        .revalidate()
+        .map_err(|_| "Apple notarization artifact changed".to_owned())?;
+    // Capture nonzero submit/wait results too: a timeout can still return the
+    // identity of a pending submission. Never emit raw provider output.
+    let response = select_keychain(
+        Command::new("/usr/bin/xcrun")
+            .args(["notarytool", "submit"])
+            .arg(file)
+            .arg("--keychain-profile")
+            .arg(profile)
+            .args(["--wait", "--timeout", "20m", "--output-format", "json"]),
+        keychain,
+    )
+    .output()
+    .map_err(|_| "cannot start Apple notarization".to_owned())?;
+    submitted
+        .revalidate()
+        .map_err(|_| "Apple notarization artifact changed".to_owned())?;
+    let (receipt, result) =
+        notary_receipt::interpret(&response.stdout, response.status.success(), context);
+    if let Some(receipt) = receipt {
+        eprintln!("{receipt}");
+    }
+    result
 }
 
 /// Container signing is separate from executable signing: no runtime flag, and
@@ -254,7 +284,7 @@ pub(super) fn sign_apple_container(file: &Path, target: &str) -> Result<(), Stri
     )?;
     let mut signed = super::read_bounded_archive(file, false)?;
     verify_apple_signature(file, false)?;
-    notarize(file, &profile, keychain.as_deref())?;
+    notarize(file, &profile, keychain.as_deref(), target)?;
     signed.revalidate()?;
     // Stapling intentionally changes the image, so capture final bytes only afterward.
     run(
@@ -276,20 +306,6 @@ pub(super) fn verify_apple_container(file: &Path) -> Result<(), String> {
         "Apple ticket validation",
     )?;
     verify_apple_signature(file, false)
-}
-
-fn verify_notary_response(response: &[u8]) -> Result<(), String> {
-    #[derive(Deserialize)]
-    struct Submission {
-        id: String,
-        status: String,
-    }
-    let result: Submission = serde_json::from_slice(response)
-        .map_err(|_| "Apple notarization returned an invalid result".to_owned())?;
-    if result.status != "Accepted" || result.id.is_empty() {
-        return Err("Apple notarization was not Accepted; release preparation stopped".to_owned());
-    }
-    Ok(())
 }
 
 pub(super) fn sign(target: &str, name: &str, bytes: &[u8]) -> Result<Option<Vec<u8>>, String> {
@@ -323,7 +339,11 @@ pub(super) fn sign(target: &str, name: &str, bytes: &[u8]) -> Result<Option<Vec<
             .map_err(|_| "cannot restrict signing executable permissions".to_owned())?;
     }
     drop(file);
-    Ok(Some(signer.sign_and_verify(&path, directory.path())?))
+    Ok(Some(signer.sign_and_verify(
+        &path,
+        directory.path(),
+        target,
+    )?))
 }
 
 #[cfg(test)]
@@ -384,21 +404,6 @@ mod tests {
         }
         assert!(platform("aarch64-unknown-linux-gnu", "linux").is_err());
         assert!(platform("x86_64-pc-windows-msvc", "macos").is_err());
-    }
-
-    #[test]
-    fn notary_requires_explicit_accepted_result() {
-        assert!(verify_notary_response(br#"{"id":"submission","status":"Accepted"}"#).is_ok());
-        for response in [
-            br#"{"id":"submission","status":"Invalid"}"#.as_slice(),
-            br#"{"id":"submission","status":"In Progress"}"#,
-            br#"{"id":"","status":"Accepted"}"#,
-            br#"{"status":"Accepted"}"#,
-            br#"{"id":"submission","status":"Accepted","status":"Invalid"}"#,
-            b"not JSON",
-        ] {
-            assert!(verify_notary_response(response).is_err());
-        }
     }
 
     #[test]

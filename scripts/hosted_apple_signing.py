@@ -4,14 +4,16 @@ import json
 import os
 import select
 import shlex
-import signal
-import subprocess
+import shutil
 import tempfile
 import time
 import sys
 from contextlib import contextmanager
 from pathlib import Path
 
+from hosted_apple_process import (ProcessCancelled, ProcessCleanupError, ProcessTimeout,
+    cancellation_scope, check_pending_cancellation, raise_if_cancelled, run_owned, stop_process_group)
+from hosted_apple_receipts import ReceiptError, safe_receipt_lines, valid_source
 
 
 def require(condition, message):
@@ -69,18 +71,43 @@ def error_category(stderr):
     return 'unclassified-native-failure'
 
 
+def forward_receipts(stderr, operation, env):
+    if stderr is None or operation not in ('application archive preparation',
+            'installer archive preparation', 'installer container preparation'):
+        return
+    context = env or {}
+    try:
+        receipts = safe_receipt_lines(stderr,
+            source_commit=context.get('KITROVE_NOTARY_SOURCE_COMMIT'),
+            target=context.get('DIST_TARGET'))
+    except ReceiptError:
+        print('Failed: ' + operation + ' [notary-receipt-invalid]', flush=True)
+        raise
+    for receipt in receipts:
+        print(receipt, flush=True)
+
+
 def native(args, payload=None, timeout=30, *, operation, env=None):
     require(operation in OPERATIONS, 'Unknown diagnostic operation')
     print('Starting: ' + operation, flush=True)
     try:
-        result = subprocess.run(args, input=payload, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, timeout=timeout, check=False, env=env)
-    except subprocess.TimeoutExpired:
+        result = run_owned(args, input=payload, timeout=timeout, env=env,
+            ignore_prior_cancellation=operation in ('Keychain search-list restoration', 'Keychain cleanup'))
+    except ProcessCleanupError:
+        print('Failed: ' + operation + ' [process-cleanup-unconfirmed]', flush=True)
+        raise
+    except ProcessCancelled as error:
+        forward_receipts(getattr(error, '_captured_stderr', None), operation, env)
+        print('Failed: ' + operation + ' [cancelled]', flush=True)
+        raise
+    except ProcessTimeout as error:
+        forward_receipts(getattr(error, '_captured_stderr', None), operation, env)
         print('Failed: ' + operation + ' [timeout]', flush=True)
         raise RuntimeError('Native operation timed out') from None
     except OSError:
         print('Failed: ' + operation + ' [launch-failure]', flush=True)
         raise RuntimeError('Native operation could not start') from None
+    forward_receipts(result.stderr, operation, env)
     if result.returncode != 0:
         print('Failed: ' + operation + ' [' + error_category(result.stderr) + ']', flush=True)
         raise RuntimeError('Native operation failed')
@@ -93,9 +120,19 @@ def authenticate(args, password):
     require(password and '\n' not in password and '\r' not in password, 'Invalid credential')
     import pty
     import termios
+    check_pending_cancellation()
+    with cancellation_scope() as cancellation:
+        check_pending_cancellation()
+        _authenticate(args, password, pty, termios, cancellation)
+
+
+def _authenticate(args, password, pty, termios, cancellation):
     pid, terminal = pty.fork()
     if pid == 0:
         try:
+            # forkpty establishes a new session before executing the trusted tool.
+            if os.getpgrp() != os.getpid():
+                os._exit(1)
             os.execv('/usr/bin/xcrun', ['xcrun'] + args)
         finally:
             os._exit(1)
@@ -105,6 +142,7 @@ def authenticate(args, password):
     deadline = time.monotonic() + 90
     try:
         while time.monotonic() < deadline:
+            raise_if_cancelled(cancellation)
             if select.select([terminal], [], [], 0.1)[0]:
                 try:
                     data = os.read(terminal, 4096)
@@ -118,18 +156,26 @@ def authenticate(args, password):
             if finished:
                 reaped = True
                 require(sent and os.waitstatus_to_exitcode(status) == 0, 'Authentication failed')
-                return
+                break
             if not sent and b'password' in output.lower():
                 if not termios.tcgetattr(terminal)[3] & termios.ECHO:
                     payload = (password + '\n').encode()
                     require(os.write(terminal, payload) == len(payload), 'Incomplete credential input')
                     sent = True
-        raise RuntimeError('Authentication timed out')
+        else:
+            raise RuntimeError('Authentication timed out')
     finally:
-        if not reaped:
-            os.kill(pid, signal.SIGKILL)
-            os.waitpid(pid, 0)
-        os.close(terminal)
+        def reap():
+            nonlocal reaped
+            if not reaped:
+                reaped = bool(os.waitpid(pid, os.WNOHANG)[0])
+            return reaped
+
+        try:
+            stop_process_group(pid, reap)
+        finally:
+            os.close(terminal)
+    raise_if_cancelled(cancellation)
 
 
 @contextmanager
@@ -146,7 +192,11 @@ def signing_environment():
     original_keychains = shlex.split(snapshot.decode())
     require(original_keychains and all(Path(path).is_absolute() for path in original_keychains),
         'Invalid original Keychain search list')
-    with tempfile.TemporaryDirectory(prefix='kitrove-release-signing-', dir=runner) as directory:
+    # Cleanup uncertainty must preserve this private directory: automatic temporary
+    # directory deletion would race descendants that might still use the Keychain.
+    directory = tempfile.mkdtemp(prefix='kitrove-release-signing-', dir=runner)
+    cleanup_safe = True
+    with cancellation_scope() as cancellation:
         keychain = Path(directory) / 'signing.keychain-db'
         try:
             native([str(runner / 'kitrove-apple-import')], json.dumps(dict(path=str(keychain),
@@ -158,14 +208,25 @@ def signing_environment():
             child_env = dict(os.environ, KITROVE_NOTARY_PROFILE='kitrove-release',
                 KITROVE_SIGNING_KEYCHAIN=str(keychain))
             yield child_env
+        except ProcessCleanupError:
+            cleanup_safe = False
+            print('Failed: credential cleanup [process-cleanup-unconfirmed]', flush=True)
+            raise
         finally:
-            try:
-                native(['/usr/bin/security', 'list-keychains', '-d', 'user', '-s'] + original_keychains,
-                    operation='Keychain search-list restoration')
-            finally:
-                if keychain.exists():
-                    native(['/usr/bin/security', 'delete-keychain', str(keychain)], operation='Keychain cleanup')
-            require(not keychain.exists(), 'Temporary Keychain cleanup failed')
+            if cleanup_safe:
+                try:
+                    native(['/usr/bin/security', 'list-keychains', '-d', 'user', '-s'] + original_keychains,
+                        operation='Keychain search-list restoration')
+                except ProcessCleanupError:
+                    cleanup_safe = False
+                    raise
+                finally:
+                    if cleanup_safe:
+                        if keychain.exists():
+                            native(['/usr/bin/security', 'delete-keychain', str(keychain)], operation='Keychain cleanup')
+                        require(not keychain.exists(), 'Temporary Keychain cleanup failed')
+                        shutil.rmtree(directory)
+        raise_if_cancelled(cancellation)
 
 
 def prepare_release():
@@ -173,6 +234,8 @@ def prepare_release():
     require(container_mode in ('', '1'), 'Invalid container preparation mode')
     target = os.environ.get('DIST_TARGET', '')
     require(target in ('aarch64-apple-darwin', 'x86_64-apple-darwin'), 'Unsupported Apple target')
+    source = os.environ.get('GITHUB_SHA', '')
+    require(valid_source(source), 'Invalid hosted source context')
     tag = os.environ.get('RELEASE_TAG', '')
     require(tag.startswith('v') and not any(char.isspace() for char in tag), 'Invalid release tag')
     runner = Path(os.environ['RUNNER_TEMP'])
@@ -181,6 +244,7 @@ def prepare_release():
     for path in (tool, runner / 'kitrove-apple-import'):
         require(path.is_absolute() and path.is_file() and not path.is_symlink(), 'Missing prebuilt signing tool')
     with signing_environment() as child_env:
+        child_env['KITROVE_NOTARY_SOURCE_COMMIT'] = source
         for product, operation in (('kitrove-cli', 'application archive preparation'),
                                    ('kitrove-installer', 'installer archive preparation')):
             archive = f'target/distrib/{product}-{target}.tar.xz'
