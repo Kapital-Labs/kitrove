@@ -97,7 +97,11 @@ class HostedAppleSigningTests(unittest.TestCase):
                     self.assertNotIn('Keychain search-list restoration', calls)
                 preserved = [path for path in root.iterdir() if path.is_dir()]
                 self.assertEqual(len(preserved), 1)
-                self.assertEqual(preserved[0].stat().st_mode & 0o777, 0o700)
+                # This orchestration fixture also runs on Windows, whose stat
+                # mode bits do not express POSIX directory permissions. The
+                # real signing host is macOS; keep its privacy assertion exact.
+                if os.name == 'posix':
+                    self.assertEqual(preserved[0].stat().st_mode & 0o777, 0o700)
                 self.assertTrue((preserved[0] / 'signing.keychain-db').is_file())
             elif failure != 'snapshot' and not overrides:
                 self.assertEqual(calls[-2:], ['Keychain search-list restoration', 'Keychain cleanup'])
