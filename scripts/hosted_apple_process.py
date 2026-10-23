@@ -1,4 +1,5 @@
 """POSIX process-group lifetime for trusted operator-only Apple signing tools."""
+import errno
 import os
 import signal
 import subprocess
@@ -10,6 +11,18 @@ _cancellations = []
 
 class ProcessCleanupError(RuntimeError):
     """The signing group may still hold credentials; preserve its private state."""
+
+    _CATEGORIES = frozenset(('probe-denied', 'probe-interrupted', 'probe-os-error',
+                            'cleanup-deadline', 'unclassified'))
+
+    def __init__(self, _message=None, *, category='unclassified'):
+        super().__init__('Native process cleanup could not be confirmed')
+        self._category = category
+
+    @property
+    def category(self):
+        value = self._category
+        return value if isinstance(value, str) and value in self._CATEGORIES else 'unclassified'
 
 
 class ProcessCancelled(RuntimeError):
@@ -71,8 +84,10 @@ def _group_exists(group):
         return True
     except ProcessLookupError:
         return False
-    except OSError:
-        raise ProcessCleanupError('Native process cleanup could not be confirmed') from None
+    except OSError as error:
+        category = ('probe-denied' if error.errno in (errno.EPERM, errno.EACCES) else
+                    'probe-interrupted' if error.errno == errno.EINTR else 'probe-os-error')
+        raise ProcessCleanupError(category=category) from None
 
 
 def stop_process_group(group, reap, *, term_seconds=1.0, kill_seconds=3.0):
@@ -81,9 +96,25 @@ def stop_process_group(group, reap, *, term_seconds=1.0, kill_seconds=3.0):
     The trusted child must retain the session/group established by its launcher.
     This is not containment of hostile same-user processes or detached system daemons.
     """
+    uncertain = None
+
+    def probe():
+        nonlocal uncertain
+        try:
+            present = _group_exists(group)
+            uncertain = None
+            return present
+        except ProcessCleanupError as error:
+            if error.category != 'probe-denied':
+                raise
+            # Darwin can deny a probe of a zombie-only group. Denial proves
+            # neither presence nor absence; keep reaping within the same bound.
+            uncertain = error
+            return None
+
     try:
         for number, duration in ((signal.SIGTERM, term_seconds), (signal.SIGKILL, kill_seconds)):
-            if _group_exists(group):
+            if probe() is True:
                 try:
                     os.killpg(group, number)
                 except ProcessLookupError:
@@ -91,12 +122,13 @@ def stop_process_group(group, reap, *, term_seconds=1.0, kill_seconds=3.0):
             deadline = time.monotonic() + duration
             while True:
                 direct_done = reap()
-                if direct_done and not _group_exists(group):
+                present = probe()
+                if direct_done and present is False:
                     return
                 if time.monotonic() >= deadline:
                     break
                 time.sleep(0.02)
-        raise ProcessCleanupError('Native process cleanup could not be confirmed')
+        raise uncertain or ProcessCleanupError(category='cleanup-deadline')
     except ProcessCleanupError:
         raise
     except (OSError, ChildProcessError):

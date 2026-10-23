@@ -177,6 +177,18 @@ class HostedAppleSigningTests(unittest.TestCase):
                 signing.native(['SECRET'], operation='identity import')
             self.assertNotIn('SECRET', output.getvalue())
 
+    def test_cleanup_failure_emits_only_the_closed_category(self):
+        for category in ('probe-denied', 'probe-interrupted', 'probe-os-error',
+                         'cleanup-deadline', 'SECRET_CATEGORY'):
+            error = signing.ProcessCleanupError('SECRET_PROVIDER', category=category)
+            output = io.StringIO()
+            with patch.object(signing, 'run_owned', side_effect=error), \
+                 contextlib.redirect_stdout(output), self.assertRaises(signing.ProcessCleanupError):
+                signing.native(['SECRET_ARG'], payload=b'SECRET_INPUT', operation='identity import')
+            safe = category if category != 'SECRET_CATEGORY' else 'unclassified'
+            self.assertIn('Cleanup failure category: ' + safe + '\n', output.getvalue())
+            self.assertNotIn('SECRET', output.getvalue())
+
     def test_dmg_categories_are_constant_and_never_expose_diagnostics(self):
         for marker, category in signing.DMG_FAILURE_MARKERS:
             with self.subTest(category=category):
