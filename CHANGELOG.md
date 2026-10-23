@@ -4,6 +4,13 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.5.1
+
+Fresh-install evaluation preview only, with no rollback-compatible predecessor.
+Includes the RC5 changes below and explicit release archive filename-identity
+verification independent of timestamp changes. RC5 stopped during validation;
+no RC5 application artifacts were published. Its tag remains unchanged.
+
 ## 0.1.0-rc.5
 
 ### Added

@@ -82,4 +82,6 @@ ADRs document foundational decisions and their consequences. Accepted ADRs are a
 
 | [0057](0057-agent-json-errors.md) | Opt-in versioned machine-readable errors | Accepted; exact public validation pending | NS-01, NS-05, NS-06, NS-10 |
 
+| [0058](0058-release-archive-name-identity.md) | Explicit release archive name identity | Accepted for implementation; validation pending | NS-09 |
+
 Use [`0000-template.md`](0000-template.md) for new records.

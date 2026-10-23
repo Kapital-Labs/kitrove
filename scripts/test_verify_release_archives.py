@@ -959,6 +959,38 @@ class ReleaseArchiveVerifierTests(unittest.TestCase):
                 ):
                     verifier.validate_archive(source, staged)
 
+    def test_archive_name_check_does_not_depend_on_metadata_changes(self) -> None:
+        for replacement in ('equal', 'different', 'missing', 'symlink'):
+            with self.subTest(replacement=replacement), self.secure_temporary_directory() as temporary:
+                root = Path(temporary)
+                source = root / 'kitrove-cli-x86_64-pc-windows-msvc.zip'
+                moved = root / 'retained.zip'
+                staged = root / 'staged.zip'
+                write_zip(source, COMPANIONS | {'kitrove.exe': b'original'})
+                original = source.read_bytes()
+                validate_shape = verifier.validate_binary_shape
+
+                def replace(path, entries):
+                    validate_shape(path, entries)
+                    source.rename(moved)
+                    if replacement == 'equal':
+                        source.write_bytes(original)
+                    elif replacement == 'different':
+                        write_zip(source, COMPANIONS | {'kitrove.exe': b'replacement'})
+                    elif replacement == 'symlink':
+                        source.symlink_to(moved)
+
+                with mock.patch.object(verifier, 'stable_file_identity', return_value=(0,) * 5):
+                    with mock.patch.object(verifier, 'validate_binary_shape', side_effect=replace):
+                        with self.assertRaises(verifier.ArchiveValidationError):
+                            verifier.validate_archive(source, staged)
+                self.assertEqual(moved.read_bytes(), original)
+                self.assertEqual(staged.read_bytes(), original)
+                if replacement == 'missing':
+                    self.assertFalse(source.exists())
+                elif replacement == 'symlink':
+                    self.assertTrue(source.is_symlink())
+
     def test_directory_discovery_rejects_unknown_archive_types(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

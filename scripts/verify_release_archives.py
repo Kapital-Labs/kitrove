@@ -947,7 +947,9 @@ def secure_archive_open_supported() -> bool:
 
 
 @contextlib.contextmanager
-def open_archive_nofollow(path: Path) -> Iterator[tuple[BinaryIO, os.stat_result]]:
+def open_archive_nofollow(
+    path: Path, *, require_stable_name: bool = False
+) -> Iterator[tuple[BinaryIO, os.stat_result]]:
     if not secure_archive_open_supported():
         raise ArchiveValidationError(
             "release archive verification requires no-follow directory handles"
@@ -969,6 +971,12 @@ def open_archive_nofollow(path: Path) -> Iterator[tuple[BinaryIO, os.stat_result
         with os.fdopen(file_fd, "rb", closefd=True) as file:
             file_fd = None
             yield file, metadata
+            if require_stable_name:
+                named = os.stat(absolute.name, dir_fd=directory_fd, follow_symlinks=False)
+                if not stat.S_ISREG(named.st_mode) or (
+                    named.st_dev, named.st_ino
+                ) != (metadata.st_dev, metadata.st_ino):
+                    raise ArchiveValidationError("archive name changed during verification")
     except OSError as error:
         raise ArchiveValidationError(f"cannot securely open release archive {path}: {error}") from error
     finally:
@@ -1053,7 +1061,7 @@ def validate_archive(
     kind = archive_kind(path)
     staged_digest: str | None = None
     try:
-        with open_archive_nofollow(path) as (file, initial_metadata):
+        with open_archive_nofollow(path, require_stable_name=True) as (file, initial_metadata):
             if initial_metadata.st_size == 0 or initial_metadata.st_size > MAX_ARCHIVE_BYTES:
                 raise ArchiveValidationError(
                     f"archive has an unsupported compressed size: {path}"
