@@ -45,7 +45,7 @@ pub fn project_skill_source(
     captured: &CapturedSkillSource,
     name: AssetId,
     description: String,
-    reasons: Vec<FidelityReason>,
+    mut reasons: Vec<FidelityReason>,
 ) -> Result<PortableProjection, SkillError> {
     let document_path = Path::new(&captured.original_document_name);
     let manifest = projected_manifest(document_path, &captured.document, name, description)?;
@@ -69,6 +69,12 @@ pub fn project_skill_source(
         },
     );
     let hash = hash_tree(&files);
+    if !captured.document.native_fields.is_empty() {
+        reasons.push(FidelityReason::new(
+            "skill.native_field_omitted",
+            "origin-native frontmatter fields are retained only in the exact native object",
+        ));
+    }
     Ok(PortableProjection::Available {
         manifest: Box::new(manifest),
         body: captured.document.body.clone(),

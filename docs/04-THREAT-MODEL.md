@@ -78,6 +78,11 @@ Require receipts, compare hashes, plan destructive operations, preserve backups,
 
 Require fidelity results and structured reasons, golden and round-trip tests, and native preservation.
 
+Portable skill projection reports omitted native-only frontmatter with a fixed
+redacted reason. Adoption consumes the projector's complete loss report;
+cross-harness results cannot claim full portability after such an omission.
+Exact native source bytes remain preserved. See ADR-0060.
+
 ### Sync-state compromise
 
 Use hashes and immutable resolutions, review executable changes, retain provenance, and add optional signing only after the core model is stable.

@@ -48,6 +48,31 @@ fn standard_document() -> &'static [u8] {
 }
 
 #[test]
+fn native_only_fields_add_one_redacted_loss_reason_without_changing_source() {
+    let root = tempfile::tempdir().unwrap();
+    let document = root.path().join("review.md");
+    let bytes = b"---\nname: review\ndescription: Review.\nmodel: FIELD_VALUE_CANARY\nFIELD_NAME_CANARY: retained\n---\nInspect.\n";
+    std::fs::write(&document, bytes).unwrap();
+    let captured = capture_skill_source(&source(&document), CaptureLimits::default()).unwrap();
+    let original = captured.clone();
+    let PortableProjection::Available { tree, reasons, .. } = project_skill_source(
+        &captured,
+        AssetId::parse("review").unwrap(),
+        "Review.".to_owned(),
+        vec![],
+    )
+    .unwrap() else {
+        panic!("standard-valid portable core must remain available")
+    };
+    assert_eq!(reasons.len(), 1);
+    assert_eq!(reasons[0].code, "skill.native_field_omitted");
+    assert!(!format!("{reasons:?}").contains("FIELD_"));
+    assert!(!String::from_utf8_lossy(&tree.files[&portable("SKILL.md")].bytes).contains("model:"));
+    assert_eq!(captured, original);
+    assert_eq!(std::fs::read(&document).unwrap(), bytes);
+}
+
+#[test]
 fn equal_projected_content_matches_across_layouts() {
     let root = tempfile::tempdir().unwrap();
     let directory = root.path().join("review-directory");
