@@ -217,9 +217,14 @@ fn recover_rollback(
     journal: &mut AtomicApplyBatchJournalCursor,
     limits: CaptureLimits,
 ) -> Result<(), AtomicApplyBatchTransactionError> {
-    journal
-        .transition_phase(state, AtomicApplyBatchPhase::RollingBack)
-        .map_err(journal_error)?;
+    if journal.phase() == AtomicApplyBatchPhase::RolledBack {
+        return cleanup_recovery_artifacts(state, targets, journal, limits);
+    }
+    if journal.phase() != AtomicApplyBatchPhase::RollingBack {
+        journal
+            .transition_phase(state, AtomicApplyBatchPhase::RollingBack)
+            .map_err(journal_error)?;
+    }
     for index in (0..journal.participants().len()).rev() {
         rollback_participant(state, targets, journal, index, limits)?;
     }
@@ -239,6 +244,9 @@ fn rollback_participant(
     let participant = journal.participants()[index].clone();
     let target = recovery_target_for(&participant, targets)?;
     let progress = participant.progress();
+    if progress == Progress::RolledBack {
+        return Ok(());
+    }
     if participant.disposition() == StoredDisposition::NoOp {
         if !participant_is_new(
             &participant,
@@ -307,10 +315,15 @@ fn rollback_participant(
         limits,
     )?;
     let mut progress = progress;
-    if matches!(progress, Progress::CommitPending | Progress::Committed) {
-        journal
-            .transition_participant(state, index, Progress::RemovePending)
-            .map_err(journal_error)?;
+    if matches!(
+        progress,
+        Progress::CommitPending | Progress::Committed | Progress::RemovePending
+    ) {
+        if progress != Progress::RemovePending {
+            journal
+                .transition_participant(state, index, Progress::RemovePending)
+                .map_err(journal_error)?;
+        }
         if destination_is_new {
             let identity = recovery_identity(
                 &participant,

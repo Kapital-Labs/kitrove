@@ -74,6 +74,11 @@ Include the layout tag, original document name, modes, and raw bytes in exact id
 
 Require receipts, compare hashes, plan destructive operations, preserve backups, and treat unmanaged content as advisory rather than removable.
 
+Atomic-batch rollback resumes only persisted journal progress after interruption;
+it does not repeat prohibited transitions or broaden destination ownership.
+Target removal/restoration and terminal artifact cleanup retain exact identity
+checks and never overwrite later user changes. See ADR-0062.
+
 ### Silent capability loss
 
 Require fidelity results and structured reasons, golden and round-trip tests, and native preservation.
