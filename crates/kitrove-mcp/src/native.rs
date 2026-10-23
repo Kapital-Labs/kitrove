@@ -314,12 +314,16 @@ fn parse_json_entry(
             reasons.insert(McpBlockReason::UnsupportedTransport);
         }
     }
-    if dialect == NativeMcpDialect::OpenCodeV2
-        && entry
-            .get_boolean("disabled")
-            .is_some_and(|value| value.value)
-    {
-        reasons.insert(McpBlockReason::Disabled);
+    if dialect == NativeMcpDialect::OpenCodeV2 && entry.get("disabled").is_some() {
+        match entry.get_boolean("disabled") {
+            Some(value) if value.value => {
+                reasons.insert(McpBlockReason::Disabled);
+            }
+            Some(_) => {}
+            None => {
+                reasons.insert(McpBlockReason::MalformedEntry);
+            }
+        }
     }
     let bearer_environment = parse_json_bearer(entry, dialect, &mut reasons);
     let name = McpServerName::parse(native_name.to_owned()).map_err(|_| {
@@ -533,12 +537,16 @@ fn parse_codex_entry(native_name: &str, item: &Item) -> McpPortability {
     if contains_credential_shaped_text(&item.to_string()) {
         reasons.insert(McpBlockReason::StaticCredential);
     }
-    if table
-        .get("enabled")
-        .and_then(Item::as_bool)
-        .is_some_and(|enabled| !enabled)
-    {
-        reasons.insert(McpBlockReason::Disabled);
+    if let Some(item) = table.get("enabled") {
+        match item.as_bool() {
+            Some(false) => {
+                reasons.insert(McpBlockReason::Disabled);
+            }
+            Some(true) => {}
+            None => {
+                reasons.insert(McpBlockReason::MalformedEntry);
+            }
+        }
     }
     let name = McpServerName::parse(native_name.to_owned()).map_err(|_| {
         reasons.insert(McpBlockReason::InvalidName);
@@ -997,6 +1005,79 @@ mod tests {
             document.entries()[0].exact_entry_hash(),
             document.entries()[1].exact_entry_hash()
         );
+    }
+
+    #[test]
+    fn activation_switches_block_non_boolean_values_without_disclosure() {
+        for (dialect, values) in [
+            (
+                NativeMcpDialect::OpenCodeV2,
+                vec![
+                    "\"true\"",
+                    "\"SECRET-SWITCH\"",
+                    "0",
+                    "1.5",
+                    "null",
+                    "[]",
+                    "{}",
+                ],
+            ),
+            (
+                NativeMcpDialect::CodexCurrent,
+                vec!["\"false\"", "\"SECRET-SWITCH\"", "0", "1.5", "[]", "{}"],
+            ),
+        ] {
+            for value in values {
+                let input = match dialect {
+                    NativeMcpDialect::CodexCurrent => format!(
+                        "[mcp_servers.docs]\nurl = \"https://mcp.example.com/mcp\"\nenabled = {value}\n"
+                    ),
+                    NativeMcpDialect::OpenCodeV2 => format!(
+                        r#"{{"mcp":{{"servers":{{"docs":{{"type":"remote","url":"https://mcp.example.com/mcp","disabled":{value}}}}}}}}}"#
+                    ),
+                    NativeMcpDialect::ClaudeCurrent => unreachable!(),
+                };
+                let document =
+                    parse_native_mcp_document(&input, dialect, McpParseLimits::default()).unwrap();
+                let entry = &document.entries()[0];
+                assert_eq!(
+                    entry.portability(),
+                    &blocked([McpBlockReason::MalformedEntry]),
+                    "{dialect:?} switch type"
+                );
+                assert!(entry.exact_entry().contains(value));
+                assert!(!format!("{document:?} {entry:?}").contains("SECRET-SWITCH"));
+                assert!(!format!("{document:?} {entry:?}").contains("mcp.example.com"));
+            }
+        }
+    }
+
+    #[test]
+    fn activation_switches_preserve_absent_and_valid_boolean_semantics() {
+        for dialect in [NativeMcpDialect::CodexCurrent, NativeMcpDialect::OpenCodeV2] {
+            for switch in [None, Some(false), Some(true)] {
+                let input = match dialect {
+                    NativeMcpDialect::CodexCurrent => format!(
+                        "[mcp_servers.docs]\nurl = \"https://mcp.example.com/mcp\"\n{}",
+                        switch.map_or_else(String::new, |value| format!("enabled = {value}\n"))
+                    ),
+                    NativeMcpDialect::OpenCodeV2 => format!(
+                        r#"{{"mcp":{{"servers":{{"docs":{{"type":"remote","url":"https://mcp.example.com/mcp"{}}}}}}}}}"#,
+                        switch.map_or_else(String::new, |value| format!(",\"disabled\":{value}"))
+                    ),
+                    NativeMcpDialect::ClaudeCurrent => unreachable!(),
+                };
+                let document =
+                    parse_native_mcp_document(&input, dialect, McpParseLimits::default()).unwrap();
+                let entry = &document.entries()[0];
+                let disabled = switch == Some(dialect == NativeMcpDialect::OpenCodeV2);
+                if disabled {
+                    assert_eq!(entry.portability(), &blocked([McpBlockReason::Disabled]));
+                } else {
+                    assert!(matches!(entry.portability(), McpPortability::Portable(_)));
+                }
+            }
+        }
     }
 
     #[test]
