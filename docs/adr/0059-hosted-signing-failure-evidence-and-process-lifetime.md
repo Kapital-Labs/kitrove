@@ -31,6 +31,26 @@ that cannot execute cleanup handlers.
 No automatic signing retry, notarization resubmission, release tag change or
 publication is introduced. The existing protected release approvals remain.
 
+### Cleanup diagnostic refinement (2026-10-23)
+
+An exact merged-main cancellation test failed in the process-group existence
+probe; generic redaction hid the OS error class. Retain a closed category for
+probe permission denial, interruption, other OS error, cleanup deadline or
+unclassified failure. The exception message remains constant, arbitrary category
+inputs collapse to unclassified, and no raw OS/provider text, identifiers or
+paths leave the boundary. These categories are evidence only, never proof of
+absence or authority to continue credential cleanup. Add fault-injection tests
+and repeated harmless Mac process-tree checks before interpreting hosted failure.
+
+A local Darwin fixture confirms a zombie-only group yields permission-denied
+until its owner reaps it. During bounded cleanup, such a probe is unknown, not
+absent. Continue reaping and probing within the existing TERM/KILL deadlines;
+signal only a positively observed group. Success still requires both direct-child
+reaping and an absent-group result. Persistent denial or other probe errors
+refuse cleanup and retain private state; no permissions, deadlines or retry/
+submission authority are broadened. This reproduced failure mode is consistent
+with the hosted stack; its original suppressed errno cannot be recovered.
+
 ## Invariant and product impact
 
 NS-07/NS-09 and INV-07/INV-12 are reinforced. Signing credentials and diagnostic

@@ -1,5 +1,6 @@
 """Real harmless process trees; no credentials, signing tools or network access."""
 import contextlib
+import errno
 import io
 import json
 import os
@@ -18,6 +19,86 @@ import hosted_apple_process as process
 
 @unittest.skipUnless(os.name == 'posix', 'owned process groups require POSIX')
 class HostedAppleProcessTests(unittest.TestCase):
+    def test_probe_failures_have_closed_redacted_categories(self):
+        for number, category in [(errno.EPERM, 'probe-denied'), (errno.EACCES, 'probe-denied'),
+                                 (errno.EINTR, 'probe-interrupted'), (errno.EIO, 'probe-os-error')]:
+            with self.subTest(category=category), patch.object(process.os, 'killpg',
+                    side_effect=OSError(number, 'PRIVATE_PROVIDER_CANARY')):
+                with self.assertRaises(process.ProcessCleanupError) as caught:
+                    process._group_exists(123456789)
+                self.assertEqual(getattr(caught.exception, 'category', None), category)
+                self.assertEqual(str(caught.exception), 'Native process cleanup could not be confirmed')
+                self.assertNotIn('PRIVATE_PROVIDER_CANARY', repr(caught.exception))
+
+    def test_cleanup_category_refuses_arbitrary_messages(self):
+        try:
+            error = process.ProcessCleanupError('PRIVATE_PROVIDER_CANARY', category='PRIVATE_CATEGORY')
+        except TypeError:
+            self.fail('cleanup exceptions cannot yet retain a closed category')
+        self.assertEqual(error.category, 'unclassified')
+        self.assertNotIn('PRIVATE_', str(error))
+        self.assertNotIn('PRIVATE_', repr(error))
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'Darwin zombie-only process-group probe')
+    def test_zombie_group_waits_for_confirmed_reaping(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pid_file = Path(directory) / 'owned-child.pid'
+            script = '''
+import pathlib, subprocess, sys
+child = subprocess.Popen([sys.executable, '-c', 'pass'], start_new_session=True)
+pathlib.Path(sys.argv[1]).write_text(str(child.pid))
+sys.stdin.readline()
+child.wait(timeout=5)
+'''
+            supervisor = subprocess.Popen([sys.executable, '-c', script, str(pid_file)],
+                stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                text=True, start_new_session=True)
+            released = False
+            try:
+                deadline = time.monotonic() + 5
+                while not pid_file.exists() and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertTrue(pid_file.exists())
+                group = int(pid_file.read_text())
+                while time.monotonic() < deadline:
+                    result = subprocess.run(['/bin/ps', '-o', 'state=', '-p', str(group)],
+                        capture_output=True, text=True, timeout=2)
+                    if result.stdout.strip().startswith('Z'):
+                        break
+                    time.sleep(0.01)
+                else:
+                    self.fail('owned child did not reach the zombie checkpoint')
+                with self.assertRaises(PermissionError):
+                    os.killpg(group, 0)
+
+                def reap():
+                    nonlocal released
+                    if not released:
+                        supervisor.stdin.write('reap\n')
+                        supervisor.stdin.flush()
+                        released = True
+                    return supervisor.poll() is not None
+
+                try:
+                    process.stop_process_group(group, reap, term_seconds=0.5, kill_seconds=0.5)
+                except process.ProcessCleanupError as error:
+                    self.fail('zombie-only group refused before confirmed reaping [' + error.category + ']')
+                self.assertTrue(released)
+                self.assertEqual(supervisor.returncode, 0)
+                with self.assertRaises(ProcessLookupError):
+                    os.killpg(group, 0)
+            finally:
+                supervisor.communicate(None if released else 'reap\n', timeout=5)
+
+    def test_probe_denial_never_counts_as_group_absence(self):
+        error = process.ProcessCleanupError(category='probe-denied')
+        with patch.object(process, '_group_exists', side_effect=error), \
+             patch.object(process.os, 'killpg') as send:
+            with self.assertRaises(process.ProcessCleanupError) as caught:
+                process.stop_process_group(123456789, lambda: True, term_seconds=0, kill_seconds=0)
+            self.assertEqual(caught.exception.category, 'probe-denied')
+        send.assert_not_called()
+
     def test_success_and_stdin_round_trip(self):
         result = process.run_owned([sys.executable, '-c',
             'import sys; sys.stdout.buffer.write(sys.stdin.buffer.read()); sys.stderr.write("err")'],
@@ -152,8 +233,8 @@ class HostedAppleProcessTests(unittest.TestCase):
     def test_timeout_and_cancellation_kill_term_ignoring_descendant(self):
         # The parent and descendant ignore TERM. KILL escalation must stop both,
         # including a descendant that inherited no communicate() pipe handles.
-        for number in (None, signal.SIGTERM, signal.SIGINT):
-            with self.subTest(cancellation=number), tempfile.TemporaryDirectory() as directory:
+        for attempt, number in enumerate((None, signal.SIGTERM, signal.SIGINT) * 20):
+            with self.subTest(cancellation=number, attempt=attempt), tempfile.TemporaryDirectory() as directory:
                 child_pid = Path(directory) / 'child.pid'
                 fixture = '''
 import os, signal, subprocess, sys, time
@@ -182,6 +263,8 @@ time.sleep(30)
                     with self.assertRaises(expected):
                         process.run_owned([sys.executable, '-c', fixture, str(child_pid)],
                             timeout=5 if number else 0.5)
+                except process.ProcessCleanupError as error:
+                    self.fail('owned cleanup refused [' + error.category + ']')
                 finally:
                     stop.set()
                     if thread:

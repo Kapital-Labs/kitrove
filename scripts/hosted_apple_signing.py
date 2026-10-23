@@ -93,8 +93,9 @@ def native(args, payload=None, timeout=30, *, operation, env=None):
     try:
         result = run_owned(args, input=payload, timeout=timeout, env=env,
             ignore_prior_cancellation=operation in ('Keychain search-list restoration', 'Keychain cleanup'))
-    except ProcessCleanupError:
+    except ProcessCleanupError as error:
         print('Failed: ' + operation + ' [process-cleanup-unconfirmed]', flush=True)
+        print('Cleanup failure category: ' + error.category, flush=True)
         raise
     except ProcessCancelled as error:
         forward_receipts(getattr(error, '_captured_stderr', None), operation, env)
