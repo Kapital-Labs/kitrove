@@ -536,19 +536,16 @@ pub fn plan_adoption(
         ));
     }
 
-    let projection = project_skill_source(
-        candidate.captured(),
-        projected_name,
-        description,
-        reasons.clone(),
-    )
-    .map_err(|_| {
-        AdoptionError::new(
-            "adoption.projection_failed",
-            "the policy-authorized portable projection could not be reproduced",
-        )
-    })?;
-    let PortableProjection::Available { tree, .. } = projection else {
+    let projection =
+        project_skill_source(candidate.captured(), projected_name, description, reasons).map_err(
+            |_| {
+                AdoptionError::new(
+                    "adoption.projection_failed",
+                    "the policy-authorized portable projection could not be reproduced",
+                )
+            },
+        )?;
+    let PortableProjection::Available { tree, reasons, .. } = projection else {
         return Err(AdoptionError::new(
             "adoption.projection_inconsistent",
             "an available policy projection became unavailable",

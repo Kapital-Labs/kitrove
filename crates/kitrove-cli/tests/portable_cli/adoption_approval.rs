@@ -121,6 +121,175 @@ fn authority(fixture: &Fixture) -> [Vec<u8>; 2] {
 }
 
 #[test]
+fn native_only_skill_fields_require_partial_cross_harness_fidelity() {
+    for origin in ["claude", "codex", "pi", "opencode"] {
+        let (fixture, source) = fixture("skill");
+        let bytes =
+            b"---\nname: review\ndescription: Review.\nmodel: FIELD_VALUE_CANARY\n---\nfirst\n";
+        fs::write(&source, bytes).unwrap();
+        let root = format!(
+            "{origin}:user:{}",
+            source.parent().unwrap().parent().unwrap().display()
+        );
+        let observed = fixture.scan_explicit_observation(origin, &root, "review");
+        let adopt = |flags: &[&str]| {
+            fixture
+                .command()
+                .args([
+                    "adopt",
+                    &observed,
+                    "--harness",
+                    origin,
+                    "--scope",
+                    "user",
+                    "--root",
+                    &root,
+                    "--environment",
+                ])
+                .arg(&fixture.environment)
+                .arg("--json")
+                .args(flags)
+                .stdin(Stdio::null())
+                .output()
+                .unwrap()
+        };
+        let plan = adopt(&["--plan"]);
+        assert!(plan.status.success(), "{origin}: {plan:?}");
+        assert!(!String::from_utf8_lossy(&plan.stdout).contains("FIELD_VALUE_CANARY"));
+        let adopted = adopt(&["--confirm", json(&plan)["plan_digest"].as_str().unwrap()]);
+        assert!(adopted.status.success(), "{origin}: {adopted:?}");
+        assert_partial_skill(&fixture, origin, bytes);
+        assert_eq!(fs::read(source).unwrap(), bytes);
+        assert!(!fixture.state_home.exists());
+    }
+}
+
+fn assert_partial_skill(fixture: &Fixture, origin: &str, bytes: &[u8]) -> EnvironmentManifest {
+    let manifest = EnvironmentManifest::from_toml(
+        &fs::read_to_string(fixture.environment.join("kitrove.toml")).unwrap(),
+    )
+    .unwrap();
+    let id = AssetId::parse("review").unwrap();
+    let asset = &manifest.assets[&id];
+    for harness in ["claude", "codex", "pi", "opencode"] {
+        let fidelity = &asset.compatibility[&HarnessId::parse(harness).unwrap()];
+        assert_eq!(
+            fidelity.fidelity(),
+            if harness == origin {
+                kitrove_model::Fidelity::Native
+            } else {
+                kitrove_model::Fidelity::Partial
+            },
+            "origin={origin}, target={harness}",
+        );
+        if harness != origin {
+            assert!(!fidelity.reasons().is_empty());
+            assert!(!format!("{:?}", fidelity.reasons()).contains("FIELD_VALUE_CANARY"));
+        }
+    }
+    let native = kitrove_core::load_native_skill_object(
+        &manifest,
+        &id,
+        &HarnessId::parse(origin).unwrap(),
+        &fixture.environment,
+        CaptureLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        native.tree().files[&PortablePath::parse("SKILL.md").unwrap()].bytes,
+        bytes
+    );
+    let portable = kitrove_core::load_portable_skill_object(
+        &manifest,
+        &id,
+        &fixture.environment,
+        CaptureLimits::default(),
+    )
+    .unwrap();
+    assert!(
+        !String::from_utf8_lossy(
+            &portable.tree().files[&PortablePath::parse("SKILL.md").unwrap()].bytes
+        )
+        .contains("model:")
+    );
+    assert_eq!(
+        fs::read_to_string(fixture.environment.join("kitrove.lock.json")).unwrap(),
+        derive_lockfile(&manifest).unwrap().to_json().unwrap()
+    );
+    manifest
+}
+
+#[test]
+fn native_only_reverse_update_and_sync_preserve_partial_fidelity_and_prior_bytes() {
+    let (machine_a, source) = fixture("skill");
+    let original = fs::read(&source).unwrap();
+    let observed = observation(&machine_a, "skill");
+    let plan = run(&machine_a, "skill", &observed, &["--plan"]);
+    assert!(plan.status.success(), "{plan:?}");
+    let adopted = run(
+        &machine_a,
+        "skill",
+        &observed,
+        &["--confirm", json(&plan)["plan_digest"].as_str().unwrap()],
+    );
+    assert!(adopted.status.success(), "{adopted:?}");
+    machine_a.initialize_local_state_for("fidelity-a");
+    let prior = EnvironmentManifest::from_toml(
+        &fs::read_to_string(machine_a.environment.join("kitrove.toml")).unwrap(),
+    )
+    .unwrap();
+    let id = AssetId::parse("review").unwrap();
+    let bytes = b"---\nname: review\ndescription: Review.\nmodel: FIELD_VALUE_CANARY\n---\nfirst\n";
+    fs::write(&source, bytes).unwrap();
+    let observed = observation(&machine_a, "skill");
+    let flags = [
+        "--update",
+        "review",
+        "--expected-prior",
+        prior.assets[&id].content_hash.as_str(),
+    ];
+    let mut preview = flags.to_vec();
+    preview.push("--plan");
+    let plan = run(&machine_a, "skill", &observed, &preview);
+    assert!(plan.status.success(), "{plan:?}");
+    let value = json(&plan);
+    let mut approved = flags.to_vec();
+    approved.extend(["--confirm", value["plan_digest"].as_str().unwrap()]);
+    let updated = run(&machine_a, "skill", &observed, &approved);
+    assert!(updated.status.success(), "{updated:?}");
+    let after = assert_partial_skill(&machine_a, "claude", bytes);
+    assert_eq!(
+        prior.assets[&id].portable.as_ref().unwrap().object_hash,
+        after.assets[&id].portable.as_ref().unwrap().object_hash
+    );
+    assert_ne!(
+        prior.assets[&id].native_variants[&HarnessId::Claude].object_hash,
+        after.assets[&id].native_variants[&HarnessId::Claude].object_hash
+    );
+    let retained = kitrove_core::load_native_skill_object(
+        &prior,
+        &id,
+        &HarnessId::Claude,
+        &machine_a.environment,
+        CaptureLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        retained.tree().files[&PortablePath::parse("SKILL.md").unwrap()].bytes,
+        original
+    );
+
+    let (machine_b, _) = fixture("skill");
+    let remote = tempfile::tempdir().unwrap();
+    let remote = fs::canonicalize(remote.path()).unwrap();
+    machine_b.initialize_local_state_for("fidelity-b");
+    sync_plan_and_apply(&machine_a, &remote, "publish", "native-only update publish");
+    sync_plan_and_apply(&machine_b, &remote, "receive", "native-only update receive");
+    assert_partial_skill(&machine_a, "claude", bytes);
+    assert_partial_skill(&machine_b, "claude", bytes);
+}
+
+#[test]
 fn every_adoption_and_update_accepts_only_exact_approval_with_closed_stdin() {
     exercise_adoption_and_update(false);
 }
