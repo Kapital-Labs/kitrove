@@ -66,6 +66,13 @@ Normalize paths, reject absolute and parent-traversal entries, inspect symlinks,
 
 Bound discovery globally and apply request-wide capture file-attempt and byte budgets in addition to per-candidate limits. Repeated reads through overlapping roots consume the global budget again. When capture capacity is exhausted, stop opening content and retain remaining safe locators as unknown.
 
+### Profile graph stack exhaustion
+
+Validate flat profile-parent graphs iteratively with completed-node memoization
+and per-walk cycle detection. A valid deep chain must not exhaust the native
+thread stack, and deep or disconnected cycles still return the existing closed
+validation error. Intake byte/record limits remain unchanged. See ADR-0063.
+
 ### Source-layout aliasing
 
 Include the layout tag, original document name, modes, and raw bytes in exact identity. Keep portable projection identity separate. A standalone file cannot satisfy a directory receipt through equal portable content.
