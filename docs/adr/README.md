@@ -86,5 +86,6 @@ ADRs document foundational decisions and their consequences. Accepted ADRs are a
 | [0059](0059-hosted-signing-failure-evidence-and-process-lifetime.md) | Safe signing failure evidence and owned child lifetimes | Accepted for implementation; validation pending | NS-07, NS-09 |
 | [0060](0060-native-skill-field-loss-is-explicit.md) | Native skill field loss is explicit | Accepted for implementation; validation pending | NS-02, NS-03, NS-04, NS-05, NS-06, NS-07, NS-10 |
 | [0061](0061-mcp-activation-switches-require-booleans.md) | MCP activation switches require booleans | Accepted for implementation; validation pending | NS-02, NS-04, NS-05, NS-07, NS-09, NS-10 |
+| [0062](0062-atomic-rollback-resumes-durable-progress.md) | Atomic rollback resumes durable progress | Accepted for implementation; validation pending | NS-03, NS-05, NS-06, NS-07, NS-09, NS-10 |
 
 Use [`0000-template.md`](0000-template.md) for new records.

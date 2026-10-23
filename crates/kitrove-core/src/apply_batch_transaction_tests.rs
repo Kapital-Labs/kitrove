@@ -20,6 +20,9 @@ use kitrove_model::{
 use kitrove_version_probe::probe_pi_version;
 
 use super::*;
+#[cfg(test)]
+#[path = "rollback_resume_tests.rs"]
+mod rollback_resume;
 use crate::adoption::tests::{capabilities, empty_manifest, make_candidate};
 use crate::agent_materialization::AtomicAgentFixture;
 use crate::instruction_apply_batch::AtomicInstructionFixture;
