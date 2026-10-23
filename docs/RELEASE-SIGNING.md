@@ -138,9 +138,21 @@ This option selects an existing store; it does not create, unlock or import one.
 Preparation requires macOS, system codesign/ditto/xcrun, an unlocked usable identity
 and the configured profile. It verifies the Developer ID chain and exact team,
 hardened runtime and secure timestamp. The notary wait is bounded to 20 minutes;
-a timeout may leave a pending Apple submission. Diagnose locally with notarytool
-history/log and the same Keychain profile. Only `Accepted` allows preparation.
-Provider output is intentionally not echoed by the tool.
+a timeout may leave a pending Apple submission. Preparation emits a bounded
+`KITROVE_NOTARY_RECEIPT_V1` JSON diagnostic record for a valid structured response,
+including on a failed submit/wait command. It contains only the submission UUID,
+known status (or fixed `Unavailable` when absent), SHA-256 of the exact submitted ZIP or image, reviewed target, and
+source commit when supplied by the hosted wrapper. Both successful product
+submissions retain their own records. Account values, paths and provider messages
+are discarded. Hosted forwarding validates these records against its target and
+source context before emitting them.
+
+Diagnose an identified pending or rejected submission explicitly with notarytool
+history/log and the same Keychain profile; a receipt grants no retry, resubmission
+or publication authority. No automatic retry occurs. Only a successful command
+with `Accepted` allows preparation. Malformed responses fail without echoing raw
+provider output. Receipt digests identify submitted ZIP/image bytes, not a final
+stapled image or release archive.
 
 Standalone executables cannot carry stapled notarization tickets. This TAR path
 does not claim offline first-launch Gatekeeper acceptance. An offline-stapleable
@@ -228,9 +240,14 @@ through stdin or a no-echo native prompt, not arguments or logs. The Swift helpe
 uses Apple's legacy file-Keychain APIs (which emit deprecation warnings) because
 native codesign requires this store type. No additional package is installed.
 
-The wrapper restores the exact prior search list and attempts store deletion even
-if restoration fails. Both failures stop release preparation. Abrupt runner
-cancellation relies on ephemeral runner destruction; this is not a self-hosted
+The wrapper owns isolated native process groups. Normal completion, timeout and
+catchable cancellation confirm descendant termination and direct-child reaping
+before credential cleanup; bounded TERM/KILL escalation handles resistant children.
+It then restores the exact prior search list and attempts store deletion even if
+restoration fails. Cleanup failures stop preparation. If process termination cannot
+be confirmed, it preserves the private Keychain directory and refuses further
+cleanup so credential deletion cannot race a live child. Ephemeral runner destruction
+covers that uncertainty and uncatchable cancellation; this is not a self-hosted
 workflow. Signed archive verification, staging and attestations follow cleanup.
 The actual two-product hosted handoff passed on both Mac architectures in run
 `35118722213`. Test fixtures alone are not product release evidence.

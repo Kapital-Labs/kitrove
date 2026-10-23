@@ -100,7 +100,7 @@ rand = "=0.10.2"
 rpassword = "=7.5.4"
 russh = { version = "=0.62.0", default-features = false, features = ["ring"] }
 rustls = { version = "=0.23.46", default-features = false, features = ["ring", "logging", "std", "tls12"] }
-tokio = { version = "=1.53.1", default-features = false, features = ["io-util", "net", "rt", "sync", "time"] }
+tokio = { version = "=1.53.3", default-features = false, features = ["io-util", "net", "rt", "sync", "time"] }
 ureq = { version = "=3.4.0", default-features = false, features = ["rustls"] }
 url = "=2.5.8"
 webpki-roots = "=1.0.10"

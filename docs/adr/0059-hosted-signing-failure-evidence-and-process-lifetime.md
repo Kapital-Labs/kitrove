@@ -1,0 +1,49 @@
+# ADR-0059: Hosted signing retains safe evidence and owns child lifetimes
+
+Status: Accepted for implementation under the signing repair authorization; validation pending
+
+## Context
+
+An Intel Mac preparation failed during notarization after other platform signing
+jobs succeeded. Generic error redaction discarded structured submission identity,
+preventing safe diagnosis of a pending or rejected submission. Separately, a
+synthetic timeout demonstrated that killing the Python wrapper's immediate child
+can leave native descendants alive during Keychain cleanup.
+
+## Decision
+
+Retain only validated, bounded notarization receipt fields: submission UUID,
+known provider status or fixed failure category, exact submitted artifact digest,
+reviewed target, and source commit when supplied by the approved hosted context.
+Never emit raw provider output, arbitrary messages, account identifiers, credential
+values or machine paths. A receipt is diagnostic evidence only: it does not grant
+signature, acceptance, publication, retry or resubmission authority. Failure still
+refuses preparation and preserves existing signed artifact authority.
+
+The hosted operator wrapper owns an isolated process group for each native
+operation. Timeout, cancellation, abnormal exit and surviving descendants require
+bounded group termination and direct-child reaping before credential cleanup.
+Unconfirmed cleanup refuses success. Signal handling must not leak provider
+output or allow an interrupted operation to continue using signing credentials.
+The ephemeral hosted-runner boundary remains required for abrupt termination
+that cannot execute cleanup handlers.
+
+No automatic signing retry, notarization resubmission, release tag change or
+publication is introduced. The existing protected release approvals remain.
+
+## Invariant and product impact
+
+NS-07/NS-09 and INV-07/INV-12 are reinforced. Signing credentials and diagnostic
+evidence stay outside capability portable state. Discovery, adoption, asset
+identity, portable representation, native variants, fidelity, deployment receipts,
+synchronization and conflict semantics are unchanged. No broader execution API,
+new platform guarantee or loss of retained native behavior is introduced.
+
+## Validation
+
+Synthetic structured response tests cover accepted, pending, rejected, malformed,
+oversized and secret-bearing provider output. Real harmless subprocess fixtures
+cover normal completion, timeout, cancellation and descendants that ignore TERM;
+assert cleanup completes before the caller resumes credential cleanup. Run full
+stable and Rust 1.88 validation, review the combined tree and require public checks
+before merging. These tests use no credentials, signing provider or release upload.

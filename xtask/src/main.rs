@@ -11,7 +11,7 @@ mod release_archive;
 mod release_staging;
 
 const REVIEWED_CARGO_LOCK_BLAKE3: &str =
-    "22cb41cc4a118cdeedce3d4d6714fd1a7fc749da68c3cdaed83ae0a295cc57bc";
+    "e3edb10b3984a8e0d50a312cab8080e3fd051c195d09b29f28e1d94f78279af6";
 const REVIEWED_SIGSTORE_REKOR_TREE_BLAKE3: &str =
     "898ca8f9c61bd79c3ef16bcc22650249eb4f32872540d281660f07b1c828c355";
 const REVIEWED_SIGSTORE_TSA_TREE_BLAKE3: &str =
@@ -1320,7 +1320,7 @@ fn check_git_dependency_boundary(root: &Path) -> Result<(), String> {
         "hmac = \"=0.13.0\"",
         "rpassword = \"=7.5.4\"",
         "russh = { version = \"=0.62.0\", default-features = false, features = [\"ring\"] }",
-        "tokio = { version = \"=1.53.1\", default-features = false, features = [\"io-util\", \"net\", \"rt\", \"sync\", \"time\"] }",
+        "tokio = { version = \"=1.53.3\", default-features = false, features = [\"io-util\", \"net\", \"rt\", \"sync\", \"time\"] }",
         "sha1 = \"=0.11.0\"",
         "zeroize = \"=1.9.0\"",
         "windows-sys = \"=0.61.2\"",

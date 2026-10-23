@@ -97,6 +97,14 @@ verification; a signer failure cannot publish unsigned output. Hosted signing re
 disabled until protected credential/tool provisioning is separately approved. The
 release tool never exports a key or enrolls a signing provider automatically. See ADR-0042.
 
+The hosted Apple operator wrapper owns each native process group through completion,
+timeout and cancellation. Confirm descendant termination before Keychain cleanup;
+if that cannot be confirmed, refuse success and preserve the private temporary
+credential directory for ephemeral-runner destruction. Notarization diagnostics
+retain only validated submission IDs, fixed statuses and artifact/source/target
+bindings. Raw provider messages, account details and credential-bearing paths never
+enter logs. These diagnostic receipts grant no retry or release authority. See ADR-0059.
+
 ### Secret resolver leakage
 
 Never log resolver output; minimize exposure; avoid argv where possible; use transient values; prefer target environment references over materialized values.
