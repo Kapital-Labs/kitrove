@@ -83,6 +83,10 @@ redacted reason. Adoption consumes the projector's complete loss report;
 cross-harness results cannot claim full portability after such an omission.
 Exact native source bytes remain preserved. See ADR-0060.
 
+Present MCP activation switches must be booleans. Malformed values block portable
+intake and exact-native object decoding rather than becoming an enabled portable
+declaration. Diagnostics retain fixed reasons, not authored values. See ADR-0061.
+
 ### Sync-state compromise
 
 Use hashes and immutable resolutions, review executable changes, retain provenance, and add optional signing only after the core model is stable.

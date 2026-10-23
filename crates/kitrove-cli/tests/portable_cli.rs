@@ -1607,6 +1607,54 @@ fn adopted_agent_is_materialized_through_pack_application_and_claimed_atomically
 }
 
 #[test]
+fn malformed_mcp_activation_is_blocked_without_mutating_or_disclosing_source() {
+    let fixture = Fixture::new();
+    fs::create_dir_all(fixture.home.join(".codex")).unwrap();
+    let source = fixture.home.join(".codex/config.toml");
+    let input =
+        "[mcp_servers.docs]\nurl = \"https://mcp.example.com/mcp\"\nenabled = \"SECRET-SWITCH\"\n";
+    fs::write(&source, input).unwrap();
+    let scan = fixture
+        .command()
+        .args([
+            "scan",
+            "--harness",
+            "codex",
+            "--scope",
+            "user",
+            "--environment",
+            fixture.environment.to_str().unwrap(),
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(scan.status.code(), Some(3), "{}", stderr(&scan));
+    let report = json(&scan);
+    let entries = report["mcp_servers"].as_array().unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(
+        entries[0]["block_reasons"],
+        serde_json::json!(["malformed_entry"])
+    );
+    assert!(entries[0]["portable_name"].is_null());
+    let observation = entries[0]["exact_entry_hash"].as_str().unwrap();
+    let adoption = fixture.adopt(observation, Some("docs"));
+    assert_eq!(adoption.status.code(), Some(1), "{}", stderr(&adoption));
+    assert_eq!(json(&adoption)["reason"], "portable_projection_unavailable");
+    for output in [&scan, &adoption] {
+        assert!(!String::from_utf8_lossy(&output.stdout).contains("SECRET-SWITCH"));
+        assert!(!String::from_utf8_lossy(&output.stderr).contains("SECRET-SWITCH"));
+        assert!(!String::from_utf8_lossy(&output.stdout).contains("mcp.example.com"));
+    }
+    assert_eq!(fs::read_to_string(source).unwrap(), input);
+    assert_eq!(
+        fs::read_to_string(fixture.environment.join("kitrove.toml")).unwrap(),
+        EMPTY_MANIFEST
+    );
+    assert!(!fixture.state_home.exists());
+}
+
+#[test]
 fn remote_mcp_adoption_maps_native_environment_authority_to_a_logical_binding() {
     let fixture = Fixture::new();
     fs::write(

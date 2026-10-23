@@ -254,6 +254,37 @@ mod tests {
     }
 
     #[test]
+    fn malformed_activation_is_rejected_on_capture_and_hash_consistent_decode() {
+        for (dialect, input) in [
+            (
+                NativeMcpDialect::CodexCurrent,
+                "[mcp_servers.docs]\nurl = \"https://mcp.example.com/mcp\"\nenabled = \"false\"\n",
+            ),
+            (
+                NativeMcpDialect::OpenCodeV2,
+                r#"{"mcp":{"servers":{"docs":{"type":"remote","url":"https://mcp.example.com/mcp","disabled":"true"}}}}"#,
+            ),
+        ] {
+            let document =
+                parse_native_mcp_document(input, dialect, McpParseLimits::default()).unwrap();
+            let entry = &document.entries()[0];
+            assert!(
+                StoredNativeMcpEntry::new(dialect, document.exact_document_hash().clone(), entry)
+                    .is_err()
+            );
+            // Model an older producer with consistent identities, not just corrupt hashes.
+            let old_object = StoredNativeMcpEntry::from_verified(
+                dialect,
+                entry.native_name().to_owned(),
+                entry.exact_entry().to_owned(),
+                entry.exact_entry_hash().clone(),
+                document.exact_document_hash().clone(),
+            );
+            assert!(StoredNativeMcpEntry::from_json(&old_object.to_json().unwrap()).is_err());
+        }
+    }
+
+    #[test]
     fn decoder_rejects_mutation_and_debug_redacts_exact_content() {
         let input =
             r#"{"mcpServers":{"docs":{"type":"http","url":"https://mcp.example.com/mcp"}}}"#;
