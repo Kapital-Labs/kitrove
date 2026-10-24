@@ -710,6 +710,40 @@ mod tests {
     }
 
     #[test]
+    fn single_plan_refuses_to_exceed_the_document_region_limit() {
+        let (manifest, object, asset_id) = adopted();
+        let limits = InstructionLimits::default();
+        let mut original = String::from("Human preface.\r\n");
+        for index in 0..limits.max_regions {
+            original.push_str(
+                &render_managed_region(
+                    &AssetId::parse(format!("existing-{index}")).unwrap(),
+                    object.body(),
+                )
+                .unwrap()
+                .0,
+            );
+        }
+        let target = tempfile::tempdir().unwrap();
+        crate::test_authority::write_owned_fixture_file(target.path().join("CLAUDE.md"), &original)
+            .unwrap();
+        let observation = observe_existing_target(&target);
+        let state = local_state();
+        let before = state.to_json().unwrap();
+        assert_eq!(
+            plan_for(&manifest, &object, &asset_id, &observation, &state)
+                .unwrap_err()
+                .code(),
+            "instruction_apply.render_failed"
+        );
+        assert_eq!(
+            fs::read_to_string(target.path().join("CLAUDE.md")).unwrap(),
+            original
+        );
+        assert_eq!(state.to_json().unwrap(), before);
+    }
+
+    #[test]
     fn install_preserves_co_owned_bytes_and_proposes_region_receipt() {
         let (manifest, object, asset_id) = adopted();
         let (_target, observation) = observe_target(Some(b"Human-owned preface.\n"));

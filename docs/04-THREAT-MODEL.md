@@ -66,6 +66,14 @@ Normalize paths, reject absolute and parent-traversal entries, inspect symlinks,
 
 Bound discovery globally and apply request-wide capture file-attempt and byte budgets in addition to per-candidate limits. Repeated reads through overlapping roots consume the global budget again. When capture capacity is exhausted, stop opening content and retain remaining safe locators as unknown.
 
+### Unreadable managed-instruction output
+
+Refuse insertion when a co-owned document has reached its existing managed-region
+ceiling. Single and coalesced planners share that pure guard before mutation;
+same-region updates remain allowed and all surrounding bytes are preserved.
+Do not raise limits, truncate another region or repair invalid input implicitly.
+See ADR-0064.
+
 ### Profile graph stack exhaustion
 
 Validate flat profile-parent graphs iteratively with completed-node memoization
