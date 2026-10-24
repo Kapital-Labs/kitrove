@@ -88,5 +88,6 @@ ADRs document foundational decisions and their consequences. Accepted ADRs are a
 | [0061](0061-mcp-activation-switches-require-booleans.md) | MCP activation switches require booleans | Accepted for implementation; validation pending | NS-02, NS-04, NS-05, NS-07, NS-09, NS-10 |
 | [0062](0062-atomic-rollback-resumes-durable-progress.md) | Atomic rollback resumes durable progress | Accepted for implementation; validation pending | NS-03, NS-05, NS-06, NS-07, NS-09, NS-10 |
 | [0063](0063-profile-validation-is-stack-safe.md) | Profile validation is stack-safe | Accepted for implementation; validation pending | NS-03, NS-05, NS-07, NS-09, NS-10 |
+| [0064](0064-instruction-insertion-respects-region-ceiling.md) | Instruction insertion respects the region ceiling | Accepted for implementation; validation pending | NS-05, NS-09, NS-10 |
 
 Use [`0000-template.md`](0000-template.md) for new records.

@@ -354,10 +354,17 @@ pub fn upsert_managed_region(
     limits: InstructionLimits,
 ) -> Result<Vec<u8>, InstructionError> {
     let document = inspect_managed_document(input, limits)?;
+    let existing = document.region(asset_id);
+    if existing.is_none() && document.regions().len() >= limits.max_regions {
+        return Err(error(
+            "instruction.region_limit",
+            "updated instruction document would contain too many managed regions",
+        ));
+    }
     let (rendered, _) = render_managed_region(asset_id, body)?;
     let mut output =
         Vec::with_capacity(input.len().saturating_add(rendered.len()).saturating_add(2));
-    if let Some(existing) = document.region(asset_id) {
+    if let Some(existing) = existing {
         output.extend_from_slice(&input[..existing.range.start]);
         output.extend_from_slice(rendered.as_bytes());
         output.extend_from_slice(&input[existing.range.end..]);
@@ -486,6 +493,103 @@ mod tests {
                 .len(),
             1
         );
+    }
+
+    #[test]
+    fn inserting_a_region_at_the_ceiling_is_refused() {
+        for ceiling in [0, 1, InstructionLimits::default().max_regions] {
+            let limits = InstructionLimits {
+                max_regions: ceiling,
+                ..InstructionLimits::default()
+            };
+            let mut original = String::from("Human preface.\r\n");
+            for index in 0..ceiling {
+                original.push_str(
+                    &render_managed_region(&asset(&format!("existing-{index}")), &body("Keep."))
+                        .unwrap()
+                        .0,
+                );
+            }
+            original.push_str("Human suffix.\r\n");
+            assert_eq!(
+                inspect_managed_document(original.as_bytes(), limits)
+                    .unwrap()
+                    .regions()
+                    .len(),
+                ceiling
+            );
+            let before = original.clone();
+            assert_eq!(
+                upsert_managed_region(original.as_bytes(), &asset("new"), &body("New."), limits)
+                    .unwrap_err()
+                    .code(),
+                "instruction.region_limit"
+            );
+            assert_eq!(original, before);
+        }
+    }
+
+    #[test]
+    fn insertion_below_the_ceiling_reparses_at_the_ceiling() {
+        for ceiling in [1, InstructionLimits::default().max_regions] {
+            let limits = InstructionLimits {
+                max_regions: ceiling,
+                ..InstructionLimits::default()
+            };
+            let original: String = (0..ceiling - 1)
+                .map(|index| {
+                    render_managed_region(&asset(&format!("existing-{index}")), &body("Keep."))
+                        .unwrap()
+                        .0
+                })
+                .collect();
+            let output =
+                upsert_managed_region(original.as_bytes(), &asset("new"), &body("New."), limits)
+                    .unwrap();
+            assert!(output.starts_with(original.as_bytes()));
+            assert_eq!(
+                inspect_managed_document(&output, limits)
+                    .unwrap()
+                    .regions()
+                    .len(),
+                ceiling
+            );
+        }
+    }
+
+    #[test]
+    fn updating_a_region_at_the_ceiling_preserves_all_other_bytes() {
+        for ceiling in [1, InstructionLimits::default().max_regions] {
+            let limits = InstructionLimits {
+                max_regions: ceiling,
+                ..InstructionLimits::default()
+            };
+            let id = asset("managed");
+            let original_region = render_managed_region(&id, &body("Old.")).unwrap().0;
+            let replacement = render_managed_region(&id, &body("New.")).unwrap().0;
+            let mut suffix = String::from("Human suffix.\r\n");
+            for index in 1..ceiling {
+                suffix.push_str(
+                    &render_managed_region(&asset(&format!("other-{index}")), &body("Keep."))
+                        .unwrap()
+                        .0,
+                );
+            }
+            let original = format!("Human preface.\r\n{original_region}{suffix}");
+            let output =
+                upsert_managed_region(original.as_bytes(), &id, &body("New."), limits).unwrap();
+            assert_eq!(
+                output,
+                format!("Human preface.\r\n{replacement}{suffix}").as_bytes()
+            );
+            assert_eq!(
+                inspect_managed_document(&output, limits)
+                    .unwrap()
+                    .regions()
+                    .len(),
+                ceiling
+            );
+        }
     }
 
     #[test]

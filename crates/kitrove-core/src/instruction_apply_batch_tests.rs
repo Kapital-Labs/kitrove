@@ -148,6 +148,50 @@ fn projection(
     )
 }
 
+#[test]
+fn coalesced_plan_refuses_to_exceed_the_document_region_limit() {
+    let (manifest, objects) = adopted_assets();
+    let limits = InstructionLimits::default();
+    let mut original = String::from("Human preface.\r\n");
+    for index in 0..limits.max_regions {
+        original.push_str(
+            &render_managed_region(
+                &AssetId::parse(format!("existing-{index}")).unwrap(),
+                objects[&AssetId::parse("review").unwrap()].body(),
+            )
+            .unwrap()
+            .0,
+        );
+    }
+    let target = tempfile::tempdir().unwrap();
+    crate::test_authority::write_owned_fixture_file(target.path().join("AGENTS.md"), &original)
+        .unwrap();
+    let observation = observe(&target, HarnessId::Codex);
+    let state = local_state().to_json().unwrap();
+    assert_eq!(
+        plan_coalesced_instruction_apply(
+            &manifest,
+            vec![projection(
+                &objects,
+                "review",
+                HarnessId::Codex,
+                observation
+            )],
+            &state,
+            None,
+            limits,
+        )
+        .unwrap_err()
+        .code(),
+        "instruction_batch.projection_invalid"
+    );
+    assert_eq!(
+        fs::read_to_string(target.path().join("AGENTS.md")).unwrap(),
+        original
+    );
+    assert!(LocalState::from_json(&state).unwrap().receipts.is_empty());
+}
+
 pub(crate) struct AtomicInstructionFixture {
     _temporary: tempfile::TempDir,
     pub(crate) environment: std::path::PathBuf,
