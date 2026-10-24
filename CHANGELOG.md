@@ -4,6 +4,30 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.5.2
+
+Fresh-install evaluation preview only, with no rollback-compatible predecessor.
+Includes the RC5/RC5.1 changes below. Both earlier tags remain immutable failed
+attempts; neither produced a public release.
+
+### Fixed
+
+- Preserve safe notarization submission diagnostics and confirm owned signing
+  descendants are stopped before credential cleanup; uncertainty fails closed.
+- Report omitted native-only skill fields as partial cross-harness fidelity while
+  retaining the original native source.
+- Refuse malformed MCP activation switches instead of treating them as absent.
+- Resume interrupted atomic-batch rollback from its durable checkpoint.
+- Validate deeply chained profiles without exhausting the native thread stack.
+- Refuse an added managed instruction region at the existing parser ceiling;
+  updates to existing regions remain allowed.
+- Apply reviewed ctutils and Tokio security patches without suppressing advisories.
+- Update crypto-bigint to 0.7.6 and required ctutils to 0.4.5 for
+  RUSTSEC-2026-0387; retain Rust 1.88 and existing dependency edges.
+
+This preview adds no cloud-provider sync, migration, stable-support or new package
+channel claim. Existing RC4.2 package-manager channels remain separate.
+
 ## 0.1.0-rc.5.1
 
 Fresh-install evaluation preview only, with no rollback-compatible predecessor.
