@@ -4,7 +4,7 @@ use crate::portable::{
     MAX_PACK_GRAPH_DEPTH, PackMemberMetadata, derive_pack_fields, validate_pack_graph_depth,
     validate_pack_member_budget,
 };
-use crate::{AssetId, EnvironmentManifest, Lockfile, ProfileId, ValidationError};
+use crate::{AssetId, EnvironmentManifest, Lockfile, ValidationError};
 
 /// Cross-record validation implemented by persisted roots.
 pub trait Validate {
@@ -220,37 +220,26 @@ fn reject_pack_cycles(manifest: &EnvironmentManifest) -> Result<(), ValidationEr
 }
 
 fn reject_profile_cycles(manifest: &EnvironmentManifest) -> Result<(), ValidationError> {
-    fn visit(
-        id: &ProfileId,
-        manifest: &EnvironmentManifest,
-        visiting: &mut BTreeSet<ProfileId>,
-        visited: &mut BTreeSet<ProfileId>,
-    ) -> Result<(), ValidationError> {
-        if visited.contains(id) {
-            return Ok(());
-        }
-        if !visiting.insert(id.clone()) {
-            return Err(ValidationError::new(
-                "manifest.profile_cycle",
-                format!("profile inheritance cycle reaches {id}"),
-            ));
-        }
-        if let Some(parent) = manifest
-            .profiles
-            .get(id)
-            .and_then(|profile| profile.extends.as_ref())
-        {
-            visit(parent, manifest, visiting, visited)?;
-        }
-        visiting.remove(id);
-        visited.insert(id.clone());
-        Ok(())
-    }
-
-    let mut visiting = BTreeSet::new();
     let mut visited = BTreeSet::new();
-    for id in manifest.profiles.keys() {
-        visit(id, manifest, &mut visiting, &mut visited)?;
+    for root in manifest.profiles.keys() {
+        let mut visiting = BTreeSet::new();
+        let mut current = Some(root);
+        while let Some(id) = current {
+            if visited.contains(id) {
+                break;
+            }
+            if !visiting.insert(id.clone()) {
+                return Err(ValidationError::new(
+                    "manifest.profile_cycle",
+                    format!("profile inheritance cycle reaches {id}"),
+                ));
+            }
+            current = manifest
+                .profiles
+                .get(id)
+                .and_then(|profile| profile.extends.as_ref());
+        }
+        visited.extend(visiting);
     }
     Ok(())
 }
