@@ -30,6 +30,13 @@ name, version, target and executable digest; it makes no application compatibili
 claims. The two manifest formats and authentication roles are not interchangeable.
 Each local archive receives its own single-subject attestation.
 
+Every binary archive also requires `THIRD_PARTY_NOTICES.md`,
+`THIRD_PARTY_LICENSE_INVENTORY.txt` and `THIRD_PARTY_LICENSES.txt`, alongside the
+existing exact companions. Empty or missing materials are refused. Run
+`cargo xtask release-notices` to reproduce-check these source-controlled materials
+against the reviewed locked graph before packaging. This inventory includes
+build, test and other-platform dependencies, not only code linked into one binary.
+
 Every third-party GitHub Action is pinned to a full reviewed commit. Public-repository releases use
 GitHub's Sigstore-backed artifact attestations for platform archives, installers, the source archive,
 and global checksum controls. These attestations prove which workflow produced an artifact; they are
@@ -102,7 +109,9 @@ gh attestation verify <platform-archive> \
   --repo Kapital-Labs/kitrove \
   --signer-workflow Kapital-Labs/kitrove/.github/workflows/release.yml \
   --source-ref refs/tags/vX.Y.Z \
-  --source-digest <release-commit-sha>
+  --source-digest <release-commit-sha> \
+  --signer-digest <release-commit-sha> \
+  --deny-self-hosted-runners
 ```
 
 Verify an installer or source archive with the same command before trusting it, substituting that

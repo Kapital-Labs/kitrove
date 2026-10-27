@@ -4,6 +4,27 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.5.3
+
+Fresh-install evaluation preview only, with no rollback-compatible predecessor.
+Includes the reviewed RC5-line changes below. RC5, RC5.1 and RC5.2 are immutable
+failed attempts; none produced a public release. No migration or stable-support
+promise and no APT/RPM, Homebrew or WinGet channel update is included.
+
+### Fixed
+
+- Build the distinct Apple Silicon and Intel Mac artifacts in separate jobs on
+  Apple Silicon hosts, selecting the pinned build tool by host rather than payload
+  CPU. Keep native signature, notarization, stapling and final image checks intact.
+- Replace withdrawn crypto-bigint 0.7.6 with 0.7.10 and required ctutils 0.4.5
+  with 0.4.6 after narrow source/identity/license review; no unrelated upgrades.
+- Include required third-party notices, the complete locked license inventory and
+  exact license/attribution texts in both product archives. Reproduce them offline
+  from authenticated source inputs before building or exposing signing credentials.
+
+The old Intel Mac provider failure cause remains unknown. Host selection and
+cross-compilation are not Intel runtime or clean-Mac acceptance evidence.
+
 ## 0.1.0-rc.5.2
 
 Fresh-install evaluation preview only, with no rollback-compatible predecessor.
