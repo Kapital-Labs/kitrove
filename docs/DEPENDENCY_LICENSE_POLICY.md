@@ -153,3 +153,13 @@ Before signing a release, save that inventory with the release evidence and
 include all attribution and license text required by the packages actually
 distributed. A dependency update is incomplete until the policy and
 `THIRD_PARTY_NOTICES.md` remain accurate.
+
+ADR-0066 makes these materials mandatory companions in both release archive
+families. `scripts/release_notices.py --check` reproduces the complete inventory
+and deduplicated source license/attribution text from checksum-authenticated
+registry archives, tracked patches and reviewed source-pinned supplements. It
+runs in canonical CI and before each credential-free release build. Missing or
+stale materials fail; no old/optional archive shape is accepted. Review supplement
+provenance and generated text whenever the locked graph changes. The generated
+inventory intentionally includes the entire locked graph, not only linked code;
+this packaging check is not a legal conclusion or a new license approval.

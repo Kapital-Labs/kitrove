@@ -61,12 +61,15 @@ pub fn extract_application_release(
 
 pub const APPLICATION_RELEASE_MANIFEST_NAME: &str = "kitrove-release.json";
 
-pub const BINARY_COMPANIONS: [&str; 6] = [
+pub const BINARY_COMPANIONS: [&str; 9] = [
     "README.md",
     "CHANGELOG.md",
     "LICENSE.md",
     "LICENSE-MIT",
     "LICENSE-APACHE",
+    "THIRD_PARTY_NOTICES.md",
+    "THIRD_PARTY_LICENSE_INVENTORY.txt",
+    "THIRD_PARTY_LICENSES.txt",
     APPLICATION_RELEASE_MANIFEST_NAME,
 ];
 

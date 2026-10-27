@@ -3,70 +3,70 @@
     "accepted": true,
     "archive": "valid_tar_xz/kitrove-cli-aarch64-apple-darwin.tar.xz",
     "case": "valid_tar_xz",
-    "sha256": "f6f672540962eb54d0285aa4a0d4fb55c2b8de43f5f43a2e5242d44b77ed70b0",
+    "sha256": "38a7dcdc4f66cc23a20cc5d55d2fdea7075f5ac78b553896bfc1dd6ae16e7e7b",
     "target": "aarch64-apple-darwin"
   },
   {
     "accepted": true,
     "archive": "valid_zip/kitrove-cli-x86_64-pc-windows-msvc.zip",
     "case": "valid_zip",
-    "sha256": "55465c34b3d81f3aa18408b6ad50b8fecc2baf0f1767f34df14540e2abc3a9c9",
+    "sha256": "2f06b875f36965377ad87881835536d74105b91eadcc228fe9d7139227a6e624",
     "target": "x86_64-pc-windows-msvc"
   },
   {
     "accepted": false,
     "archive": "tar_unsafe_mode/kitrove-cli-aarch64-apple-darwin.tar.xz",
     "case": "tar_unsafe_mode",
-    "sha256": "7ffb3308df759efc899ee9284162d8338818369a0687f3dc91484f7d8c546e9d",
+    "sha256": "fa277233cfbe3b0a4b6452d8038b5e6ce390b6dedd8c8ea428649736889ab45d",
     "target": "aarch64-apple-darwin"
   },
   {
     "accepted": false,
     "archive": "tar_traversal/kitrove-cli-aarch64-apple-darwin.tar.xz",
     "case": "tar_traversal",
-    "sha256": "2a409beafb46a0ebd63af4c6bac16dd82d2c766853af5b72aa1936dbecb302aa",
+    "sha256": "a9b2e0d85e6c6db2b28aa6a76f847405aca18205fd9b61c99cc159378a121814",
     "target": "aarch64-apple-darwin"
   },
   {
     "accepted": false,
     "archive": "tar_extended_metadata/kitrove-cli-aarch64-apple-darwin.tar.xz",
     "case": "tar_extended_metadata",
-    "sha256": "861b24d7a24ba97ddb64fb61c9580450245025fd0c1830f68320a17b020f6e0a",
+    "sha256": "848c4e214706baafaeaa5b19de4df4d781e1674cfe020ae8e5031bb71972f198",
     "target": "aarch64-apple-darwin"
   },
   {
     "accepted": false,
     "archive": "tar_nonzero_padding/kitrove-cli-aarch64-apple-darwin.tar.xz",
     "case": "tar_nonzero_padding",
-    "sha256": "7b3cf943e8a119ff2bbdbb87f70faedf576cb4da985e1160536cf6d34eae7308",
+    "sha256": "3876b819fdbb14306a4fa52ceeb2756eaa882b7e52337d59b017fa4a0e63384b",
     "target": "aarch64-apple-darwin"
   },
   {
     "accepted": false,
     "archive": "tar_concatenated_xz/kitrove-cli-aarch64-apple-darwin.tar.xz",
     "case": "tar_concatenated_xz",
-    "sha256": "6f66ad22b35665befc58e10905d2612afaa7d4205a59a65fde67966a26926053",
+    "sha256": "302b54e1be9fcdc2c81ff6842d3206fd3560229e80f34d2360fd2a60e35c44ca",
     "target": "aarch64-apple-darwin"
   },
   {
     "accepted": false,
     "archive": "zip_extra_entry/kitrove-cli-x86_64-pc-windows-msvc.zip",
     "case": "zip_extra_entry",
-    "sha256": "880dc22297a8ffbbef73a647efa42ebbb944b5eab6b364b9174b1c145be1b170",
+    "sha256": "f7cbe467f32ca4219ec403822d8eb2d8bd03bf5ea592dd53f44530471384eee5",
     "target": "x86_64-pc-windows-msvc"
   },
   {
     "accepted": false,
     "archive": "zip_traversal/kitrove-cli-x86_64-pc-windows-msvc.zip",
     "case": "zip_traversal",
-    "sha256": "09258367b86f28ce4aa45b4831358ebdba8dc0788a23495769cc360b56ce8978",
+    "sha256": "1ffa10543bd5d3c92a4b85dc00cacaf3669fccfc01237d25d49f8517f7cc3f6c",
     "target": "x86_64-pc-windows-msvc"
   },
   {
     "accepted": false,
     "archive": "zip_corrupt_crc/kitrove-cli-x86_64-pc-windows-msvc.zip",
     "case": "zip_corrupt_crc",
-    "sha256": "4e63b976479537e53a71139753ef961956e70ac9c1b65e9bd8f861f4c10eda05",
+    "sha256": "cfa66ecb5d1c799a0167b461c0df5870fc65e72f233ea7b7bb51dd52c0da9fed",
     "target": "x86_64-pc-windows-msvc"
   }
 ]

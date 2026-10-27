@@ -17,11 +17,11 @@ const REVIEWED_SIGSTORE_REKOR_TREE_BLAKE3: &str =
 const REVIEWED_SIGSTORE_TSA_TREE_BLAKE3: &str =
     "c48b716039e6942cf81eba8cf3558d7fe6d08facf5353ca5de99b03072cfc8db";
 const REVIEWED_RELEASE_WORKFLOW_BLAKE3: &str =
-    "db836dde76ea79f534e26b61c0cd8cafab8138e04f49b673e774b38d3af84872";
+    "ea1cd42fc7f17bc12d287352ca3f5283a5e9973c59fedc32ea48b021a13531e4";
 const REVIEWED_DIST_CONFIG_BLAKE3: &str =
-    "40bdbc2fc93592f60b2eae26f4a2761addbaba995b26e21edbf72845a66ab120";
+    "7d4f318b292df1f49e8c2dff2fae903acba9682916ed752fc4eab369075ce5d0";
 const REVIEWED_RELEASE_POLICY_BLAKE3: &str =
-    "03be092bae87eddbc776daed227c8ed0b45d92ec0fcc2548e8218c25ef2dad5d";
+    "1d23d1d844d794018625dfc7c19a8e4077b3aec057b1e267318397d55e311b34";
 const REVIEWED_APPLICATION_COMPATIBILITY_BLAKE3: &str =
     "62510ff95f63a3d450104d233b52a96dd140de87028e36ef18241c5a264cb234";
 const RELEASE_ACTION_PINS: [(&str, &str); 5] = [
@@ -49,6 +49,8 @@ fn main() -> ExitCode {
         "ci" => run_ci(&root),
         "governance" => check_governance(&root),
         "licenses" => check_dependency_licenses(&root),
+        "license-inputs" => print_license_inputs(&root),
+        "release-notices" => check_release_notices(&root),
         "repository" => check_repository(&root),
         "create-release-staging" => release_staging::create(Path::new(".")),
         "prepare-application-release" => release_archive::prepare(env::args_os().skip(2).collect()),
@@ -137,11 +139,26 @@ fn run_ci(root: &Path) -> Result<(), String> {
 
     println!("==> Checking dependency licenses");
     check_dependency_licenses(root)?;
+    println!("==> Checking release notice material");
+    check_release_notices(root)?;
 
     println!("==> Checking repository structure and hygiene");
     check_repository(root)?;
 
     println!("all CI checks passed");
+    Ok(())
+}
+
+fn check_release_notices(root: &Path) -> Result<(), String> {
+    let status = Command::new(find_python()?)
+        .args(["scripts/release_notices.py", "--check"])
+        .current_dir(root)
+        .status()
+        .map_err(|error| format!("cannot check release notices: {error}"))?;
+    if !status.success() {
+        return Err(format!("release notice check failed: {status}"));
+    }
+
     Ok(())
 }
 
@@ -524,9 +541,18 @@ fn check_dist_configuration(source: &str) -> Result<(), String> {
                 .map(toml::Value::as_str)
                 .collect::<Option<Vec<_>>>()
         });
-    if includes.as_deref() != Some(&["release/kitrove-release.json"][..]) {
+    if includes.as_deref()
+        != Some(
+            &[
+                "release/kitrove-release.json",
+                "THIRD_PARTY_NOTICES.md",
+                "release/THIRD_PARTY_LICENSE_INVENTORY.txt",
+                "release/THIRD_PARTY_LICENSES.txt",
+            ][..],
+        )
+    {
         return Err(
-            "dist-workspace.toml [dist].include must contain only the release manifest placeholder"
+            "dist-workspace.toml [dist].include must contain the exact manifest and notice set"
                 .to_owned(),
         );
     }
@@ -790,6 +816,25 @@ fn release_trigger_is_tag_push_only(workflow: &str) -> bool {
 }
 
 fn check_dependency_licenses(root: &Path) -> Result<(), String> {
+    let (inventory, _) = dependency_license_inventory(root)?;
+    print!("{inventory}");
+    Ok(())
+}
+
+fn print_license_inputs(root: &Path) -> Result<(), String> {
+    let (inventory, metadata) = dependency_license_inventory(root)?;
+    let lock = read(root, "Cargo.lock")?
+        .parse::<toml::Table>()
+        .map_err(|error| format!("invalid reviewed lockfile: {error}"))?;
+    let packages = lock.get("package").ok_or("lockfile has no package array")?;
+    let document = serde_json::json!({
+        "inventory": inventory, "metadata": metadata, "lock_packages": packages,
+    });
+    println!("{document}");
+    Ok(())
+}
+
+fn dependency_license_inventory(root: &Path) -> Result<(String, serde_json::Value), String> {
     check_reviewed_third_party_tree(
         &root.join("third_party/sigstore-rekor"),
         REVIEWED_SIGSTORE_REKOR_TREE_BLAKE3,
@@ -855,15 +900,15 @@ fn check_dependency_licenses(root: &Path) -> Result<(), String> {
     }
 
     inventory.sort();
-    println!("package\tversion\tlicense");
+    let mut rendered = String::from("package\tversion\tlicense\n");
     for (name, version, license) in &inventory {
-        println!("{name}\t{version}\t{license}");
+        rendered.push_str(&format!("{name}\t{version}\t{license}\n"));
     }
-    println!(
-        "dependency license checks passed ({} third-party packages inspected)",
+    rendered.push_str(&format!(
+        "dependency license checks passed ({} third-party packages inspected)\n",
         inventory.len()
-    );
-    Ok(())
+    ));
+    Ok((rendered, metadata))
 }
 
 fn check_offline_release_provenance_graph(

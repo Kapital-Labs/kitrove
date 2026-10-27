@@ -243,6 +243,9 @@ jobs:
       - name: Build artifacts
         shell: bash
         run: |
+          # Reproduce notice material before packaging or credential exposure.
+          cargo fetch --locked
+          cargo xtask release-notices
           # Actually do builds and make zips and whatnot
           dist build --tag="$RELEASE_TAG" --print=linkage --output-format=json ${{ matrix.dist_args }} > dist-manifest.json
           echo "dist ran successfully"

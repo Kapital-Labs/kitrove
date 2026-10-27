@@ -14,6 +14,23 @@ and the complete output of `cargo xtask licenses` for the released `Cargo.lock`.
 Packages requiring additional attribution or bundled license text must have
 those materials included before a release is signed.
 
+Both binary archive families contain `THIRD_PARTY_LICENSE_INVENTORY.txt` (the
+complete command output) and `THIRD_PARTY_LICENSES.txt` (package/path references
+and exact license/attribution text). Identical text is stored once with SHA-256
+references, not discarded. The inventory conservatively covers the complete
+locked graph, including build, test and other-platform packages; it does not
+claim every listed package is linked into each executable.
+
+Reproduce the checked-in documents with `python3 scripts/release_notices.py
+--check`. An intentional reviewed update uses `--write`. Registry text comes
+from crate archives authenticated against the reviewed lockfile; local patched
+text comes from tracked source. Packages whose published archives omit license
+text use the explicitly reviewed, source-pinned supplements described in
+`release/license-supplements/index.json`. Those records distinguish license-text
+provenance from crate source identity. No network lookup or license guessing
+occurs during notice generation or signing. These are repository policy checks,
+not a legal compliance opinion.
+
 The source tree includes audited patches for `jsonc-parser` 0.32.1, `pageant`
 0.2.0, `sigstore-rekor` 0.11.0, and `sigstore-tsa` 0.11.0 under `third_party/`.
 Their upstream license declarations, complete published sources, provenance,

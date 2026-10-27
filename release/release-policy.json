@@ -6,6 +6,9 @@
     "LICENSE.md",
     "LICENSE-MIT",
     "LICENSE-APACHE",
+    "THIRD_PARTY_NOTICES.md",
+    "THIRD_PARTY_LICENSE_INVENTORY.txt",
+    "THIRD_PARTY_LICENSES.txt",
     "kitrove-release.json"
   ],
   "release_manifest": {

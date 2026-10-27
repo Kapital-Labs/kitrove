@@ -1,0 +1,224 @@
+[
+  {
+    "name": "calcifer-macos-acl",
+    "version": "0.1.0",
+    "files": [
+      {
+        "path": "calcifer-MIT.txt",
+        "sha256": "b8c7478dfcdcae0ca7cc5b4c1d0232e7ef0deca0ddc0a199cbdc2889bfa2cd37",
+        "url": "https://raw.githubusercontent.com/kazu-42/calcifer/24a15cc4f7c46802d93d2f9cc93e45e1d5a5313e/LICENSE"
+      }
+    ],
+    "provenance": "Crate omits license text; MIT license from its repository root at the crate's recorded VCS revision 24a15cc4f7c46802d93d2f9cc93e45e1d5a5313e."
+  },
+  {
+    "name": "cms",
+    "version": "0.2.3",
+    "files": [
+      {
+        "path": "formats-APACHE.txt",
+        "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5",
+        "url": "https://raw.githubusercontent.com/RustCrypto/formats/5821a21553509dbd03eae593b0a1fad4e2083d4e/der/LICENSE-APACHE"
+      },
+      {
+        "path": "formats-MIT.txt",
+        "sha256": "ad64fcb9589f162720f3cc5010ad76ca6ad3764e11861f9192c489df176bb71d",
+        "url": "https://raw.githubusercontent.com/RustCrypto/formats/5821a21553509dbd03eae593b0a1fad4e2083d4e/der/LICENSE-MIT"
+      }
+    ],
+    "provenance": "Crate and cms source directory omit license text. Preserve RustCrypto project's Apache/MIT texts from der at the crate's recorded formats revision 5821a21553509dbd03eae593b0a1fad4e2083d4e. cms Cargo.toml declares Apache-2.0 OR MIT; MIT text attributes RustCrypto Developers. This identifies the supplemental text source, not a claim that cms shipped those files."
+  },
+  {
+    "name": "defmt",
+    "version": "0.3.100",
+    "files": [
+      {
+        "path": "defmt-APACHE.txt",
+        "sha256": "8173d5c29b4f956d532781d2b86e4e30f83e6b7878dce18c919451d6ba707c90",
+        "url": "https://raw.githubusercontent.com/knurling-rs/defmt/f6decae6e09d1216aff052aa0733a6b5e632a100/LICENSE-APACHE"
+      },
+      {
+        "path": "defmt-MIT.txt",
+        "sha256": "2710a622a896bba67356913d4d0492cab5465f61b2ecce6d880aeb483834fb50",
+        "url": "https://raw.githubusercontent.com/knurling-rs/defmt/f6decae6e09d1216aff052aa0733a6b5e632a100/LICENSE-MIT"
+      }
+    ],
+    "provenance": "Workspace-root license texts at the crate's recorded VCS revision f6decae6e09d1216aff052aa0733a6b5e632a100; published crate omits them."
+  },
+  {
+    "name": "defmt-parser",
+    "version": "1.0.0",
+    "files": [
+      {
+        "path": "defmt-parser-APACHE.txt",
+        "sha256": "8173d5c29b4f956d532781d2b86e4e30f83e6b7878dce18c919451d6ba707c90",
+        "url": "https://raw.githubusercontent.com/knurling-rs/defmt/4a8cdb44891ed57b8ff5a023b6bec7137c48708f/LICENSE-APACHE"
+      },
+      {
+        "path": "defmt-parser-MIT.txt",
+        "sha256": "2710a622a896bba67356913d4d0492cab5465f61b2ecce6d880aeb483834fb50",
+        "url": "https://raw.githubusercontent.com/knurling-rs/defmt/4a8cdb44891ed57b8ff5a023b6bec7137c48708f/LICENSE-MIT"
+      }
+    ],
+    "provenance": "Workspace-root license texts at the crate's recorded VCS revision 4a8cdb44891ed57b8ff5a023b6bec7137c48708f; published crate omits them."
+  },
+  {
+    "name": "delegate",
+    "version": "0.13.5",
+    "files": [
+      {
+        "path": "delegate-APACHE.txt",
+        "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+        "url": "https://raw.githubusercontent.com/kobzol/rust-delegate/b129d4cbf4cc499eff7743365dcb0fe5d8d2e820/LICENSE-APACHE"
+      },
+      {
+        "path": "delegate-MIT.txt",
+        "sha256": "be7ee8aa49dc586023669a0c600a0536fce6a9f61264a53a67cdd842564ed899",
+        "url": "https://raw.githubusercontent.com/kobzol/rust-delegate/b129d4cbf4cc499eff7743365dcb0fe5d8d2e820/LICENSE-MIT"
+      }
+    ],
+    "provenance": "Repository-root license texts at the crate's recorded VCS revision b129d4cbf4cc499eff7743365dcb0fe5d8d2e820; published crate omits them."
+  },
+  {
+    "name": "russh",
+    "version": "0.62.0",
+    "files": [
+      {
+        "path": "russh-APACHE.txt",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "url": "https://raw.githubusercontent.com/warp-tech/russh/907c732562c5732aad6c140dba958eafddc41ba0/LICENSE.txt"
+      }
+    ],
+    "provenance": "Workspace-root Apache-2.0 text at the crate's recorded VCS revision 907c732562c5732aad6c140dba958eafddc41ba0; published crate omits it."
+  },
+  {
+    "name": "russh-cryptovec",
+    "version": "0.62.0",
+    "files": [
+      {
+        "path": "russh-APACHE.txt",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "url": "https://raw.githubusercontent.com/warp-tech/russh/907c732562c5732aad6c140dba958eafddc41ba0/LICENSE.txt"
+      }
+    ],
+    "provenance": "Workspace-root Apache-2.0 text at the crate's recorded VCS revision 907c732562c5732aad6c140dba958eafddc41ba0; published crate omits it."
+  },
+  {
+    "name": "russh-util",
+    "version": "0.52.0",
+    "files": [
+      {
+        "path": "russh-util-APACHE.txt",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "url": "https://raw.githubusercontent.com/warp-tech/russh/3d09c20c52a542ffa327723d3a44cb1edd9b0ca4/LICENSE-2.0.txt"
+      }
+    ],
+    "provenance": "Workspace-root Apache-2.0 text at recorded VCS revision 3d09c20c52a542ffa327723d3a44cb1edd9b0ca4. Published crate records git dirty=true; this is provenance for the license text, not byte identity for unpublished working-tree changes."
+  },
+  {
+    "name": "sigstore-bundle",
+    "version": "0.11.0",
+    "files": [
+      {
+        "path": "sigstore-APACHE.txt",
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+        "url": "https://raw.githubusercontent.com/prefix-dev/sigstore-rust/ef17cacdbd357befea4c1c768ef02ed9bf52672c/LICENSE"
+      }
+    ],
+    "provenance": "Workspace-root Apache-2.0 text at the crate's recorded VCS revision ef17cacdbd357befea4c1c768ef02ed9bf52672c; published crate omits it."
+  },
+  {
+    "name": "sigstore-crypto",
+    "version": "0.11.0",
+    "files": [
+      {
+        "path": "sigstore-APACHE.txt",
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+        "url": "https://raw.githubusercontent.com/prefix-dev/sigstore-rust/ef17cacdbd357befea4c1c768ef02ed9bf52672c/LICENSE"
+      }
+    ],
+    "provenance": "Workspace-root Apache-2.0 text at the crate's recorded VCS revision ef17cacdbd357befea4c1c768ef02ed9bf52672c; published crate omits it."
+  },
+  {
+    "name": "sigstore-merkle",
+    "version": "0.11.0",
+    "files": [
+      {
+        "path": "sigstore-APACHE.txt",
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+        "url": "https://raw.githubusercontent.com/prefix-dev/sigstore-rust/ef17cacdbd357befea4c1c768ef02ed9bf52672c/LICENSE"
+      }
+    ],
+    "provenance": "Workspace-root Apache-2.0 text at the crate's recorded VCS revision ef17cacdbd357befea4c1c768ef02ed9bf52672c; published crate omits it."
+  },
+  {
+    "name": "sigstore-trust-root",
+    "version": "0.11.0",
+    "files": [
+      {
+        "path": "sigstore-APACHE.txt",
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+        "url": "https://raw.githubusercontent.com/prefix-dev/sigstore-rust/ef17cacdbd357befea4c1c768ef02ed9bf52672c/LICENSE"
+      }
+    ],
+    "provenance": "Workspace-root Apache-2.0 text at the crate's recorded VCS revision ef17cacdbd357befea4c1c768ef02ed9bf52672c; published crate omits it."
+  },
+  {
+    "name": "sigstore-types",
+    "version": "0.11.0",
+    "files": [
+      {
+        "path": "sigstore-APACHE.txt",
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+        "url": "https://raw.githubusercontent.com/prefix-dev/sigstore-rust/ef17cacdbd357befea4c1c768ef02ed9bf52672c/LICENSE"
+      }
+    ],
+    "provenance": "Workspace-root Apache-2.0 text at the crate's recorded VCS revision ef17cacdbd357befea4c1c768ef02ed9bf52672c; published crate omits it."
+  },
+  {
+    "name": "sigstore-verify",
+    "version": "0.11.0",
+    "files": [
+      {
+        "path": "sigstore-APACHE.txt",
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+        "url": "https://raw.githubusercontent.com/prefix-dev/sigstore-rust/ef17cacdbd357befea4c1c768ef02ed9bf52672c/LICENSE"
+      }
+    ],
+    "provenance": "Workspace-root Apache-2.0 text at the crate's recorded VCS revision ef17cacdbd357befea4c1c768ef02ed9bf52672c; published crate omits it."
+  },
+  {
+    "name": "winapi-i686-pc-windows-gnu",
+    "version": "0.4.0",
+    "files": [
+      {
+        "path": "winapi-APACHE.txt",
+        "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+        "url": "https://raw.githubusercontent.com/retep998/winapi-rs/796a8e6c2971dc2ff1bcff166e6671284f9b5b6b/LICENSE-APACHE"
+      },
+      {
+        "path": "winapi-MIT.txt",
+        "sha256": "ce7bc3499fee93d5022ef430d5e4201e79a6d9154f3974e42f41349f0569e09b",
+        "url": "https://raw.githubusercontent.com/retep998/winapi-rs/796a8e6c2971dc2ff1bcff166e6671284f9b5b6b/LICENSE-MIT"
+      }
+    ],
+    "provenance": "Published crate declares MIT/Apache-2.0 and author Peter Atashian, but has no license file or recorded VCS revision. Preserve the same upstream winapi-rs project's license texts at 0.3.9 commit 796a8e6c2971dc2ff1bcff166e6671284f9b5b6b (MIT copyright the winapi-rs Developers). This pins the supplemental text source; it does not assert the crate was built at that revision."
+  },
+  {
+    "name": "winapi-x86_64-pc-windows-gnu",
+    "version": "0.4.0",
+    "files": [
+      {
+        "path": "winapi-APACHE.txt",
+        "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+        "url": "https://raw.githubusercontent.com/retep998/winapi-rs/796a8e6c2971dc2ff1bcff166e6671284f9b5b6b/LICENSE-APACHE"
+      },
+      {
+        "path": "winapi-MIT.txt",
+        "sha256": "ce7bc3499fee93d5022ef430d5e4201e79a6d9154f3974e42f41349f0569e09b",
+        "url": "https://raw.githubusercontent.com/retep998/winapi-rs/796a8e6c2971dc2ff1bcff166e6671284f9b5b6b/LICENSE-MIT"
+      }
+    ],
+    "provenance": "Published crate declares MIT/Apache-2.0 and author Peter Atashian, but has no license file or recorded VCS revision. Preserve the same upstream winapi-rs project's license texts at 0.3.9 commit 796a8e6c2971dc2ff1bcff166e6671284f9b5b6b (MIT copyright the winapi-rs Developers). This pins the supplemental text source; it does not assert the crate was built at that revision."
+  }
+]

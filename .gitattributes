@@ -6,3 +6,5 @@
 *.yaml text eol=lf
 *.json text eol=lf
 *.ps1 text eol=crlf
+release/THIRD_PARTY_LICENSES.txt -text
+release/license-supplements/*.txt -text
