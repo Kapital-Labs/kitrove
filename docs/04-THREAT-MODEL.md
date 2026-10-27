@@ -134,6 +134,13 @@ retain only validated submission IDs, fixed statuses and artifact/source/target
 bindings. Raw provider messages, account details and credential-bearing paths never
 enter logs. These diagnostic receipts grant no retry or release authority. See ADR-0059.
 
+Apple artifact CPU targets are independent of the reviewed macOS build host CPU.
+Both Apple targets use separate single-target jobs on Apple Silicon; the pinned
+build tool must match the host, while product/archive verification must match the
+artifact target. Cross-compilation grants no product execution, firewall change,
+signature bypass, retry or publication authority. All native macOS verification
+and final source/target-bound attestations remain required. See ADR-0065.
+
 ### Secret resolver leakage
 
 Never log resolver output; minimize exposure; avoid argv where possible; use transient values; prefer target environment references over materialized values.

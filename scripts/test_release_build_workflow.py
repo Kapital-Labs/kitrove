@@ -17,6 +17,60 @@ class ReleaseBuildWorkflowTests(unittest.TestCase):
         self.local = self.workflow.split('  build-local-artifacts:\n', 1)[1].split(
             '  build-global-artifacts:\n', 1)[0]
 
+    @unittest.skipUnless(os.name == 'posix', 'executes the explicit Bash workflow body')
+    def test_dist_tool_matches_reviewed_host_not_artifact_cpu(self):
+        step = self.local.split('      - name: Install dist\n', 1)[1].split(
+            '      - name: Install dist on Windows\n', 1)[0]
+        script = textwrap.dedent(step.split('        run: |\n', 1)[1])
+        stub = '''curl() { printf '%s\\n' "$*" >> calls; }
+        shasum() { cat > digest; printf 'checksum\\n' >> calls; return "$CHECKSUM_RESULT"; }
+        sha256sum() { shasum "$@"; }
+        tar() { printf 'extract\\n' >> calls; }
+        install() { printf '%s\\n' "$*" >> calls; }
+        '''
+        arm = 'aarch64-apple-darwin'
+        intel = 'x86_64-apple-darwin'
+        linux = 'x86_64-unknown-linux-gnu'
+        cases = [
+            ('macOS', 'ARM64', arm, arm),
+            ('macOS', 'ARM64', intel, arm),
+            ('Linux', 'X64', linux, linux),
+            ('macOS', 'X64', intel, None),
+            ('macOS', 'ARM64', linux, None),
+            ('Linux', 'X64', intel, None),
+            ('Linux', 'ARM64', linux, None),
+            ('Windows', 'X64', intel, None),
+            ('macOS', 'ARM64', intel + ';touch injected', None),
+        ]
+        for runner_os, arch, target, host in cases:
+            for checksum in (0, 8):
+                with self.subTest(os=runner_os, arch=arch, target=target, checksum=checksum), \
+                        tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    result = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', stub + script],
+                        cwd=root, env={'PATH': os.environ['PATH'], 'HOME': temporary,
+                        'RUNNER_TEMP': temporary, 'RUNNER_OS': runner_os, 'RUNNER_ARCH': arch,
+                        'DIST_TARGET': target, 'GITHUB_PATH': str(root / 'path'),
+                        'CHECKSUM_RESULT': str(checksum)}, capture_output=True, text=True, timeout=10)
+                    self.assertEqual(result.returncode == 0, host is not None and checksum == 0,
+                                     result.stderr)
+                    self.assertFalse((root / 'injected').exists())
+                    calls = root / 'calls'
+                    if host is None:
+                        self.assertFalse(calls.exists(), 'refuse before download or installation')
+                        continue
+                    observed = calls.read_text()
+                    self.assertIn(f'/v0.32.0/cargo-dist-{host}.tar.xz', observed)
+                    expected = ('aa343b2ff78ec2981f17a65140250c5ad6062c74072163f68c5c2686d94763a7'
+                                if runner_os == 'macOS' else
+                                'eb52f9fae0d0506774e9f1801c1168f87fa2c87a45e2d64d3ae7c89401929946')
+                    self.assertEqual((root / 'digest').read_text(),
+                                     f'{expected}  {root}/cargo-dist.tar.xz\n')
+                    self.assertEqual('extract\n' in observed, checksum == 0)
+                    self.assertEqual((root / 'path').exists(), checksum == 0)
+                    if checksum == 0:
+                        self.assertIn(f'cargo-dist-{host}/dist', observed)
+
     @unittest.skipUnless(os.name == 'posix', 'executes the explicit Bash publication body')
     def test_publication_requires_reviewed_version_notes_before_any_github_write(self):
         step = self.workflow.split('      - name: Create GitHub Release\n', 1)[1].split(

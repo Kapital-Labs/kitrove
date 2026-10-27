@@ -17,9 +17,9 @@ const REVIEWED_SIGSTORE_REKOR_TREE_BLAKE3: &str =
 const REVIEWED_SIGSTORE_TSA_TREE_BLAKE3: &str =
     "c48b716039e6942cf81eba8cf3558d7fe6d08facf5353ca5de99b03072cfc8db";
 const REVIEWED_RELEASE_WORKFLOW_BLAKE3: &str =
-    "19f1e0dbec8abca1351f77e0b3efb9c7e73b535ff043e3c421e4fb3b16b46afe";
+    "db836dde76ea79f534e26b61c0cd8cafab8138e04f49b673e774b38d3af84872";
 const REVIEWED_DIST_CONFIG_BLAKE3: &str =
-    "6eeceed79e47b1673212b39a69064af206c28099868b1cfa6678f0d1ecb2b00d";
+    "40bdbc2fc93592f60b2eae26f4a2761addbaba995b26e21edbf72845a66ab120";
 const REVIEWED_RELEASE_POLICY_BLAKE3: &str =
     "03be092bae87eddbc776daed227c8ed0b45d92ec0fcc2548e8218c25ef2dad5d";
 const REVIEWED_APPLICATION_COMPATIBILITY_BLAKE3: &str =
@@ -370,7 +370,6 @@ fn check_release_configuration(root: &Path) -> Result<(), String> {
         "release/application-compatibility.json",
         "verified-artifacts/*",
         "aa343b2ff78ec2981f17a65140250c5ad6062c74072163f68c5c2686d94763a7",
-        "6243464a8389e006b9256ee548bc795638f1a17113c1b6669c0e05ce89fd05c5",
         "eb52f9fae0d0506774e9f1801c1168f87fa2c87a45e2d64d3ae7c89401929946",
         "26e845cabff12a92911ce960af73a86c8f9b2b2d9072b01dfe5b662acf044fa3",
     ] {
@@ -578,13 +577,17 @@ fn check_dist_configuration(source: &str) -> Result<(), String> {
         .get("github-custom-runners")
         .and_then(toml::Value::as_table)
         .ok_or_else(|| "dist-workspace.toml is missing [dist.github-custom-runners]".to_owned())?;
-    if custom_runners.len() != 1
-        || custom_runners
-            .get("aarch64-apple-darwin")
-            .and_then(toml::Value::as_str)
-            != Some("macos-15")
+    if dist.get("merge-tasks").and_then(toml::Value::as_bool) != Some(false)
+        || custom_runners.len() != 2
+        || ["aarch64-apple-darwin", "x86_64-apple-darwin"]
+            .iter()
+            .any(|target| {
+                custom_runners.get(*target).and_then(toml::Value::as_str) != Some("macos-15")
+            })
     {
-        return Err("dist-workspace.toml must bind aarch64-apple-darwin to macos-15".to_owned());
+        return Err(
+            "dist-workspace.toml must bind separate Apple target jobs to macos-15".to_owned(),
+        );
     }
     let configured_actions = dist
         .get("github-action-commits")
@@ -1543,6 +1546,35 @@ mod tests {
         assert!(private_context_present(6, 6).unwrap());
         assert!(private_context_present(1, 6).is_err());
         assert!(private_context_present(5, 6).is_err());
+    }
+
+    #[test]
+    fn apple_release_targets_use_separate_jobs_on_reviewed_arm_hosts() {
+        let valid = include_str!("../../dist-workspace.toml");
+        let document = valid.parse::<toml::Table>().unwrap();
+        let dist = document["dist"].as_table().unwrap();
+        assert_eq!(dist["merge-tasks"].as_bool(), Some(false));
+        for target in ["aarch64-apple-darwin", "x86_64-apple-darwin"] {
+            assert_eq!(
+                dist["github-custom-runners"][target].as_str(),
+                Some("macos-15")
+            );
+            let invalid = valid.replace(
+                &format!("{target} = \"macos-15\""),
+                &format!("{target} = \"macos-15-intel\""),
+            );
+            assert!(check_dist_configuration(&invalid).is_err());
+        }
+        assert!(
+            check_dist_configuration(&valid.replace("merge-tasks = false", "merge-tasks = true"))
+                .is_err()
+        );
+        assert!(
+            check_dist_configuration(
+                &valid.replace("merge-tasks = false", "# missing merge-tasks")
+            )
+            .is_err()
+        );
     }
 
     #[test]
