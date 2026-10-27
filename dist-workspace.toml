@@ -19,6 +19,8 @@ installers = ["shell", "powershell"]
 targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
 # Build only the application and standalone installer and their dependency closures.
 precise-builds = true
+# Preserve separate target-bound artifacts/attestations even when runners match.
+merge-tasks = false
 packages = ["kitrove-cli", "kitrove-installer"]
 # cargo-dist copies this bounded placeholder into each archive. The release job replaces it with
 # target-specific metadata bound to the built executable before checksums or attestations exist.
@@ -36,9 +38,10 @@ github-attestations = true
 # Exact binary selections live in each product's package metadata. A workspace-level
 # override would copy both executables into both product archives.
 
-# GitHub's macOS 14 hosted image is scheduled for retirement in 2026.
+# Keep signing/stapling on native macOS, independently of artifact CPU (ADR-0065).
 [dist.github-custom-runners]
 aarch64-apple-darwin = "macos-15"
+x86_64-apple-darwin = "macos-15"
 
 # Pin every generated third-party action to the exact reviewed commit behind its release tag.
 [dist.github-action-commits]
