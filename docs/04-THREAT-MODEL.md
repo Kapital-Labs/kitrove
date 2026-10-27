@@ -141,6 +141,12 @@ artifact target. Cross-compilation grants no product execution, firewall change,
 signature bypass, retry or publication authority. All native macOS verification
 and final source/target-bound attestations remain required. See ADR-0065.
 
+Release archives require reviewed third-party notices, complete locked inventory
+and license text as exact named companions before signing. Reproduce checked-in
+material from checksum-bound source archives and tracked supplements, without
+extracting or executing upstream content. Reject missing, empty or stale material;
+do not relax path/mode/size/signature/provenance gates. See ADR-0066.
+
 ### Secret resolver leakage
 
 Never log resolver output; minimize exposure; avoid argv where possible; use transient values; prefer target environment references over materialized values.

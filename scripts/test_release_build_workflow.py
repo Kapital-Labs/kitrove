@@ -17,6 +17,18 @@ class ReleaseBuildWorkflowTests(unittest.TestCase):
         self.local = self.workflow.split('  build-local-artifacts:\n', 1)[1].split(
             '  build-global-artifacts:\n', 1)[0]
 
+    def test_reviewed_notice_check_precedes_build_and_credentials(self):
+        check = 'cargo xtask release-notices'
+        self.assertIn(check, self.local)
+        self.assertLess(self.local.index('cargo fetch --locked'), self.local.index(check))
+        for following in ('dist build --tag=', 'python3 scripts/hosted_apple_signing.py',
+                          'uses: azure/login@'):
+            self.assertLess(self.local.index(check), self.local.index(following))
+        config = (ROOT / 'dist-workspace.toml').read_text()
+        for path in ('THIRD_PARTY_NOTICES.md', 'release/THIRD_PARTY_LICENSE_INVENTORY.txt',
+                     'release/THIRD_PARTY_LICENSES.txt'):
+            self.assertIn('"' + path + '"', config)
+
     @unittest.skipUnless(os.name == 'posix', 'executes the explicit Bash workflow body')
     def test_dist_tool_matches_reviewed_host_not_artifact_cpu(self):
         step = self.local.split('      - name: Install dist\n', 1)[1].split(
@@ -183,18 +195,37 @@ class ReleaseBuildWorkflowTests(unittest.TestCase):
         self.assertIn('        shell: bash\n', step)
         script = textwrap.dedent(step.split('        run: |\n', 1)[1]).replace(
             '${{ matrix.dist_args }}', '--artifacts=local --target=x86_64-pc-windows-msvc')
-        stub = 'dist() { printf "%s\\0" "$@" > "$ARGS"; printf "{}"; return "$RESULT"; }\n'
-        for code in (0, 7):
-            with self.subTest(code=code), tempfile.TemporaryDirectory() as temporary:
+        stub = '''cargo() {
+          printf '%s\\n' "$*" >> "$CALLS"
+          case "$*" in
+            'fetch --locked') return "$FETCH_RESULT" ;;
+            'xtask release-notices') return "$NOTICE_RESULT" ;;
+            *) return 99 ;;
+          esac
+        }
+        dist() { printf "%s\\0" "$@" > "$ARGS"; printf "{}"; return "$RESULT"; }
+        '''
+        for fetch, notices, code in ((0, 0, 0), (0, 0, 7), (9, 0, 0), (0, 8, 0)):
+            with self.subTest(fetch=fetch, notices=notices, code=code), \
+                    tempfile.TemporaryDirectory() as temporary:
                 args = Path(temporary) / 'args'
+                calls = Path(temporary) / 'calls'
                 result = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', stub + script],
                     cwd=temporary, env={**os.environ, 'RELEASE_TAG': 'v0.1.0-rc.1',
-                                       'ARGS': str(args), 'RESULT': str(code)},
+                                       'ARGS': str(args), 'CALLS': str(calls), 'RESULT': str(code),
+                                       'FETCH_RESULT': str(fetch), 'NOTICE_RESULT': str(notices)},
                     capture_output=True, text=True, timeout=10)
-                self.assertEqual(result.returncode, code)
+                self.assertEqual(result.returncode, fetch or notices or code)
+                self.assertEqual(calls.read_text().splitlines(), ['fetch --locked'] +
+                                 ([] if fetch else ['xtask release-notices']))
+                self.assertEqual('dist ran successfully' in result.stdout,
+                                 fetch == notices == code == 0)
+                if fetch or notices:
+                    self.assertFalse(args.exists(), 'preflight failure must not reach dist')
+                    self.assertFalse((Path(temporary) / 'dist-manifest.json').exists())
+                    continue
                 self.assertEqual(args.read_bytes().split(b'\0')[:-1], [
                     b'build', b'--tag=v0.1.0-rc.1', b'--print=linkage',
                     b'--output-format=json', b'--artifacts=local',
                     b'--target=x86_64-pc-windows-msvc'])
-                self.assertEqual('dist ran successfully' in result.stdout, code == 0)
                 self.assertEqual((Path(temporary) / 'dist-manifest.json').read_text(), '{}')

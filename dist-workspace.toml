@@ -24,7 +24,13 @@ merge-tasks = false
 packages = ["kitrove-cli", "kitrove-installer"]
 # cargo-dist copies this bounded placeholder into each archive. The release job replaces it with
 # target-specific metadata bound to the built executable before checksums or attestations exist.
-include = ["release/kitrove-release.json"]
+# Notice files are reproduced from reviewed inputs before any packaging/signing step.
+include = [
+  "release/kitrove-release.json",
+  "THIRD_PARTY_NOTICES.md",
+  "release/THIRD_PARTY_LICENSE_INVENTORY.txt",
+  "release/THIRD_PARTY_LICENSES.txt",
+]
 # Path that installers should place binaries in
 install-path = "CARGO_HOME"
 # Keep the generated updater disabled: dist 0.32 installers do not bind the separately downloaded

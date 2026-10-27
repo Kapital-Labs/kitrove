@@ -74,7 +74,9 @@ def parse_application_archive_policy(
         companions = policy["binary_companions"]
         if (
             not isinstance(companions, list)
-            or len(companions) != 6
+            or len(companions) != 9
+            or not {"THIRD_PARTY_NOTICES.md", "THIRD_PARTY_LICENSE_INVENTORY.txt",
+                    "THIRD_PARTY_LICENSES.txt"} <= set(companions)
             or any(not isinstance(name, str) or not name for name in companions)
             or len(set(companions)) != len(companions)
         ):
@@ -829,6 +831,8 @@ def validate_binary_shape(path: Path, entries: Iterable[ArchiveEntry]) -> None:
             observed_directories.add(parts[-1])
         else:
             observed_files.add(relative)
+            if relative.startswith("THIRD_PARTY_") and entry.size == 0:
+                raise ArchiveValidationError("binary archive contains empty third-party material")
             if relative == binary:
                 binary_entry = entry
             elif relative == RELEASE_MANIFEST_NAME:

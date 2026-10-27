@@ -261,6 +261,9 @@ fn validate_shape(
             )?;
         }
         observed_files.insert(relative);
+        if relative.starts_with("THIRD_PARTY_") && entry.size == 0 {
+            return Err(ArchivePolicyError::UnexpectedShape);
+        }
         if relative == spec.executable_name() {
             executable_size = Some(entry.size);
         } else if relative == APPLICATION_RELEASE_MANIFEST_NAME {
@@ -371,6 +374,36 @@ mod tests {
                     .expect("canonical application archive shape must pass");
             assert_eq!(result.executable_size(), 1);
             assert_eq!(result.release_manifest_size(), 1);
+        }
+    }
+
+    #[test]
+    fn third_party_material_is_required_and_nonempty() {
+        for required in [
+            "THIRD_PARTY_NOTICES.md",
+            "THIRD_PARTY_LICENSE_INVENTORY.txt",
+            "THIRD_PARTY_LICENSES.txt",
+        ] {
+            assert!(BINARY_COMPANIONS.contains(&required));
+            for spec in APPLICATION_ARCHIVES {
+                let entries = entries_for(spec, &valid_names(spec));
+                let position = entries
+                    .iter()
+                    .position(|entry| entry.name.ends_with(required))
+                    .unwrap();
+                let mut missing = entries.clone();
+                missing.remove(position);
+                assert_eq!(
+                    validate_application_archive_entry_summaries(spec, missing),
+                    Err(ArchivePolicyError::UnexpectedShape)
+                );
+                let mut empty = entries;
+                empty[position].size = 0;
+                assert_eq!(
+                    validate_application_archive_entry_summaries(spec, empty),
+                    Err(ArchivePolicyError::UnexpectedShape)
+                );
+            }
         }
     }
 

@@ -90,5 +90,6 @@ ADRs document foundational decisions and their consequences. Accepted ADRs are a
 | [0063](0063-profile-validation-is-stack-safe.md) | Profile validation is stack-safe | Accepted for implementation; validation pending | NS-03, NS-05, NS-07, NS-09, NS-10 |
 | [0064](0064-instruction-insertion-respects-region-ceiling.md) | Instruction insertion respects the region ceiling | Accepted for implementation; validation pending | NS-05, NS-09, NS-10 |
 | [0065](0065-apple-release-host-is-separate-from-artifact-target.md) | Apple release host is separate from artifact target | Accepted for implementation; validation pending | NS-07, NS-09 |
+| [0066](0066-release-archives-carry-reviewed-third-party-materials.md) | Release archives carry reviewed third-party materials | Accepted for implementation; validation pending | NS-07, NS-09 |
 
 Use [`0000-template.md`](0000-template.md) for new records.

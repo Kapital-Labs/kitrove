@@ -29,6 +29,9 @@ COMPANIONS = {
     "LICENSE.md": b"license",
     "LICENSE-MIT": b"mit",
     "LICENSE-APACHE": b"apache",
+    "THIRD_PARTY_NOTICES.md": b"notices",
+    "THIRD_PARTY_LICENSE_INVENTORY.txt": b"inventory",
+    "THIRD_PARTY_LICENSES.txt": b"licenses",
     "kitrove-release.json": b"manifest",
 }
 
@@ -669,6 +672,27 @@ class ReleaseArchiveVerifierTests(unittest.TestCase):
             write_tar(empty, COMPANIONS | {"kitrove": b""})
             with self.assertRaises(verifier.ArchiveValidationError):
                 verifier.validate_archive(empty)
+
+    def test_required_third_party_materials_cannot_be_omitted_or_empty(self) -> None:
+        required = ("THIRD_PARTY_NOTICES.md", "THIRD_PARTY_LICENSE_INVENTORY.txt",
+                    "THIRD_PARTY_LICENSES.txt")
+        self.assertTrue(set(required) <= verifier.BINARY_COMPANIONS,
+                        "the closed catalog must require third-party materials")
+        for archive_name, (_, binary) in verifier.EXPECTED_BINARY_ARCHIVES.items():
+            for omitted in required:
+                for empty in (False, True):
+                    with self.subTest(archive=archive_name, material=omitted, empty=empty), \
+                            self.secure_temporary_directory() as temporary:
+                        path = Path(temporary) / archive_name
+                        files = COMPANIONS | {name: b"reviewed material" for name in required}
+                        files[binary] = b"executable"
+                        if empty:
+                            files[omitted] = b""
+                        else:
+                            del files[omitted]
+                        (write_zip if path.suffix == ".zip" else write_tar)(path, files)
+                        with self.assertRaises(verifier.ArchiveValidationError):
+                            verifier.validate_archive(path)
 
     def test_release_manifest_size_is_bounded_at_the_shape_boundary(self) -> None:
         with self.secure_temporary_directory() as temporary:
