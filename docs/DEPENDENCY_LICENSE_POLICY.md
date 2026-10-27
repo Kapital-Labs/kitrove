@@ -78,6 +78,14 @@ reviewed update before different trust material can become authority.
 
 ## Enforcement
 
+The separately approved RC5.3 dependency repair replaces withdrawn crypto-bigint
+0.7.6 with 0.7.10 and its required ctutils 0.4.5 with 0.4.6. Both retain
+Apache-2.0 OR MIT licensing and Rust 1.87 requirements, within Kitrove's Rust 1.88
+floor. Only the two registry versions/checksums change; package identities,
+dependency edges and enabled features are unchanged. Source/API-bound review,
+archive identities and validation limits are recorded in
+[`review/rc53-dependency-review.md`](review/rc53-dependency-review.md).
+
 The hosted signing repair also updates ctutils 0.4.2 to 0.4.4 and Tokio 1.53.1 to
 1.53.3 for RUSTSEC-2026-0385 and RUSTSEC-2026-0386. No package, feature or dependency
 edge is added; licenses remain Apache-2.0 OR MIT and MIT, respectively. Rust 1.88
