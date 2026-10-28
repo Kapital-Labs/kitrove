@@ -1,6 +1,7 @@
 """No-network regression tests; never import a real identity or sign code."""
 import contextlib
 import io
+import sys
 import json
 import os
 import tempfile
@@ -176,6 +177,70 @@ class HostedAppleSigningTests(unittest.TestCase):
                  contextlib.redirect_stdout(output), self.assertRaises(RuntimeError):
                 signing.native(['SECRET'], operation='identity import')
             self.assertNotIn('SECRET', output.getvalue())
+
+    def test_ticket_failure_status_survives_without_provider_text(self):
+        for label, category in (('Apple ticket stapling', 'dmg-staple'),
+                                ('Apple ticket validation', 'dmg-staple-validation')):
+            for detail in ('native-exit=65', 'native-exit=68', 'native-exit=255',
+                           'native-launch=not-found', 'native-launch=permission-denied',
+                           'native-launch=other', 'native-termination'):
+                prefix = ('cannot start ' + label if detail.startswith('native-launch=')
+                          else label + ' failed; no release archive was prepared')
+                result = types.SimpleNamespace(returncode=1, stdout=b'SECRET', stderr=(
+                    'SECRET_ACCOUNT /SECRET_PATH\nxtask failed: ' + prefix + ' [' + detail + ']\n'
+                ).encode())
+                output = io.StringIO()
+                with patch.object(signing, 'run_owned', return_value=result), \
+                     contextlib.redirect_stdout(output), self.assertRaises(RuntimeError):
+                    signing.native(['fixture'], operation='installer container preparation')
+                self.assertIn('[' + category + '] [' + detail + ']', output.getvalue())
+                self.assertNotIn('SECRET', output.getvalue())
+
+    def test_ticket_failure_refuses_unbounded_or_arbitrary_diagnostic_detail(self):
+        for detail in ('native-exit=0', 'native-exit=256', 'native-exit=-1',
+                       'native-exit=065', 'native-exit=SECRET', 'native-launch=SECRET',
+                       'native-exit=65] SECRET'):
+            result = types.SimpleNamespace(returncode=1, stdout=b'SECRET', stderr=(
+                'xtask failed: Apple ticket validation failed; no release archive was prepared ['
+                + detail + ']\n').encode())
+            output = io.StringIO()
+            with patch.object(signing, 'run_owned', return_value=result), \
+                 contextlib.redirect_stdout(output), self.assertRaises(RuntimeError):
+                signing.native(['fixture'], operation='installer container preparation')
+            self.assertNotIn('native-', output.getvalue())
+            self.assertNotIn('SECRET', output.getvalue())
+
+    def test_ticket_detail_refuses_duplicate_and_nonexact_records(self):
+        line = b'xtask failed: Apple ticket validation failed; no release archive was prepared [native-exit=65]'
+        for data in (line + b'\n' + line, b'prefix ' + line, line + b' trailing',
+                     line + b'\n' + b'X' * (256 * 1024)):
+            self.assertEqual(signing.ticket_failure_detail(data), '')
+        self.assertEqual(signing.ticket_failure_detail(b'SECRET'), '')
+
+    def test_ticket_detail_survives_real_dmg_error_wrapper_without_echoing_path(self):
+        line = (b'xtask failed: Apple ticket validation failed; no release archive was prepared '
+                b'[native-exit=65]; incomplete DMG output retained at /private/SECRET IMAGE')
+        self.assertEqual(signing.ticket_failure_detail(line), ' [native-exit=65]')
+        output = io.StringIO()
+        result = types.SimpleNamespace(returncode=1, stdout=b'SECRET', stderr=line)
+        with patch.object(signing, 'run_owned', return_value=result), \
+             contextlib.redirect_stdout(output), self.assertRaises(RuntimeError):
+            signing.native(['fixture'], operation='installer container preparation')
+        self.assertIn('[dmg-staple-validation] [native-exit=65]', output.getvalue())
+        self.assertNotIn('SECRET', output.getvalue())
+
+    @unittest.skipUnless(os.name == 'posix', 'owned child processes require POSIX')
+    def test_real_child_ticket_status_is_redacted_at_native_boundary(self):
+        line = b'xtask failed: Apple ticket validation failed; no release archive was prepared [native-exit=68]'
+        fixture = ('import sys; sys.stderr.buffer.write(bytes.fromhex(sys.argv[1])); '
+                   'sys.stderr.flush(); sys.exit(1)')
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaises(RuntimeError):
+            signing.native([sys.executable, '-c', fixture,
+                (b'SECRET /PRIVATE_PATH\n' + line).hex()],
+                operation='installer container preparation')
+        self.assertIn('[dmg-staple-validation] [native-exit=68]', output.getvalue())
+        self.assertNotIn('SECRET', output.getvalue())
 
     def test_cleanup_failure_emits_only_the_closed_category(self):
         for category in ('probe-denied', 'probe-interrupted', 'probe-os-error',

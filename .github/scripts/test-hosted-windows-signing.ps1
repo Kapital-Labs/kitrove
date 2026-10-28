@@ -83,6 +83,6 @@ $toolDir = $FixtureRoot
 $script:expanded = 0
 function Invoke-WebRequest { param($Uri, $OutFile) Set-Content -LiteralPath $OutFile -Value 'synthetic package' }
 function Expand-Archive { param($LiteralPath, $DestinationPath) $script:expanded++ }
-Assert-Fails { Get-PinnedZip 'mismatch' 'https://invalid.example/' ('0' * 64) } 'Checksum mismatch was accepted'
+Assert-Fails { Get-PinnedZip 'sdk' 'https://invalid.example/' ('0' * 64) } 'Checksum mismatch was accepted'
 Assert-True ($script:expanded -eq 0) 'Unverified package was expanded'
 'Hosted Windows synthetic checks passed'

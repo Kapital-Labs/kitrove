@@ -201,13 +201,33 @@ fn capture_signed_file(file: &Path) -> Result<super::RetainedFile, String> {
 }
 
 // Native tool failures intentionally omit argv, stdout and stderr: provider errors
-// can include account configuration. Operators may diagnose separately locally.
+// can include account configuration. Ticket tools retain only closed status data.
 pub(super) fn run(command: &mut Command, label: &str) -> Result<Output, String> {
-    let output = command
-        .output()
-        .map_err(|_| format!("cannot start {label}"))?;
+    let ticket = matches!(label, "Apple ticket stapling" | "Apple ticket validation");
+    let output = command.output().map_err(|error| {
+        let detail = if ticket {
+            match error.kind() {
+                std::io::ErrorKind::NotFound => " [native-launch=not-found]",
+                std::io::ErrorKind::PermissionDenied => " [native-launch=permission-denied]",
+                _ => " [native-launch=other]",
+            }
+        } else {
+            ""
+        };
+        format!("cannot start {label}{detail}")
+    })?;
     if !output.status.success() {
-        return Err(format!("{label} failed; no release archive was prepared"));
+        let detail = if ticket {
+            match output.status.code() {
+                Some(code @ 1..=255) => format!(" [native-exit={code}]"),
+                _ => " [native-termination]".to_owned(),
+            }
+        } else {
+            String::new()
+        };
+        return Err(format!(
+            "{label} failed; no release archive was prepared{detail}"
+        ));
     }
     Ok(output)
 }
@@ -409,5 +429,80 @@ mod tests {
     #[test]
     fn missing_signing_configuration_fails_closed() {
         assert!(required("KITROVE_TEST_NONEXISTENT_SIGNING_CONFIGURATION").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn ticket_failure_retains_only_status_not_native_output() {
+        for label in ["Apple ticket stapling", "Apple ticket validation"] {
+            let error = run(
+                Command::new("/bin/sh").args([
+                    "-c",
+                    "printf SECRET_ACCOUNT; printf SECRET_PATH >&2; exit 65",
+                ]),
+                label,
+            )
+            .unwrap_err();
+            assert_eq!(
+                error,
+                format!("{label} failed; no release archive was prepared [native-exit=65]")
+            );
+            assert!(!error.contains("SECRET"));
+        }
+    }
+
+    #[test]
+    fn ticket_launch_failure_is_distinct_and_redacted() {
+        let directory = tempfile::tempdir().unwrap();
+        let error = run(
+            &mut Command::new(directory.path().join("SECRET_MISSING_TOOL")),
+            "Apple ticket validation",
+        )
+        .unwrap_err();
+        assert_eq!(
+            error,
+            "cannot start Apple ticket validation [native-launch=not-found]"
+        );
+        assert!(!error.contains("SECRET"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn ticket_termination_and_permission_denial_still_refuse() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let error = run(
+            Command::new("/bin/sh").args(["-c", "kill -TERM $$"]),
+            "Apple ticket validation",
+        )
+        .unwrap_err();
+        assert_eq!(
+            error,
+            "Apple ticket validation failed; no release archive was prepared [native-termination]"
+        );
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("SECRET_NONEXECUTABLE");
+        fs::write(&path, b"fixture").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+        let error = run(&mut Command::new(&path), "Apple ticket stapling").unwrap_err();
+        assert_eq!(
+            error,
+            "cannot start Apple ticket stapling [native-launch=permission-denied]"
+        );
+        let error = run(
+            Command::new("/bin/sh").args(["-c", "exit 65"]),
+            "Other native tool",
+        )
+        .unwrap_err();
+        assert_eq!(
+            error,
+            "Other native tool failed; no release archive was prepared"
+        );
+        assert!(
+            run(
+                Command::new("/bin/sh").args(["-c", "exit 0"]),
+                "Apple ticket validation"
+            )
+            .is_ok()
+        );
     }
 }
