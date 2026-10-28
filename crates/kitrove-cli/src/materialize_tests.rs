@@ -1,7 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt as _;
 
 use kitrove_adapter_api::{HarnessAdapter as _, VersionObservation};
 #[cfg(unix)]
@@ -170,8 +168,7 @@ fn verified_extension_plan(layout: NativeExtensionLayout) -> ExtensionApplyPlan 
     };
     let version_root = tempfile::tempdir().unwrap();
     let binary = version_root.path().join("pi");
-    fs::write(&binary, "#!/bin/sh\nprintf '0.83.0\\n'\n").unwrap();
-    fs::set_permissions(&binary, fs::Permissions::from_mode(0o700)).unwrap();
+    crate::probe_fixture::write_probes(version_root.path());
     let version = probe_pi_version(&binary).unwrap();
     let policy = PiAdapter
         .extension_target_policy(

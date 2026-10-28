@@ -8,6 +8,9 @@ mod init;
 mod materialize;
 mod pack;
 mod portable;
+#[cfg(test)]
+#[path = "probe_fixture.rs"]
+mod probe_fixture;
 mod registry;
 mod removal;
 mod scan;
