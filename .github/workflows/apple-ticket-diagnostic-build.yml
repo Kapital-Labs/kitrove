@@ -1,0 +1,44 @@
+name: Credential-free Apple diagnostic build
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        required: true
+        type: string
+    outputs:
+      inventory:
+        value: ${{ jobs.build.outputs.inventory }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: >-
+      github.event_name == 'workflow_dispatch' && github.repository == 'Kapital-Labs/kitrove' &&
+      github.ref == 'refs/heads/main' && github.sha == vars.KITROVE_SIGNING_REHEARSAL_SHA &&
+      vars.KITROVE_HOSTED_SIGNING_READY == ''
+    runs-on: macos-15
+    timeout-minutes: 40
+    outputs:
+      inventory: ${{ steps.handoff.outputs.inventory }}
+    env:
+      DIST_TARGET: ${{ inputs.target }}
+      KITROVE_SIGNING_REHEARSAL_SHA: ${{ vars.KITROVE_SIGNING_REHEARSAL_SHA }}
+      KITROVE_HOSTED_SIGNING_READY: ${{ vars.KITROVE_HOSTED_SIGNING_READY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Build before credentials
+        run: python3 scripts/apple_ticket_diagnostic.py build
+      - name: Bind build inventory
+        id: handoff
+        run: python3 scripts/apple_ticket_diagnostic.py inventory
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: apple-diagnostic-input-${{ inputs.target }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: signing-input/*
+          if-no-files-found: error
+          retention-days: 1
