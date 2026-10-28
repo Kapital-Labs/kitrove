@@ -200,7 +200,7 @@ def _authenticate(args, password, pty, termios, cancellation):
 
 
 @contextmanager
-def signing_environment():
+def signing_environment(*, cleanup_observer=None):
     require(sys.platform == 'darwin' and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted',
         'Hosted Mac required')
     values = {name: os.environ.pop(name, '') for name in
@@ -235,9 +235,11 @@ def signing_environment():
             raise
         finally:
             if cleanup_safe:
+                restored = False
                 try:
                     native(['/usr/bin/security', 'list-keychains', '-d', 'user', '-s'] + original_keychains,
                         operation='Keychain search-list restoration')
+                    restored = True
                 except ProcessCleanupError:
                     cleanup_safe = False
                     raise
@@ -247,10 +249,12 @@ def signing_environment():
                             native(['/usr/bin/security', 'delete-keychain', str(keychain)], operation='Keychain cleanup')
                         require(not keychain.exists(), 'Temporary Keychain cleanup failed')
                         shutil.rmtree(directory)
+                        if restored and cleanup_observer is not None:
+                            cleanup_observer()
         raise_if_cancelled(cancellation)
 
 
-def prepare_release():
+def prepare_release(*, cleanup_observer=None):
     container_mode = os.environ.get('KITROVE_PREPARE_DMG', '')
     require(container_mode in ('', '1'), 'Invalid container preparation mode')
     target = os.environ.get('DIST_TARGET', '')
@@ -264,7 +268,7 @@ def prepare_release():
     # These are prebuilt reviewed tools, never product executables or caller-selected commands.
     for path in (tool, runner / 'kitrove-apple-import'):
         require(path.is_absolute() and path.is_file() and not path.is_symlink(), 'Missing prebuilt signing tool')
-    with signing_environment() as child_env:
+    with signing_environment(cleanup_observer=cleanup_observer) as child_env:
         child_env['KITROVE_NOTARY_SOURCE_COMMIT'] = source
         for product, operation in (('kitrove-cli', 'application archive preparation'),
                                    ('kitrove-installer', 'installer archive preparation')):

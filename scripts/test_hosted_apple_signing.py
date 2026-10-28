@@ -14,7 +14,8 @@ import hosted_apple_signing as signing
 
 
 class HostedAppleSigningTests(unittest.TestCase):
-    def scenario(self, failure=None, overrides=None, container=False, failure_exception=RuntimeError):
+    def scenario(self, failure=None, overrides=None, container=False, failure_exception=RuntimeError,
+                 cleanup_observer=None):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
             for name in ('kitrove-release-xtask', 'kitrove-apple-import'):
@@ -89,9 +90,9 @@ class HostedAppleSigningTests(unittest.TestCase):
                  contextlib.redirect_stdout(io.StringIO()):
                 if failure or overrides:
                     with self.assertRaises((RuntimeError, KeyError)):
-                        signing.prepare_release()
+                        signing.prepare_release(cleanup_observer=cleanup_observer)
                 else:
-                    signing.prepare_release()
+                    signing.prepare_release(cleanup_observer=cleanup_observer)
             if failure_exception is signing.ProcessCleanupError:
                 self.assertNotIn('Keychain cleanup', calls)
                 if failure != 'Keychain search-list restoration':
@@ -115,6 +116,17 @@ class HostedAppleSigningTests(unittest.TestCase):
         calls = self.scenario()
         self.assertEqual(calls.count('identity import'), 1)
         self.assertEqual(calls[2:4], ['application archive preparation', 'installer archive preparation'])
+
+    def test_cleanup_observer_requires_complete_credential_cleanup(self):
+        for failure, exception, expected in (
+                (None, RuntimeError, [True]),
+                ('installer container preparation', RuntimeError, [True]),
+                ('Keychain search-list restoration', RuntimeError, []),
+                ('installer container preparation', signing.ProcessCleanupError, [])):
+            observed = []
+            self.scenario(failure, container=True, failure_exception=exception,
+                          cleanup_observer=lambda: observed.append(True))
+            self.assertEqual(observed, expected)
 
     def test_container_is_explicit_and_shares_cleanup_on_success_or_failure(self):
         self.assertNotIn('installer container preparation', self.scenario())

@@ -101,6 +101,47 @@ identity, portable representation, native variants, fidelity, deployment receipt
 synchronization and conflict semantics are unchanged. No broader execution API,
 new platform guarantee or loss of retained native behavior is introduced.
 
+### Explicit protected fresh-image diagnostic (2026-10-28)
+
+The operator separately approved a nonpublishing fresh Apple image diagnostic and
+temporary main access to the existing protected release environment. Retain its
+required reviewer and no-admin-bypass rule; remove temporary main access and the
+exact diagnostic SHA after success or failure. Production signing activation stays
+absent. This approval creates no release tag, version, publication, channel update,
+retry of failed release jobs or authority to reuse their partial outputs.
+
+A separate manual/main/exact-SHA workflow builds both Apple targets on independent
+ARM macos-15 runners, with no credentials or OIDC. Source version comes from the
+reviewed workspace manifest and must already exist in the compatibility catalog;
+using that label as a tool argument does not create or overwrite a Git tag. Use
+the existing pinned host tool, notice reproduction and target-bound handoff.
+Each signer receives its expected inventory digest directly from its named build
+job, not from the downloaded artifact. Signers use only the existing Apple helper
+and protected credentials, with contents-read only and no OIDC or publication jobs.
+
+An optional operator-local cleanup observer runs only after the original Keychain
+search list was restored, the temporary Keychain is absent, and its private
+directory removed. It does not alter ordinary release behavior or grant success
+to a failed primary operation. Cleanup uncertainty or cancellation prevents
+subsequent controls and all diagnostic evidence upload. A primary preparation
+failure remains a failed job even if a later read-only control passes.
+
+Only after confirmed cleanup may the diagnostic retain the exact expected image
+leaf in a fresh evidence directory: reject redirected parents/leaves, nonregular
+or multiply linked files, oversized data, changed identity/bytes and occupied
+destinations. Record an independently checked copy digest. Run read-only signature
+and ticket checks against that copy with raw native output discarded; do not
+mount or execute a failed image, re-sign it or resubmit it. Successful preparation
+still requires the original final archive/container verification commands.
+
+Upload only a fixed-name diagnostic JSON record and image, for one day, after
+the explicit evidence-ready output. Never upload credential directories, raw
+provider/account/path output or arbitrary runner files. Safe existing receipt
+records are revalidated for exact source/target before inclusion. The record is
+always marked diagnostic-only and unpublished; incomplete images confer no
+release or installation authority. Old passing image controls and current
+Accepted notary logs do not establish the historical failed artifact's cause.
+
 ## Validation
 
 Synthetic structured response tests cover accepted, pending, rejected, malformed,

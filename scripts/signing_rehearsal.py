@@ -76,24 +76,31 @@ def run(*args, **kwargs):
     subprocess.run(args, check=True, **kwargs)
 
 
-def build(target):
+def build(target, *, tag='v0.0.0', tool_host=None, notices=False):
     require(not os.environ.get('ACTIONS_ID_TOKEN_REQUEST_URL'), 'Build must not have OIDC access')
     runner = Path(os.environ['RUNNER_TEMP'])
     directory = runner / 'kitrove-rehearsal-dist'
     directory.mkdir()
     windows = target.endswith('windows-msvc')
+    host = tool_host or target
+    require(host in DIST_DIGESTS and (host == target or
+            host == 'aarch64-apple-darwin' and target == 'x86_64-apple-darwin'),
+            'Unsupported build host and target')
     extension = 'zip' if windows else 'tar.xz'
     archive = directory / ('dist.' + extension)
     run('curl', '--proto', '=https', '--tlsv1.2', '--fail', '--location', '--silent', '--show-error',
         '--max-time', '180', '--max-filesize', str(128 * 1024 * 1024),
-        f'https://github.com/axodotdev/cargo-dist/releases/download/v0.32.0/cargo-dist-{target}.{extension}',
+        f'https://github.com/axodotdev/cargo-dist/releases/download/v0.32.0/cargo-dist-{host}.{extension}',
         '--output', str(archive))
-    require(digest(archive) == DIST_DIGESTS[target], 'Pinned cargo-dist checksum mismatch')
+    require(digest(archive) == DIST_DIGESTS[host], 'Pinned cargo-dist checksum mismatch')
     # Extraction is only of the reviewed, checksum-pinned tool distribution.
     run('tar', '-xf', str(archive), '-C', str(directory))
-    tool = directory / 'dist.exe' if windows else directory / f'cargo-dist-{target}' / 'dist'
+    tool = directory / 'dist.exe' if windows else directory / f'cargo-dist-{host}' / 'dist'
+    if notices:
+        run('cargo', 'fetch', '--locked')
+        run('cargo', 'xtask', 'release-notices')
     with Path('dist-manifest.json').open('xb') as manifest:
-        run(str(tool), 'build', '--tag=v0.0.0', '--artifacts=local', f'--target={target}',
+        run(str(tool), 'build', f'--tag={tag}', '--artifacts=local', f'--target={target}',
             '--output-format=json', stdout=manifest)
     run('cargo', 'build', '--locked', '-p', 'xtask')
     handoff = Path('signing-input')

@@ -1,0 +1,80 @@
+name: Protected Apple ticket diagnostic
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apple-ticket-diagnostic
+  cancel-in-progress: false
+
+env:
+  KITROVE_SIGNING_REHEARSAL_SHA: ${{ vars.KITROVE_SIGNING_REHEARSAL_SHA }}
+  KITROVE_HOSTED_SIGNING_READY: ${{ vars.KITROVE_HOSTED_SIGNING_READY }}
+
+jobs:
+  build-arm:
+    uses: ./.github/workflows/apple-ticket-diagnostic-build.yml
+    with:
+      target: aarch64-apple-darwin
+    permissions:
+      contents: read
+
+  build-intel:
+    uses: ./.github/workflows/apple-ticket-diagnostic-build.yml
+    with:
+      target: x86_64-apple-darwin
+    permissions:
+      contents: read
+
+  sign:
+    needs: [build-arm, build-intel]
+    if: >-
+      github.event_name == 'workflow_dispatch' && github.repository == 'Kapital-Labs/kitrove' &&
+      github.ref == 'refs/heads/main' && github.sha == vars.KITROVE_SIGNING_REHEARSAL_SHA &&
+      vars.KITROVE_HOSTED_SIGNING_READY == ''
+    environment: release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            build: build-arm
+          - target: x86_64-apple-darwin
+            build: build-intel
+    runs-on: macos-15
+    timeout-minutes: 65
+    env:
+      DIST_TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: apple-diagnostic-input-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: signing-input
+      - name: Verify handoff before credentials
+        env:
+          EXPECTED_INVENTORY: ${{ needs[matrix.build].outputs.inventory }}
+        run: python3 scripts/apple_ticket_diagnostic.py provision
+      - name: Protected diagnostic and confirmed cleanup
+        id: diagnostic
+        env:
+          P12: ${{ secrets.KITROVE_APPLE_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.KITROVE_APPLE_P12_PASSWORD }}
+          APPLE_ID: ${{ secrets.KITROVE_APPLE_ID }}
+          TEAM_ID: ${{ secrets.KITROVE_APPLE_TEAM_ID }}
+          NOTARY_PASSWORD: ${{ secrets.KITROVE_GITHUB_NOTARIZATION }}
+        run: python3 scripts/apple_ticket_diagnostic.py sign
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always() && !cancelled() && steps.diagnostic.outputs.evidence_ready == 'true'
+        with:
+          name: apple-diagnostic-evidence-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            diagnostic-evidence/diagnostic.json
+            diagnostic-evidence/kitrove-installer-${{ matrix.target }}.dmg
+          if-no-files-found: error
+          retention-days: 1
