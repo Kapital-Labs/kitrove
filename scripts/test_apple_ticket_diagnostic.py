@@ -160,6 +160,49 @@ class AppleTicketDiagnosticTests(unittest.TestCase):
         self.assertEqual(output.getvalue(), '')
 
     @unittest.skipUnless(os.name == 'posix', 'POSIX-only diagnostic')
+    def test_signature_control_uses_literal_strict_developer_id_requirement(self):
+        requirement = ('=anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists '
+            'and certificate leaf[field.1.2.840.113635.100.6.1.13] exists '
+            'and certificate leaf[subject.OU] = "98RZ36ES7A"')
+        for target in diagnostic.TARGETS:
+            for signature_status in (0, 3):
+                with self.subTest(target=target, signature_status=signature_status), \
+                     tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary).resolve()
+                    images = root / 'runner/kitrove-installer-dmg'
+                    images.mkdir(parents=True)
+                    leaf = f'kitrove-installer-{target}.dmg'
+                    (images / leaf).write_bytes(b'fixture, never mounted or executed')
+                    def prepare(*, cleanup_observer):
+                        cleanup_observer()
+                        raise RuntimeError('PRIVATE_CANARY')
+                    def native(args, **_kwargs):
+                        if args[0] == '/usr/bin/codesign':
+                            self.assertEqual(args, ['/usr/bin/codesign', '--verify', '--strict',
+                                '-R', requirement, str(Path('diagnostic-evidence') / leaf)])
+                            return types.SimpleNamespace(returncode=signature_status)
+                        self.assertEqual(args[:4], ['/usr/bin/xcrun', 'stapler', 'validate', '-q'])
+                        return types.SimpleNamespace(returncode=0)
+                    prior = Path.cwd()
+                    try:
+                        os.chdir(root)
+                        with patch.dict(os.environ, RUNNER_TEMP=str(root / 'runner')), \
+                             patch.object(diagnostic.signing, 'prepare_release', side_effect=prepare), \
+                             patch.object(diagnostic, 'run_owned', side_effect=native), \
+                             contextlib.redirect_stdout(io.StringIO()) as output:
+                            # Passing controls must not erase the preparation failure.
+                            self.assertEqual(diagnostic.sign(target, 'a' * 40), 1)
+                        record = json.loads((root / 'diagnostic-evidence/diagnostic.json').read_text())
+                        self.assertEqual(record['signature_exit'], signature_status)
+                        self.assertEqual(record['ticket_exit'], 0)
+                        self.assertFalse(record['preparation_succeeded'])
+                        self.assertFalse(record['published'])
+                        self.assertTrue(record['cleanup_confirmed'])
+                        self.assertNotIn('PRIVATE_CANARY', output.getvalue())
+                    finally:
+                        os.chdir(prior)
+
+    @unittest.skipUnless(os.name == 'posix', 'POSIX-only diagnostic')
     def test_post_control_cancel_or_image_alias_never_marks_evidence_ready(self):
         for failure in ('cancelled', 'uncertain', 'hardlink', 'symlink', 'replacement'):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temporary:
