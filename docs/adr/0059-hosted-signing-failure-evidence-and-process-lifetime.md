@@ -53,6 +53,28 @@ with the hosted stack; its original suppressed errno cannot be recovered.
 
 ## Invariant and product impact
 
+### Repair-only ticket and prerequisite diagnostics (2026-10-27)
+
+For the two fixed Apple ticket operations only, preserve a closed launch category
+(`not-found`, `permission-denied`, `other`), abnormal termination, or numeric
+nonzero exit status in 1..255. The Python boundary forwards only an exact complete
+xtask error line with the fixed label and allowed status suffix, including its
+known incomplete-image wrapper while discarding that wrapper's path. Never emit arbitrary stderr,
+stdout, argv, OS error text or provider messages. Ambiguous/malformed evidence is
+discarded; the original failure still refuses preparation. No ticket/signature
+gate, cleanup deadline, notarization submission or signing retry changes.
+
+Before authentication, the two unchanged checksum-pinned Windows prerequisite
+downloads may make at most three fresh attempts for typed transport interruption
+(`ResponseEnded`, connection/name-resolution error, timeout). Use bounded
+connection/operation timeouts, fixed package/attempt/category diagnostics and
+fresh attempt files. Unknown errors, HTTP status errors, hash mismatch, extraction
+or Microsoft publisher failures do not retry or fall back. Existing TLS, digest,
+Authenticode, protected approval and credential-cleanup gates remain mandatory.
+No signing/release/rehearsal is authorized by these source repairs. Historical
+RC5.3 ticket-validation exit codes and the interrupted download identity remain
+unknown; synthetic tests prove the repaired boundaries, not provider recovery.
+
 NS-07/NS-09 and INV-07/INV-12 are reinforced. Signing credentials and diagnostic
 evidence stay outside capability portable state. Discovery, adoption, asset
 identity, portable representation, native variants, fidelity, deployment receipts,

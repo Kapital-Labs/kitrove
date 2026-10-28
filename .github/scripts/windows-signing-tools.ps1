@@ -7,13 +7,63 @@ function Get-Digest([string]$Path) {
     (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 
-function Get-PinnedZip([string]$Name, [string]$Uri, [string]$Digest) {
-    $zip = Join-Path $toolDir "$Name.zip"
-    Invoke-WebRequest -Uri $Uri -OutFile $zip
-    if ((Get-Digest $zip) -cne $Digest) { throw "$Name package digest mismatch" }
+function Get-KitroveDownloadFailure([Exception]$Failure) {
+    for ($depth = 0; $null -ne $Failure -and $depth -lt 8; $depth++) {
+        if ($Failure -is [System.Net.Http.HttpRequestException] -or $Failure -is [System.Net.Http.HttpIOException]) {
+            if ($Failure -is [System.Net.Http.HttpRequestException] -and $null -ne $Failure.StatusCode) {
+                return 'unclassified'
+            }
+            switch ($Failure.HttpRequestError.ToString()) {
+                'ResponseEnded' { return 'response-ended' }
+                'ConnectionError' { return 'connection-error' }
+                'NameResolutionError' { return 'name-resolution' }
+            }
+        }
+        if ($Failure -is [System.TimeoutException] -or $Failure -is [System.Threading.Tasks.TaskCanceledException]) {
+            return 'timeout'
+        }
+        $Failure = $Failure.InnerException
+    }
+    return 'unclassified'
+}
+
+function Get-PinnedZip([ValidateSet('sdk', 'client')][string]$Name, [string]$Uri, [string]$Digest) {
+    if ($Digest -cnotmatch '^[0-9a-f]{64}$') { throw 'Invalid pinned package digest' }
     $destination = Join-Path $toolDir $Name
-    Expand-Archive -LiteralPath $zip -DestinationPath $destination
-    return $destination
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        $zip = Join-Path $toolDir "$Name-$attempt.zip"
+        # Never overwrite or clean an input we did not create for this attempt.
+        if (Test-Path -LiteralPath $zip) { throw 'Pinned download attempt path is occupied' }
+        $downloaded = $false
+        try {
+            Write-Host "Pinned download: $Name attempt=$attempt"
+            try {
+                Invoke-WebRequest -Uri $Uri -OutFile $zip -ConnectionTimeoutSeconds 30 -OperationTimeoutSeconds 120 -ErrorAction Stop
+                $downloaded = $true
+            } catch {
+                $category = Get-KitroveDownloadFailure $_.Exception
+                Write-Host "Pinned download failed: $Name attempt=$attempt category=$category"
+                if ($category -eq 'unclassified' -or $attempt -eq 3) {
+                    throw "Pinned $Name download failed [$category]"
+                }
+            }
+            if ($downloaded) {
+                if ((Get-Digest $zip) -cne $Digest) { throw "$Name package digest mismatch" }
+                try { Expand-Archive -LiteralPath $zip -DestinationPath $destination -ErrorAction Stop }
+                catch { throw "Pinned $Name package extraction failed" }
+                return $destination
+            }
+        } finally {
+            if (Test-Path -LiteralPath $zip) {
+                $item = Get-Item -LiteralPath $zip -Force
+                if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+                    throw 'Pinned download cleanup cannot confirm regular attempt file'
+                }
+                Remove-Item -LiteralPath $zip -ErrorAction Stop
+            }
+        }
+        Start-Sleep -Seconds (2 * $attempt)
+    }
 }
 
 function Initialize-KitroveSigningTools([string]$AzureDirectory) {

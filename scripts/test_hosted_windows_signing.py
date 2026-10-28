@@ -1,14 +1,52 @@
 """No signing or authentication: workflow contracts and native synthetic failures."""
 import os
+import http.server
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
+import threading
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class HostedWindowsSigningTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('pwsh'), 'PowerShell transport tests require pwsh')
+    def test_bounded_download_transport_without_credentials(self):
+        class Interrupted(http.server.BaseHTTPRequestHandler):
+            attempts = 0
+
+            def log_message(self, *_args):
+                pass
+
+            def do_GET(self):
+                type(self).attempts += 1
+                self.send_response(200)
+                self.send_header('Content-Length', '16' if self.attempts < 3 else '8')
+                self.end_headers()
+                self.wfile.write(b'partial' if self.attempts < 3 else b'complete')
+                self.close_connection = True
+
+        server = http.server.HTTPServer(('127.0.0.1', 0), Interrupted)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with tempfile.TemporaryDirectory() as fixture:
+                result = subprocess.run([
+                    'pwsh', '-NoLogo', '-NoProfile', '-NonInteractive', '-File',
+                    str(ROOT / '.github/scripts/test-windows-signing-downloads.ps1'),
+                    '-FixtureRoot', fixture,
+                    '-LoopbackUri', f'http://127.0.0.1:{server.server_port}/fixed',
+                ], check=True, timeout=60, capture_output=True, text=True)
+                self.assertEqual(Interrupted.attempts, 3)
+                self.assertIn('Pinned download failed: client attempt=1 category=response-ended', result.stdout)
+                self.assertNotIn('SECRET', result.stdout + result.stderr)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+
     def test_workflow_orders_provision_login_sign_cleanup_before_attestation(self):
         workflow = (ROOT / '.github/workflows/release.yml').read_text()
         job = workflow.split('  build-local-artifacts:\n', 1)[1].split('  build-global-artifacts:\n', 1)[0]

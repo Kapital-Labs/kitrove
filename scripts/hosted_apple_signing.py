@@ -2,6 +2,7 @@
 import errno
 import json
 import os
+import re
 import select
 import shlex
 import shutil
@@ -71,6 +72,23 @@ def error_category(stderr):
     return 'unclassified-native-failure'
 
 
+def ticket_failure_detail(stderr):
+    """Forward only a complete fixed xtask ticket error, not provider diagnostics."""
+    if not isinstance(stderr, bytes) or len(stderr) > 256 * 1024:
+        return ''
+    records = []
+    for line in stderr.splitlines():
+        match = re.fullmatch(
+            rb'xtask failed: (?:Apple ticket (?:stapling|validation) failed; '
+            rb'no release archive was prepared \[(native-exit=([1-9][0-9]{0,2})|native-termination)\]'
+            rb'|cannot start Apple ticket (?:stapling|validation) '
+            rb'\[(native-launch=(?:not-found|permission-denied|other))\])'
+            rb'(?:; incomplete DMG output retained at [^\r\n]+)?', line)
+        if match and (match[2] is None or int(match[2]) <= 255):
+            records.append(match[1] or match[3])
+    return ' [' + records[0].decode('ascii') + ']' if len(records) == 1 else ''
+
+
 def forward_receipts(stderr, operation, env):
     if stderr is None or operation not in ('application archive preparation',
             'installer archive preparation', 'installer container preparation'):
@@ -110,7 +128,9 @@ def native(args, payload=None, timeout=30, *, operation, env=None):
         raise RuntimeError('Native operation could not start') from None
     forward_receipts(result.stderr, operation, env)
     if result.returncode != 0:
-        print('Failed: ' + operation + ' [' + error_category(result.stderr) + ']', flush=True)
+        detail = (ticket_failure_detail(result.stderr)
+                  if operation == 'installer container preparation' else '')
+        print('Failed: ' + operation + ' [' + error_category(result.stderr) + ']' + detail, flush=True)
         raise RuntimeError('Native operation failed')
     print('Passed: ' + operation, flush=True)
     return result
