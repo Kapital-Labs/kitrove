@@ -13,6 +13,7 @@ import hosted_apple_signing as signing
 from hosted_apple_process import run_owned, ProcessCancelled, ProcessCleanupError, ProcessTimeout
 from hosted_apple_receipts import safe_receipt_lines
 import signing_rehearsal as rehearsal
+from apple_ticket_control import REQUIREMENT
 
 require = rehearsal.require
 TARGETS = ('aarch64-apple-darwin', 'x86_64-apple-darwin')
@@ -149,7 +150,7 @@ def sign(target, sha):
         retained_identity = (identity.st_dev, identity.st_ino, identity.st_size,
                              identity.st_mtime_ns, identity.st_ctime_ns)
         record['signature_exit'] = native_status(['/usr/bin/codesign', '--verify', '--strict', '-R',
-            'anchor apple generic and certificate leaf[subject.OU] = "98RZ36ES7A"', str(image)])
+            REQUIREMENT, str(image)])
         record['ticket_exit'] = native_status(['/usr/bin/xcrun', 'stapler', 'validate', '-q', str(image)])
         record['image_unchanged'] = rehearsal.digest(image) == record['image_sha256']
         require(record['image_unchanged'], 'Read-only control changed image')
