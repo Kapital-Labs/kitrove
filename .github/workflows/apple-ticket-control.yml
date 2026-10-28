@@ -1,0 +1,21 @@
+name: Apple ticket control (no signing)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-image-control:
+    if: github.repository == 'Kapital-Labs/kitrove' && github.ref == 'refs/heads/main'
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate pinned public old-image controls without credentials
+        env:
+          KITROVE_HOSTED_SIGNING_READY: ${{ vars.KITROVE_HOSTED_SIGNING_READY }}
+        run: python3 scripts/apple_ticket_control.py

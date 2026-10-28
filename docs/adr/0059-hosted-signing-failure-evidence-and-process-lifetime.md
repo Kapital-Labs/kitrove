@@ -53,6 +53,26 @@ with the hosted stack; its original suppressed errno cannot be recovered.
 
 ## Invariant and product impact
 
+### Credential-free hosted ticket control (2026-10-27)
+
+A manual-only main workflow may validate the two exact hash-pinned, previously
+authenticated public RC4.2 images on the existing ARM macos-15 hosted runner. It
+has contents-read only, no protected environment, secrets, OIDC, artifact upload,
+inputs or signing activation. Refuse non-hosted/non-Mac/non-main/non-dispatch
+contexts and any present production signing activation. Fetch bounded HTTPS
+without downgrade; verify pinned bytes before native parsing and retain no-follow
+file identity through signature/team and read-only ticket validation. No mounting,
+product execution, signing, stapling, notary submission, Keychain/trust mutation,
+network workaround or retry is introduced. Emit only known target/hash, source
+commit, closed failure category/numeric status and unchanged-byte evidence.
+
+Use the existing owned-process boundary. Cancellation/unconfirmed cleanup stops
+further controls, and only public control inputs remain until ephemeral-runner
+destruction. These checks are diagnostic controls, not installation, provenance,
+new release authority or acceptance of failed/partial RC5.3 artifacts. A passing
+control cannot prove why fresh tickets failed inside the credential-bearing job;
+any later credential-bearing investigation still requires separate approval.
+
 ### Repair-only ticket and prerequisite diagnostics (2026-10-27)
 
 For the two fixed Apple ticket operations only, preserve a closed launch category
