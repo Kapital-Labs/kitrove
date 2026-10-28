@@ -44,6 +44,8 @@ use bounded_output::{receive_probe_output, spawn_output_reader};
 #[cfg(any(unix, windows))]
 use inspection_failure::InspectionFailure;
 #[cfg(unix)]
+use inspection_failure::InspectionOperation;
+#[cfg(unix)]
 mod unix_process;
 #[cfg(unix)]
 use unix_process::ProbeProcess;
@@ -81,6 +83,8 @@ const OPENCODE_PROBE_ENVIRONMENT: &[(&str, &str)] = &[
 pub struct ProbeError {
     code: &'static str,
     message: &'static str,
+    #[cfg(any(unix, windows))]
+    diagnostic: Option<InspectionFailure>,
 }
 
 /// A reviewed harness version-probe identity selected solely from an exact binary name.
@@ -116,7 +120,12 @@ pub fn classify_version_probe_binary(binary: &Path) -> Option<VersionProbeKind> 
 
 impl ProbeError {
     const fn new(code: &'static str, message: &'static str) -> Self {
-        Self { code, message }
+        Self {
+            code,
+            message,
+            #[cfg(any(unix, windows))]
+            diagnostic: None,
+        }
     }
 
     #[must_use]
@@ -143,6 +152,13 @@ impl From<InspectionFailure> for ProbeError {
     fn from(failure: InspectionFailure) -> Self {
         match failure {
             InspectionFailure::Failed => probe_failed(),
+            diagnostic @ (InspectionFailure::Io { .. }
+            | InspectionFailure::OutputWaitTimedOut
+            | InspectionFailure::OutputChannelClosed) => {
+                let mut error = probe_failed();
+                error.diagnostic = Some(diagnostic);
+                error
+            }
             InspectionFailure::Timeout => Self::new(
                 "version.probe_timeout",
                 "the harness version probe did not finish within the time limit",
@@ -307,7 +323,9 @@ fn probe_version(
         #[cfg(target_os = "macos")]
         let _launch = kitrove_macos_process::acquire_launch_guard(PROBE_TIMEOUT)
             .map_err(|_| probe_failed())?;
-        command.spawn().map_err(|_| probe_failed())?
+        command.spawn().map_err(|error| {
+            ProbeError::from(InspectionFailure::io(InspectionOperation::Launch, &error))
+        })?
     };
     let mut process = ProbeProcess::new(child)?;
     let stdout = spawn_output_reader(process.take_stdout()?, MAX_PROBE_OUTPUT_BYTES)?;
@@ -852,6 +870,47 @@ mod tests {
         }
     }
 
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn closed_diagnostics_preserve_public_failure_policy_and_redact_io_errors() {
+        use inspection_failure::InspectionOperation;
+        use std::error::Error as _;
+
+        let operations = [
+            #[cfg(unix)]
+            InspectionOperation::Launch,
+            InspectionOperation::OutputReaderStart,
+            InspectionOperation::OutputRead,
+            #[cfg(unix)]
+            InspectionOperation::Wait,
+        ];
+        for operation in operations {
+            let private = std::io::Error::new(
+                std::io::ErrorKind::Interrupted,
+                "private-io-canary/account/path/native-output",
+            );
+            let failure = InspectionFailure::io(operation, &private);
+            let error = ProbeError::from(failure);
+            assert_eq!(error.code(), probe_failed().code());
+            assert_eq!(error.message(), probe_failed().message());
+            assert_eq!(error.to_string(), probe_failed().to_string());
+            assert_eq!(error.diagnostic, Some(failure));
+            assert!(error.source().is_none());
+            let debug = format!("{error:?}");
+            assert!(debug.contains("kind: Interrupted"));
+            assert!(!debug.contains("private-io-canary"));
+        }
+        for failure in [
+            InspectionFailure::OutputWaitTimedOut,
+            InspectionFailure::OutputChannelClosed,
+        ] {
+            let error = ProbeError::from(failure);
+            assert_eq!(error.code(), probe_failed().code());
+            assert_eq!(error.message(), probe_failed().message());
+            assert_eq!(error.diagnostic, Some(failure));
+        }
+    }
+
     #[test]
     fn pi_version_policy_accepts_only_the_reviewed_security_boundary() {
         for accepted in ["0.79.0\n", "v0.83.0\n", "0.99.1"] {
@@ -959,6 +1018,44 @@ mod tests {
                     .as_str()
                     .trim_start_matches("blake3:")
             )
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn inherited_writer_refuses_execution_until_the_owned_holder_is_reaped() {
+        let (_root, binary) = probe_script("printf '0.83.0\\n'");
+        let writer = fs::OpenOptions::new().write(true).open(&binary).unwrap();
+        let mut holder = Command::new("/bin/sleep")
+            .arg("30")
+            .env_clear()
+            .stdin(Stdio::from(writer))
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        let refused = probe_pi_version(&binary);
+        // Reap the exact owned holder before any assertion or second probe.
+        let terminated = holder.kill();
+        let reaped = holder.wait();
+        terminated.unwrap();
+        assert!(!reaped.unwrap().success());
+        let error = refused.unwrap_err();
+        assert_eq!(error.code(), "version.probe_failed");
+        assert_eq!(
+            error.diagnostic,
+            Some(InspectionFailure::Io {
+                operation: InspectionOperation::Launch,
+                kind: std::io::ErrorKind::ExecutableFileBusy,
+            })
+        );
+        assert_eq!(
+            probe_pi_version(&binary)
+                .unwrap()
+                .evidence()
+                .observed()
+                .as_str(),
+            "0.83.0"
         );
     }
 

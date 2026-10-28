@@ -1,5 +1,5 @@
 //! Retained Unix child lifecycle; launch policy stays in the parent module.
-use super::inspection_failure::InspectionFailure;
+use super::inspection_failure::{InspectionFailure, InspectionOperation};
 use std::process::{Child, ExitStatus};
 use std::time::{Duration, Instant};
 
@@ -53,9 +53,9 @@ impl ProbeProcess {
                 self.terminate_group()?;
                 Err(InspectionFailure::Timeout)
             }
-            Err(_) => {
+            Err(error) => {
                 self.terminate_group()?;
-                Err(InspectionFailure::Failed)
+                Err(InspectionFailure::io(InspectionOperation::Wait, &error))
             }
         }
     }

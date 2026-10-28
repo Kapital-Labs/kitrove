@@ -55,6 +55,29 @@ unsupported harness or version, changed executable, timeout, or unsafe output fa
 materialization closed. Probe evidence is local and ephemeral; it is not synchronized or treated as a
 publisher signature.
 
+### Closed failure diagnostics
+
+An unsuccessful local probe may retain a fixed operation category and the
+standard library's closed `ErrorKind`, or a fixed output-channel outcome, in
+its debug representation. Never retain the original I/O error, raw OS message,
+executable path, output bytes, environment or authored content. Existing public
+error codes/messages, verified-evidence construction and all execution, output,
+identity and cleanup limits remain unchanged. A diagnostic category grants no
+retry or authority to accept a failed probe. In particular, distinguish output
+channel timeout/disconnection from execution deadline or termination failure.
+
+The October 28 Linux CI failure discarded the original operation/error; its
+historical cause remains unknown. Diagnostic observability is not evidence of
+an execution repair or proof of a particular OS error.
+
+Parallel Unix CLI fixtures create their fixed synthetic executables in an
+isolated test-only writer child and reap it before invoking the real probe.
+The parent never opens these executable bytes for writing, so an unrelated
+concurrent parent spawn cannot inherit that writer until exec and make Linux
+refuse the fixture as busy. No production retry or weakened busy-executable
+acceptance is added. The observed parallel Linux reproduction identified launch
+`ExecutableFileBusy`; it does not recover the discarded historical CI errno.
+
 ## Alternatives considered
 
 ### Accept a version string from the command line
