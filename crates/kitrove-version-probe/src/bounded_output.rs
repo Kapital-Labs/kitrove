@@ -1,5 +1,5 @@
 //! Bounded output collection shared by reviewed local inspections.
-use super::inspection_failure::InspectionFailure;
+use super::inspection_failure::{InspectionFailure, InspectionOperation};
 use std::io::Read;
 use std::sync::mpsc::{self, Receiver};
 use std::thread;
@@ -16,7 +16,7 @@ pub(super) fn spawn_output_reader(
             let result = read_probe_output(&mut output, maximum);
             let _ = sender.send(result);
         })
-        .map_err(|_| InspectionFailure::Failed)?;
+        .map_err(|error| InspectionFailure::io(InspectionOperation::OutputReaderStart, &error))?;
     Ok(receiver)
 }
 
@@ -26,7 +26,10 @@ pub(super) fn receive_probe_output(
 ) -> Result<String, InspectionFailure> {
     receiver
         .recv_timeout(timeout)
-        .map_err(|_| InspectionFailure::Failed)?
+        .map_err(|error| match error {
+            mpsc::RecvTimeoutError::Timeout => InspectionFailure::OutputWaitTimedOut,
+            mpsc::RecvTimeoutError::Disconnected => InspectionFailure::OutputChannelClosed,
+        })?
 }
 
 fn read_probe_output(mut output: impl Read, maximum: usize) -> Result<String, InspectionFailure> {
@@ -35,7 +38,7 @@ fn read_probe_output(mut output: impl Read, maximum: usize) -> Result<String, In
         .by_ref()
         .take(u64::try_from(maximum).unwrap_or(u64::MAX).saturating_add(1))
         .read_to_end(&mut bytes)
-        .map_err(|_| InspectionFailure::Failed)?;
+        .map_err(|error| InspectionFailure::io(InspectionOperation::OutputRead, &error))?;
     if bytes.len() > maximum {
         return Err(InspectionFailure::OutputLimit);
     }
@@ -64,9 +67,15 @@ mod tests {
         let (sender, receiver) = mpsc::sync_channel(1);
         assert_eq!(
             receive_probe_output(receiver, Duration::ZERO),
-            Err(InspectionFailure::Failed)
+            Err(InspectionFailure::OutputWaitTimedOut)
         );
         drop(sender);
+        let (sender, receiver) = mpsc::sync_channel(1);
+        drop(sender);
+        assert_eq!(
+            receive_probe_output(receiver, Duration::ZERO),
+            Err(InspectionFailure::OutputChannelClosed)
+        );
         let (sender, receiver) = mpsc::sync_channel(1);
         sender.send(Ok("ready".to_owned())).unwrap();
         assert_eq!(
@@ -101,5 +110,28 @@ mod tests {
             }
         }
         assert!(read_probe_output(FailedReader, MAX_PROBE_OUTPUT_BYTES).is_err());
+    }
+
+    #[test]
+    fn read_failure_retains_closed_category_without_private_io_message() {
+        struct PrivateFailure;
+        impl Read for PrivateFailure {
+            fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "private-probe-canary/path/account/value",
+                ))
+            }
+        }
+        let error = crate::ProbeError::from(
+            read_probe_output(PrivateFailure, MAX_PROBE_OUTPUT_BYTES).unwrap_err(),
+        );
+        assert_eq!(error.code(), "version.probe_failed");
+        assert_eq!(error.message(), crate::probe_failed().message());
+        let debug = format!("{error:?}");
+        assert!(debug.contains("operation: OutputRead"));
+        assert!(debug.contains("kind: PermissionDenied"));
+        assert!(!debug.contains("private-probe-canary"));
+        assert!(!format!("{error}").contains("private-probe-canary"));
     }
 }

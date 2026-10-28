@@ -242,20 +242,10 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn materialization_can_acquire_pi_and_opencode_evidence_together() {
-        use std::fs;
-        use std::os::unix::fs::PermissionsExt as _;
-
         let root = tempfile::tempdir().unwrap();
         let pi = root.path().join("pi");
         let opencode = root.path().join("opencode2");
-        fs::write(&pi, "#!/bin/sh\nprintf '0.83.0\\n'\n").unwrap();
-        fs::write(
-            &opencode,
-            "#!/bin/sh\nprintf 'opencode2 v0.0.0-beta-18387\\n'\n",
-        )
-        .unwrap();
-        fs::set_permissions(&pi, fs::Permissions::from_mode(0o700)).unwrap();
-        fs::set_permissions(&opencode, fs::Permissions::from_mode(0o700)).unwrap();
+        crate::probe_fixture::write_probes(root.path());
 
         let probes = MaterializationVersionProbes::acquire(&[pi, opencode], true, true).unwrap();
         assert_eq!(
