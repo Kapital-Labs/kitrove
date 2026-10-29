@@ -134,6 +134,18 @@ retain only validated submission IDs, fixed statuses and artifact/source/target
 bindings. Raw provider messages, account details and credential-bearing paths never
 enter logs. These diagnostic receipts grant no retry or release authority. See ADR-0059.
 
+One separately approved existing-image diagnostic may use repository-scoped
+Actions-read only to fetch a fixed producer/artifact/ZIP/component-hash-bound ARM
+input before its fixed expiry. Its native step receives no token or signing
+credentials. Strip Authorization at the closed HTTPS blob redirect, parse bounded
+exact ZIP members in memory, and preserve the original snapshot. Attempt-one and
+single-run guards permit only one ticket attachment on a fresh private copy;
+strict Developer ID and native ticket checks remain mandatory. Output only closed
+error categories, numeric codes and exact hashes. No image upload, new submission,
+signing, product execution, trust/network workaround or release authority follows
+from this copy-only diagnostic. Missing/expired input refuses without refresh.
+See ADR-0059; this explicit token-read grant is not an artifact-only server grant.
+
 Apple artifact CPU targets are independent of the reviewed macOS build host CPU.
 Both Apple targets use separate single-target jobs on Apple Silicon; the pinned
 build tool must match the host, while product/archive verification must match the

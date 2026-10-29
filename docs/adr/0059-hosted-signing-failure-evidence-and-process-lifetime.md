@@ -142,6 +142,35 @@ always marked diagnostic-only and unpublished; incomplete images confer no
 release or installation authority. Old passing image controls and current
 Accepted notary logs do not establish the historical failed artifact's cause.
 
+### Approved existing-ARM-image attachment diagnostic (2026-10-29)
+
+The maintainer separately approved one hosted, credential-free ticket attachment
+diagnostic after the exact retained ARM image passed local attachment. Use the
+original standard ARM macos-15 runner label and the same fixed diagnostic image;
+do not rebuild, sign, submit to notarization, mount or execute the product.
+
+A manual/main/configured-actor-only workflow may grant contents-read and the
+built-in repository-scoped Actions-read token to its input-fetch step. This is
+not an artifact-ID-specific server permission: code additionally pins exactly one
+producer run/attempt/source/repository, artifact ID/name/size/ZIP digest, component
+hashes, expiry and Accepted image receipt. No local token or presigned URL is
+transferred into CI. Never forward Authorization to blob redirects, log credentials
+or raw response bodies, or accept unchecked extraction paths. Refuse expired or
+unavailable inputs, unknown inventory, links, oversized data and changed bytes.
+
+The native step receives no token, protected environment, secrets, OIDC or signing
+activation. Preserve the original snapshot; attach the existing ticket exactly
+once to a fresh private copy, then require the existing full strict Developer ID
+and ticket checks. Retain only closed native error-domain/code/status/elapsed/hash
+observations. No new image upload, retry, firewall/TLS/trust change, release or
+publication authority. Attempt-one/context/one-run guards and an exclusive operator
+dispatch record prevent reuse of this scoped approval. A passing control does not
+recover the historical underlying error or establish production acceptance.
+
+NS-07/NS-09 and INV-07/INV-12 remain enforced. Capability discovery/adoption,
+portable/native content, fidelity, provenance/receipts and synchronization/conflict
+behavior are unchanged. Other readiness monitoring remains paused by the human.
+
 ## Validation
 
 Synthetic structured response tests cover accepted, pending, rejected, malformed,
