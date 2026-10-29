@@ -1,0 +1,42 @@
+name: Existing ARM ticket attachment (no signing)
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_source:
+        description: Exact reviewed green main commit
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: existing-arm-ticket-attachment
+  cancel-in-progress: false
+
+jobs:
+  existing-arm-image:
+    if: github.repository == 'Kapital-Labs/kitrove' && github.ref == 'refs/heads/main' && github.actor == 'brandon-kaplan' && github.sha == inputs.expected_source
+    runs-on: macos-15
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Fetch only the pinned existing ARM evidence
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EXPECTED_DIAGNOSTIC_SOURCE: ${{ inputs.expected_source }}
+          KITROVE_HOSTED_SIGNING_READY: ${{ vars.KITROVE_HOSTED_SIGNING_READY }}
+          KITROVE_SIGNING_REHEARSAL_SHA: ${{ vars.KITROVE_SIGNING_REHEARSAL_SHA }}
+        run: python3 scripts/apple_ticket_attachment.py fetch
+      - name: Attach existing ticket once to a private copy
+        env:
+          EXPECTED_DIAGNOSTIC_SOURCE: ${{ inputs.expected_source }}
+          KITROVE_HOSTED_SIGNING_READY: ${{ vars.KITROVE_HOSTED_SIGNING_READY }}
+          KITROVE_SIGNING_REHEARSAL_SHA: ${{ vars.KITROVE_SIGNING_REHEARSAL_SHA }}
+        run: python3 scripts/apple_ticket_attachment.py attach
