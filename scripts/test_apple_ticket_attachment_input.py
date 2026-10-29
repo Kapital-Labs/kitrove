@@ -24,6 +24,7 @@ class AttachmentInputTests(unittest.TestCase):
             GITHUB_REF='refs/heads/main', RUNNER_ENVIRONMENT='github-hosted',
             RUNNER_OS='macOS', RUNNER_ARCH='ARM64', GITHUB_ACTOR='brandon-kaplan',
             GITHUB_SHA='a' * 40, GITHUB_RUN_ID='1234', GITHUB_RUN_ATTEMPT='1',
+            EXPECTED_DIAGNOSTIC_SOURCE='a' * 40,
             GITHUB_WORKFLOW_REF='Kapital-Labs/kitrove/.github/workflows/apple-ticket-attachment.yml@refs/heads/main')
 
     def metadata(self):
@@ -45,6 +46,8 @@ class AttachmentInputTests(unittest.TestCase):
     def test_context_is_manual_main_actor_attempt_one_only(self):
         valid = self.context()
         self.assertTrue(intake.valid_context(valid))
+        self.assertFalse(intake.valid_context({key: value for key, value in valid.items()
+                                              if key != 'EXPECTED_DIAGNOSTIC_SOURCE'}))
         for field, value in ((key, 'wrong') for key in valid):
             with self.subTest(field=field):
                 self.assertFalse(intake.valid_context({**valid, field: value}))

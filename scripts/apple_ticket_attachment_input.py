@@ -43,6 +43,7 @@ def valid_context(env):
     return (all(env.get(key) == value for key, value in expected.items())
         and isinstance(env.get('GITHUB_SHA'), str)
         and re.fullmatch('[0-9a-f]{40}', env['GITHUB_SHA']) is not None
+        and env.get('EXPECTED_DIAGNOSTIC_SOURCE') == env['GITHUB_SHA']
         and isinstance(env.get('GITHUB_RUN_ID'), str)
         and re.fullmatch('[1-9][0-9]{0,19}', env['GITHUB_RUN_ID']) is not None
         and not any(env.get(flag) for flag in ('KITROVE_HOSTED_SIGNING_READY', 'KITROVE_SIGNING_REHEARSAL_SHA')))

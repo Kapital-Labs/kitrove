@@ -19,7 +19,9 @@ not implemented by this diagnostic-only change. No dependencies or lock change.
 ## Security and implementation review
 
 Manual/main/configured-maintainer/attempt-one controls and an exact checkout bind
-execution. The fetch step has contents-read and explicitly approved repository-
+execution. The required expected-source input must equal the actual workflow SHA
+in both job and script guards, refusing a main-branch advance after operator
+preflight. The fetch step has contents-read and explicitly approved repository-
 scoped Actions-read. Code pins the producer run/attempt/source/repository, one
 artifact ID/name/size/expiry and ZIP/component digests; this is not a narrower
 server-side grant. A fixed HTTPS API path may redirect only to the closed GitHub

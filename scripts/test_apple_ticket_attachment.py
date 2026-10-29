@@ -130,6 +130,7 @@ class AttachmentTests(unittest.TestCase):
         workflow = path.read_text()
         for required in ('workflow_dispatch:', 'runs-on: macos-15', 'contents: read',
                          'actions: read', 'persist-credentials: false', "github.actor == 'brandon-kaplan'",
+                         'expected_source:', 'EXPECTED_DIAGNOSTIC_SOURCE: ${{ inputs.expected_source }}',
                          'python3 scripts/apple_ticket_attachment.py fetch',
                          'python3 scripts/apple_ticket_attachment.py attach'):
             self.assertIn(required, workflow)
