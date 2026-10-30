@@ -254,7 +254,7 @@ jobs:
           else
             echo "source=false" >> "$GITHUB_OUTPUT"
           fi
-          if grep -Eq '^(Cargo\.(toml|lock)|rust-toolchain[^/]*|\.cargo/|\.github/workflows/ci\.yml|\.github/scripts/|crates/|third_party/)' changed-files.txt; then
+          if grep -Eq '^(Cargo\.(toml|lock)|rust-toolchain[^/]*|\.cargo/|\.github/workflows/ci\.yml|\.github/scripts/|crates/|third_party/|support/native-inspection/)' changed-files.txt; then
             echo "os-sensitive=true" >> "$GITHUB_OUTPUT"
           else
             echo "os-sensitive=false" >> "$GITHUB_OUTPUT"

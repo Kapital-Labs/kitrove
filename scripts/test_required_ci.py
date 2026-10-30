@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from pathlib import Path
 from contextlib import redirect_stdout
 from io import StringIO
@@ -15,6 +16,19 @@ JOBS = ('changes', 'governance', 'pull-request-ci', 'pull-request-msrv',
 
 
 class RequiredCiTests(unittest.TestCase):
+    def test_shared_native_inspection_source_selects_os_validation(self):
+        patterns = re.findall(r"if grep -Eq '([^']+)' changed-files.txt; then", WORKFLOW.read_text())
+        self.assertEqual(len(patterns), 1)
+        pattern = re.compile(patterns[0])
+        for leaf in ('unix_process.rs', 'bounded_output.rs', 'inspection_failure.rs', 'adjacent.rs'):
+            with self.subTest(leaf=leaf):
+                self.assertIsNotNone(pattern.search('support/native-inspection/src/' + leaf),
+                    'shared-only native source edits require OS validation')
+        self.assertIsNotNone(pattern.search('crates/kitrove-version-probe/src/lib.rs'))
+        for path in ('docs/inspection.md', 'README.md', 'support/native-inspection-fake/src/file.rs'):
+            with self.subTest(path=path):
+                self.assertIsNone(pattern.search(path))
+
     def run_gate(self, event, jobs):
         workflow = WORKFLOW.read_text()
         block = workflow.split("          python3 - <<'PY'\n", 1)[1].split('          PY\n', 1)[0]
