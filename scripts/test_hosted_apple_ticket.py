@@ -77,3 +77,42 @@ class HostedAppleTicketTests(unittest.TestCase):
         raw = b'KITROVE_APPLE_TICKET_V1 ' + json.dumps(self.record()).encode()
         with self.assertRaises(RuntimeError):
             ticket.safe_lines(raw, source='a' * 40, validation_only=True)
+
+    def test_v2_router_keeps_loss_and_refuses_downgraded_mixed_or_reordered_validation(self):
+        from test_hosted_apple_validation_evidence import record, raw
+        staple = dict(self.record(), native_exit=0)
+        attached = b'KITROVE_APPLE_TICKET_V1 ' + json.dumps(staple).encode()
+        validation = raw(record())
+        result = ticket.safe_lines(attached + b'\n' + validation, source='a' * 40,
+                                   require_validation_v2=True)
+        self.assertEqual([json.loads(line.split(' ', 1)[1])['schema_version'] for line in result], [1, 2])
+        self.assertEqual(json.loads(result[1].split(' ', 1)[1])['attempts'][0]['native_exit'], 68)
+        legacy = b'KITROVE_APPLE_TICKET_V1 ' + json.dumps(dict(staple, operation='validate')).encode()
+        for payload in (attached + b'\n' + legacy, validation + b'\n' + attached,
+                        attached + b'\n' + validation + b'\n' + legacy,
+                        attached + b'\n' + validation + b'\n' + validation,
+                        b'KITROVE_APPLE_TICKET_V3 {}'):
+            with self.subTest(payload=payload[:32]), self.assertRaises(RuntimeError):
+                ticket.safe_lines(payload, source='a' * 40, require_validation_v2=True)
+        self.assertEqual(len(ticket.safe_lines(attached + b'\n' + legacy, source='a' * 40)), 2,
+                         'historical V1 inspection remains explicit and unchanged')
+
+    def test_ordinary_preparation_forwards_v2_even_when_full_verifier_fails(self):
+        import contextlib
+        import io
+        import types
+        from unittest.mock import patch
+        import hosted_apple_signing as signing
+        from test_hosted_apple_validation_evidence import record, raw
+        value = record()
+        for status in (0, 1):
+            result = types.SimpleNamespace(returncode=status, stdout=b'PRIVATE_CANARY', stderr=raw(value))
+            env = dict(KITROVE_NOTARY_SOURCE_COMMIT='a' * 40, DIST_TARGET='aarch64-apple-darwin')
+            with patch.object(signing, 'run_owned', return_value=result), contextlib.redirect_stdout(io.StringIO()) as capture:
+                if status:
+                    with self.assertRaises(RuntimeError):
+                        signing.native(['never-called'], operation='installer container preparation', env=env)
+                else:
+                    signing.native(['never-called'], operation='installer container preparation', env=env)
+            self.assertIn('KITROVE_APPLE_TICKET_V2 ', capture.getvalue())
+            self.assertNotIn('PRIVATE_CANARY', capture.getvalue())

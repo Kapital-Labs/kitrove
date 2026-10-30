@@ -20,7 +20,30 @@ def unique(pairs):
         value[key] = item
     return value
 
-def safe_lines(raw, *, source, validation_only=False):
+def safe_lines(raw, *, source, validation_only=False, require_validation_v2=False):
+    """Route explicit versions; legacy inspection never supplies fresh V2 authority."""
+    require(type(validation_only) is bool and type(require_validation_v2) is bool)
+    require(type(raw) is bytes and len(raw) <= 256 * 1024)
+    from hosted_apple_validation_evidence import PREFIX as V2, safe_lines as validation_lines
+    markers = [line for line in raw.splitlines() if line.startswith(b'KITROVE_APPLE_TICKET_')]
+    require(all(line.startswith((PREFIX, V2)) for line in markers))
+    if not any(line.startswith(V2) for line in markers):
+        legacy = legacy_lines(raw, source=source, validation_only=validation_only)
+        if require_validation_v2:
+            require(all(json.loads(line.split(' ', 1)[1])['operation'] == 'staple' for line in legacy))
+        return legacy
+    validations = validation_lines(raw, source=source)
+    require(len(validations) == 1)
+    if validation_only:
+        require(len(markers) == 1 and markers[0].startswith(V2))
+        return validations
+    require(len(markers) == 2 and markers[0].startswith(PREFIX) and markers[1].startswith(V2))
+    attachment = legacy_lines(markers[0], source=source)
+    require(len(attachment) == 1 and json.loads(attachment[0].split(' ', 1)[1])['native_exit'] == 0)
+    return attachment + validations
+
+
+def legacy_lines(raw, *, source, validation_only=False):
     require(type(validation_only) is bool)
     require(isinstance(raw, bytes) and len(raw) <= 256 * 1024)
     lines = [line[len(PREFIX):] for line in raw.splitlines() if line.startswith(PREFIX)]

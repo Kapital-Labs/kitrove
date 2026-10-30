@@ -1,6 +1,8 @@
 """Actual post-cleanup errors stay distinct from preparation; no provider calls."""
 import contextlib
 import ast
+import copy
+import hashlib
 import io
 import json
 import os
@@ -11,6 +13,7 @@ import unittest
 from unittest.mock import patch
 
 import apple_ticket_diagnostic as diagnostic
+from test_hosted_apple_validation_evidence import record as validation_record, raw as validation_raw
 
 
 class PostCleanupEvidence(unittest.TestCase):
@@ -27,8 +30,8 @@ class PostCleanupEvidence(unittest.TestCase):
 
     @unittest.skipUnless(os.name == 'posix', 'POSIX-only diagnostic')
     def test_complete_success_requires_preparation_and_final_ticket_evidence(self):
-        for missing in (True, False):
-            with self.subTest(missing=missing), tempfile.TemporaryDirectory() as temporary:
+        for scenario in ('missing', 'valid', 'wrong-image', 'refused'):
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary).resolve()
                 images = root / 'runner/kitrove-installer-dmg'
                 images.mkdir(parents=True)
@@ -38,16 +41,23 @@ class PostCleanupEvidence(unittest.TestCase):
                         operation=operation, native_exit=0, elapsed_ms=1, output_bounded=True,
                         observations=[], http_statuses=[], native_error_codes=[])
                 def prepare(*, cleanup_observer):
-                    if not missing:
-                        for operation in ('staple', 'validate'):
-                            print('KITROVE_APPLE_TICKET_V1 ' + json.dumps(record(operation)))
+                    if scenario != 'missing':
+                        print('KITROVE_APPLE_TICKET_V1 ' + json.dumps(record('staple')))
+                        print(validation_raw(preparation).decode())
                     cleanup_observer()
+                validation = validation_record()
+                validation['image_sha256'] = hashlib.sha256(b'fixture').hexdigest()
+                preparation = copy.deepcopy(validation)
+                if scenario == 'wrong-image':
+                    preparation['image_sha256'] = 'c' * 64
+                elif scenario == 'refused':
+                    preparation.update(result='refused', refusal='identity')
                 commands = []
                 def native(args, **kwargs):
                     commands.append(args)
                     stderr = b''
                     if 'verify-installer-dmg' in args:
-                        stderr = b'KITROVE_APPLE_TICKET_V1 ' + json.dumps(record('validate')).encode()
+                        stderr = validation_raw(validation)
                     return types.SimpleNamespace(returncode=0, stdout=b'', stderr=stderr)
                 prior = Path.cwd()
                 try:
@@ -57,9 +67,13 @@ class PostCleanupEvidence(unittest.TestCase):
                          patch.object(diagnostic, 'run_owned', side_effect=native), \
                          contextlib.redirect_stdout(io.StringIO()):
                         status = diagnostic.sign('aarch64-apple-darwin', 'a' * 40)
-                    self.assertEqual(status, 1 if missing else 0)
+                    self.assertEqual(status, 0 if scenario == 'valid' else 1)
+                    if scenario == 'wrong-image':
+                        self.assertFalse((root / 'diagnostic-evidence/diagnostic.json').exists())
+                        self.assertFalse((root / 'diagnostic-evidence/kitrove-installer-aarch64-apple-darwin.dmg').exists())
+                        continue
                     result = json.loads((root / 'diagnostic-evidence/diagnostic.json').read_text())
-                    self.assertEqual(result['post_cleanup_container_ticket_calls'], [record('validate')])
+                    self.assertEqual(result.get('post_cleanup_container_ticket_calls'), [validation])
                     self.assertEqual(sum('verify-installer-dmg' in args for args in commands), 1)
                     self.assertFalse(result['published'])
                 finally:
@@ -103,15 +117,13 @@ class PostCleanupEvidence(unittest.TestCase):
     def test_final_container_check_forwards_its_actual_validation_record_without_signing(self):
         function = getattr(diagnostic, 'native_container_status', None)
         self.assertIsNotNone(function, 'final native ticket evidence is missing')
-        for status in (0, 68):
-            value = dict(schema_version=1, source_commit='a' * 40, target='aarch64-apple-darwin',
-                operation='validate', native_exit=status, elapsed_ms=123, output_bounded=True,
-                observations=[], http_statuses=[], native_error_codes=[])
-            result = types.SimpleNamespace(returncode=0 if status == 0 else 1, stdout=b'PRIVATE_CANARY',
-                stderr=b'KITROVE_APPLE_TICKET_V1 ' + json.dumps(value).encode())
+        for status in (0, 1):
+            value = validation_record()
+            result = types.SimpleNamespace(returncode=status, stdout=b'PRIVATE_CANARY',
+                stderr=validation_raw(value))
             args = ['/trusted/source-tool', 'verify-installer-dmg', 'fixture']
             with patch.object(diagnostic, 'run_owned', return_value=result) as owned:
-                code, records = function(args, 'a' * 40)
+                code, records = function(args, 'a' * 40, 'b' * 64)
             self.assertEqual(code, result.returncode)
             self.assertEqual(records, [value])
             self.assertEqual(owned.call_count, 1)
@@ -123,4 +135,17 @@ class PostCleanupEvidence(unittest.TestCase):
             self.assertNotIn('PRIVATE_CANARY', json.dumps(records))
         with patch.object(diagnostic, 'run_owned', return_value=types.SimpleNamespace(returncode=0, stdout=b'', stderr=b'')):
             with self.assertRaises(RuntimeError):
-                function(args, 'a' * 40)
+                function(args, 'a' * 40, 'b' * 64)
+
+    def test_eventual_zero_cannot_accept_wrong_image_or_refused_trace_or_legacy_downgrade(self):
+        value = validation_record()
+        refused = dict(value, result='refused', refusal='identity')
+        legacy = dict(schema_version=1, source_commit='a' * 40, target='aarch64-apple-darwin',
+            operation='validate', native_exit=0, elapsed_ms=1, output_bounded=True,
+            observations=[], native_error_codes=[], http_statuses=[])
+        for payload, image in [(validation_raw(value), 'c' * 64),
+                (validation_raw(refused), 'b' * 64),
+                (b'KITROVE_APPLE_TICKET_V1 ' + json.dumps(legacy).encode(), 'b' * 64)]:
+            result = types.SimpleNamespace(returncode=0, stdout=b'', stderr=payload)
+            with patch.object(diagnostic, 'run_owned', return_value=result), self.assertRaises(RuntimeError):
+                diagnostic.native_container_status(['never-called'], 'a' * 40, image)

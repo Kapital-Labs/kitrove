@@ -1,4 +1,7 @@
 //! The only production command is the parent's closed read-only validation.
+#[path = "recovery.rs"]
+pub(super) mod recovery;
+
 use super::{Refused, deadline::Deadline};
 use std::io::Write as _;
 use std::process::{Command, Output, Stdio};
@@ -40,13 +43,7 @@ fn emit_owner(ordinal: u8, finished: bool) -> Result<(), Refused> {
 }
 
 pub(super) fn validate(file: &std::path::Path) -> Result<Output, Refused> {
-    let parent = std::env::var("KITROVE_NATIVE_TICKET_DEADLINE_NS");
-    let parent = match parent {
-        Ok(ref value) => Some(value.as_str()),
-        Err(std::env::VarError::NotPresent) => None,
-        Err(_) => return Err(Refused::Deadline),
-    };
-    let deadline = Deadline::new(now()?, parent)?;
+    let deadline = parent_deadline()?;
     with_retained(file, deadline, || {
         let ordinal = next_owner(&NEXT_OWNER)?;
         emit_owner(ordinal, false)?;
@@ -61,6 +58,16 @@ pub(super) fn validate(file: &std::path::Path) -> Result<Output, Refused> {
         emit_owner(ordinal, true)?;
         Ok(output)
     })
+}
+
+fn parent_deadline() -> Result<Deadline, Refused> {
+    let parent = std::env::var("KITROVE_NATIVE_TICKET_DEADLINE_NS");
+    let parent = match parent {
+        Ok(ref value) => Some(value.as_str()),
+        Err(std::env::VarError::NotPresent) => None,
+        Err(_) => return Err(Refused::Deadline),
+    };
+    Deadline::new(now()?, parent)
 }
 
 fn with_retained<T>(
@@ -95,7 +102,8 @@ fn now() -> Result<u64, Refused> {
 fn execute(command: &mut Command, deadline: Deadline) -> Result<OwnedResult, Refused> {
     // Existing lifecycle cleanup/Drop has finite5-second bounds. Reserve20s of
     // this SAME window, rather than adding a new cleanup lifetime after expiry.
-    const CLEANUP_RESERVE: Duration = Duration::from_secs(20);
+    const CLEANUP_RESERVE: Duration =
+        Duration::from_nanos(super::super::ticket_validation::CLEANUP_RESERVE_NS);
     deadline
         .remaining(now()?)?
         .checked_sub(CLEANUP_RESERVE)

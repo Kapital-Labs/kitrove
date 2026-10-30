@@ -1,0 +1,24 @@
+{
+  "schema_version": 2,
+  "source_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "target": "aarch64-apple-darwin",
+  "operation": "validate",
+  "image_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "native_exit": 0,
+  "output_bounded": true,
+  "elapsed_ms": 1200,
+  "budget_ms": 60000,
+  "result": "validated",
+  "refusal": null,
+  "attempts": [
+    {"attempt": 1, "started_ms": 0, "finished_ms": 100, "native_exit": 68,
+     "cleanup_confirmed": true, "output_bounded": true, "evidence_complete": true,
+     "observations": ["connection-lost"],
+     "native_error_codes": [{"domain": "NSURLErrorDomain", "code": -1005}],
+     "http_statuses": [], "backoff_requested_ms": 1000},
+    {"attempt": 2, "started_ms": 1100, "finished_ms": 1200, "native_exit": 0,
+     "cleanup_confirmed": true, "output_bounded": true, "evidence_complete": true,
+     "observations": [], "native_error_codes": [], "http_statuses": [],
+     "backoff_requested_ms": null}
+  ]
+}

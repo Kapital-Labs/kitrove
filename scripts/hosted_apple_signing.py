@@ -104,9 +104,10 @@ def forward_receipts(stderr, operation, env):
         raise
     for receipt in receipts:
         print(receipt, flush=True)
-    if operation == 'installer container preparation' and context.get('KITROVE_APPLE_TICKET_DIAGNOSTIC') == '1':
-        require(context.get('DIST_TARGET') == 'aarch64-apple-darwin', 'Invalid ticket diagnostic target')
-        for line in safe_ticket_lines(stderr, source=context.get('KITROVE_NOTARY_SOURCE_COMMIT')):
+    if operation == 'installer container preparation' and context.get('DIST_TARGET') == 'aarch64-apple-darwin':
+        diagnostic = context.get('KITROVE_APPLE_TICKET_DIAGNOSTIC') == '1'
+        for line in safe_ticket_lines(stderr, source=context.get('KITROVE_NOTARY_SOURCE_COMMIT'),
+                validation_only=not diagnostic, require_validation_v2=True):
             print(line, flush=True)
 
 
