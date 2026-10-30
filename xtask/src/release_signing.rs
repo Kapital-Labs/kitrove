@@ -6,6 +6,10 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
+#[cfg(any(target_os = "macos", test))]
+#[path = "native_inspection/mod.rs"]
+mod native_inspection;
+
 use kitrove_release_policy::APPLICATION_ARCHIVE_LIMITS;
 use kitrove_release_policy::native_signature::{
     APPLE_REQUIREMENT, WINDOWS_VERIFY, validate_apple_signature_detail,
@@ -335,6 +339,39 @@ pub(super) fn sign_apple_container(file: &Path, target: &str) -> Result<(), Stri
 }
 
 pub(super) fn verify_apple_container(file: &Path) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let context = ticket_diagnostic::context(|key| env::var(key).ok())?;
+        let started = std::time::Instant::now();
+        let output = native_inspection::validate(file).map_err(|_| {
+            "Apple ticket validation ownership refused; no release archive was prepared".to_owned()
+        })?;
+        if let Some(source) = context {
+            eprintln!(
+                "{}",
+                ticket_diagnostic::render(
+                    &source,
+                    "Apple ticket validation",
+                    &output,
+                    started.elapsed().as_millis()
+                )
+            );
+        }
+        if !output.status.success() {
+            let detail = output
+                .status
+                .code()
+                .filter(|code| (1..=255).contains(code))
+                .map_or_else(
+                    || " [native-termination]".to_owned(),
+                    |code| format!(" [native-exit={code}]"),
+                );
+            return Err(format!(
+                "Apple ticket validation failed; no release archive was prepared{detail}"
+            ));
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
     run(
         &mut ticket_command(
             "validate",

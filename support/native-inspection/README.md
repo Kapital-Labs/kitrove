@@ -14,3 +14,8 @@ Do not add a new caller until its process ownership/cancellation, output/deadlin
 bounds and file/tool identity have been separately reviewed. In particular, a
 nested group must not escape an outer supervisor's cleanup accounting. See
 ADR-0045 and ADR-0068. This source grants no signing/release or retry authority.
+
+ADR-0069 adds the reviewed closed ticket caller's opt-in completion proof: direct
+reaping plus bounded group-absence confirmation. Its outer supervisor must also
+account for nested ownership. The original probe path does not opt into the new
+method and keeps its former behaviour; it is not silently assigned stronger proof.

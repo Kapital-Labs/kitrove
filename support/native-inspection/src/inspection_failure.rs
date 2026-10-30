@@ -2,6 +2,8 @@
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum InspectionOperation {
     #[cfg(unix)]
+    // A closed caller may deliberately collapse launch errors without IO detail.
+    #[allow(dead_code)]
     Launch,
     OutputReaderStart,
     OutputRead,

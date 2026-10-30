@@ -1,5 +1,6 @@
 """POSIX process-group lifetime for trusted operator-only Apple signing tools."""
 import errno
+import math
 import os
 import signal
 import subprocess
@@ -7,13 +8,15 @@ import threading
 import time
 from contextlib import contextmanager
 
+from hosted_apple_owner import OwnerEvidenceError, validate_owner_evidence
+
 _cancellations = []
 
 class ProcessCleanupError(RuntimeError):
     """The signing group may still hold credentials; preserve its private state."""
 
     _CATEGORIES = frozenset(('probe-denied', 'probe-interrupted', 'probe-os-error',
-                            'cleanup-deadline', 'unclassified'))
+                            'cleanup-deadline', 'nested-owner-unconfirmed', 'unclassified'))
 
     def __init__(self, _message=None, *, category='unclassified'):
         super().__init__('Native process cleanup could not be confirmed')
@@ -150,24 +153,42 @@ def _drain_stopped_stderr(process):
     return None
 
 
-def run_owned(args, *, input=None, timeout, env=None, ignore_prior_cancellation=False):
+def _nested_deadline(timeout, env):
+    if (type(timeout) not in (int, float) or not 0 < timeout <= 1800
+            or not math.isfinite(timeout) or int(timeout * 1_000_000_000) <= 0):
+        raise ValueError('Invalid nested native lifetime')
+    deadline_ns = time.clock_gettime_ns(time.CLOCK_MONOTONIC) + int(timeout * 1_000_000_000)
+    child_env = dict(os.environ if env is None else env)
+    child_env['KITROVE_NATIVE_TICKET_DEADLINE_NS'] = str(deadline_ns)
+    return child_env, deadline_ns
+
+
+def run_owned(args, *, input=None, timeout, env=None, ignore_prior_cancellation=False,
+              nested_ticket_owner=False):
     """Collect a tool result only after its whole owned process group is stopped."""
     cleanup_confirmed = False
     captured_stderr = None
+    process_started = nested_confirmed = False
+    if type(nested_ticket_owner) is not bool or (nested_ticket_owner and ignore_prior_cancellation):
+        raise ValueError('Invalid nested native lifetime')
     try:
         if not ignore_prior_cancellation:
             check_pending_cancellation()
         with cancellation_scope() as cancellation:
             if not ignore_prior_cancellation:
                 check_pending_cancellation()
+            child_env, deadline = (_nested_deadline(timeout, env) if nested_ticket_owner else (env, None))
             process = subprocess.Popen(args, stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL,
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, start_new_session=True)
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=child_env, start_new_session=True)
+            process_started = True
             try:
-                deadline = time.monotonic() + timeout
+                if not nested_ticket_owner:
+                    deadline = time.monotonic() + timeout
                 pending_input = input
                 while True:
                     raise_if_cancelled(cancellation)
-                    remaining = deadline - time.monotonic()
+                    remaining = ((deadline - time.clock_gettime_ns(time.CLOCK_MONOTONIC)) / 1_000_000_000
+                                 if nested_ticket_owner else deadline - time.monotonic())
                     if remaining <= 0:
                         raise ProcessTimeout()
                     try:
@@ -186,10 +207,28 @@ def run_owned(args, *, input=None, timeout, env=None, ignore_prior_cancellation=
                         if stream is not None:
                             stream.close()
             raise_if_cancelled(cancellation)
+            if nested_ticket_owner:
+                if process.returncode is None or process.returncode < 0:
+                    raise ProcessCleanupError(category='nested-owner-unconfirmed')
+                try:
+                    validate_owner_evidence(stderr, succeeded=process.returncode == 0)
+                except OwnerEvidenceError:
+                    raise ProcessCleanupError(category='nested-owner-unconfirmed') from None
+                nested_confirmed = True
+                if time.clock_gettime_ns(time.CLOCK_MONOTONIC) >= deadline:
+                    raise ProcessTimeout()
             return subprocess.CompletedProcess(args, process.returncode, stdout, stderr)
     except (ProcessTimeout, ProcessCancelled) as error:
         # Keep provider bytes out of exception args, repr and user-facing output.
         # Only the separately reviewed receipt bridge may inspect this private data.
+        if nested_ticket_owner:
+            raise ProcessCleanupError(category='nested-owner-unconfirmed') from None
         if cleanup_confirmed:
             error._captured_stderr = captured_stderr
+        raise
+    except ProcessCleanupError:
+        raise
+    except BaseException:
+        if nested_ticket_owner and process_started and not nested_confirmed:
+            raise ProcessCleanupError(category='nested-owner-unconfirmed') from None
         raise

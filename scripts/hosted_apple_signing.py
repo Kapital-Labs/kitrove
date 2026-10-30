@@ -115,7 +115,8 @@ def native(args, payload=None, timeout=30, *, operation, env=None):
     print('Starting: ' + operation, flush=True)
     try:
         result = run_owned(args, input=payload, timeout=timeout, env=env,
-            ignore_prior_cancellation=operation in ('Keychain search-list restoration', 'Keychain cleanup'))
+            ignore_prior_cancellation=operation in ('Keychain search-list restoration', 'Keychain cleanup'),
+            nested_ticket_owner=operation == 'installer container preparation')
     except ProcessCleanupError as error:
         print('Failed: ' + operation + ' [process-cleanup-unconfirmed]', flush=True)
         print('Cleanup failure category: ' + error.category, flush=True)

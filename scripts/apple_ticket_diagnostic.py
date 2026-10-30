@@ -101,7 +101,7 @@ def native_container_status(args, sha):
     # Verification only, after cleanup: exact-source tool, no signing credentials
     # or new notarization. Keep its validation evidence distinct from preparation.
     env = dict(os.environ, KITROVE_APPLE_TICKET_DIAGNOSTIC='1', KITROVE_NOTARY_SOURCE_COMMIT=sha)
-    result = run_owned(args, timeout=60, env=env)
+    result = run_owned(args, timeout=60, env=env, nested_ticket_owner=True)
     require(type(result.returncode) is int and -255 <= result.returncode <= 255, 'Invalid native status')
     records = [json.loads(line.split(' ', 1)[1]) for line in safe_ticket_lines(
         result.stderr, source=sha, validation_only=True)]

@@ -14,8 +14,18 @@ import hosted_apple_signing as signing
 
 
 class HostedAppleSigningTests(unittest.TestCase):
+    def test_only_container_preparation_opts_into_nested_owner_accounting(self):
+        result = types.SimpleNamespace(returncode=0, stdout=b'', stderr=b'')
+        for operation in ('identity import', 'application archive preparation', 'installer container preparation',
+                          'Keychain cleanup'):
+            with patch.object(signing, 'run_owned', return_value=result) as owned, \
+                 contextlib.redirect_stdout(io.StringIO()):
+                signing.native(['fixture-never-executed'], operation=operation)
+            self.assertEqual(owned.call_args.kwargs.get('nested_ticket_owner'),
+                             operation == 'installer container preparation')
+
     def scenario(self, failure=None, overrides=None, container=False, failure_exception=RuntimeError,
-                 cleanup_observer=None):
+                 cleanup_observer=None, owned_container=None):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
             for name in ('kitrove-release-xtask', 'kitrove-apple-import'):
@@ -29,6 +39,7 @@ class HostedAppleSigningTests(unittest.TestCase):
                 environment['KITROVE_PREPARE_DMG'] = '1'
             original = [str(root / 'login keys.keychain-db'), str(root / 'System.keychain')]
             calls = []
+            real_native = signing.native
 
             def native(args, payload=None, timeout=30, *, operation, env=None):
                 self.assertIn(operation, signing.OPERATIONS)
@@ -63,6 +74,8 @@ class HostedAppleSigningTests(unittest.TestCase):
                         str(root / 'kitrove-installer-dmg')])
                     self.assertTrue(Path(env['KITROVE_SIGNING_KEYCHAIN']).is_file())
                     self.assertNotIn('NOTARY_PASSWORD', env)
+                    if owned_container is not None:
+                        owned_container(real_native)
                 if operation == 'Keychain cleanup':
                     self.assertEqual(Path(args[-1]).parent.parent, root)
                     Path(args[-1]).unlink()
@@ -111,6 +124,19 @@ class HostedAppleSigningTests(unittest.TestCase):
                 self.assertEqual(sorted(path.name for path in root.iterdir()),
                     ['kitrove-apple-import', 'kitrove-release-xtask'])
             return calls
+
+    @unittest.skipUnless(os.name == 'posix', 'owned harmless child fixture')
+    def test_real_unfinished_owner_preserves_private_state_and_stops_observer(self):
+        observed = []
+        script = ('import os; os.write(2, b\'KITROVE_APPLE_OWNER_V1 '
+                  '{"schema_version":1,"ordinal":1,"event":"start"}\\n\')')
+        calls = self.scenario('installer container preparation', container=True,
+            failure_exception=signing.ProcessCleanupError,
+            cleanup_observer=lambda: observed.append(True),
+            owned_container=lambda native: native([sys.executable, '-c', script],
+                operation='installer container preparation'))
+        self.assertEqual(observed, [])
+        self.assertEqual(calls[-1], 'installer container preparation')
 
     def test_both_archives_share_one_credential_lifetime(self):
         calls = self.scenario()

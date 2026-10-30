@@ -28,5 +28,9 @@ zip.workspace = true
 [target.'cfg(windows)'.dependencies]
 kitrove-windows-security.workspace = true
 
+[target.'cfg(target_os = "macos")'.dependencies]
+kitrove-macos-process = { path = "../crates/kitrove-macos-process" }
+rustix = { workspace = true, features = ["time"] }
+
 [lints]
 workspace = true
