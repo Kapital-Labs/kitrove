@@ -19,6 +19,14 @@ mod notary_receipt;
 #[path = "release_signing/ticket_diagnostic.rs"]
 mod ticket_diagnostic;
 
+#[cfg(any(target_os = "macos", test))]
+#[path = "release_signing/ticket_validation.rs"]
+mod ticket_validation;
+
+#[cfg(any(target_os = "macos", test))]
+#[path = "release_signing/ticket_validation_control.rs"]
+mod ticket_validation_control;
+
 const APPLE_IDENTITY: &str = "Developer ID Application: Kapital Labs LLC (98RZ36ES7A)";
 
 enum Signer {
@@ -341,6 +349,15 @@ pub(super) fn sign_apple_container(file: &Path, target: &str) -> Result<(), Stri
 pub(super) fn verify_apple_container(file: &Path) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
+        let bound = ticket_validation::binding::bound_source(|key| env::var(key).ok())
+            .map_err(|_| "Apple ticket validation source binding refused".to_owned())?;
+        if let Some(source) = bound {
+            return ticket_validation_control::finish(
+                &source,
+                native_inspection::recover_validation(file),
+                || verify_apple_signature(file, false),
+            );
+        }
         let context = ticket_diagnostic::context(|key| env::var(key).ok())?;
         let started = std::time::Instant::now();
         let output = native_inspection::validate(file).map_err(|_| {

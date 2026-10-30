@@ -44,6 +44,15 @@ cleanup. This does not contain hostile processes or guarantee disappearance afte
 an uncatchable outer termination. All original native/image/source checks remain
 mandatory; no signer, notary, attachment retry or live invocation is authorized.
 
+The separately approved ADR-0070 recovery is validation-only: at most3 calls on
+one retained image and original deadline, requiring the exact complete bounded
+connection-loss68/-1005 class and opaque cleanup proof between calls. Unknown,
+contradictory, changed-image, cancellation or deadline evidence refuses. Closed
+source/image-bound V2 evidence retains each failure and cannot downgrade to legacy
+V1 acceptance. Final native0 still requires every original signature/payload/source
+check and the complete verifier exit0. No cached-success or unstapled fallback,
+side-effect retry, longer lifetime or live signing permission is introduced.
+
 ### Credential synchronization
 
 Use explicit portable/local schemas, adapter exclusions, known-auth path deny rules, canary secret tests, symbolic bindings, redaction, and a future `inspect-portable` command.

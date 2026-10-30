@@ -16,6 +16,7 @@ from hosted_apple_receipts import safe_receipt_lines
 import signing_rehearsal as rehearsal
 from apple_ticket_control import REQUIREMENT
 from hosted_apple_ticket import safe_lines as safe_ticket_lines
+from hosted_apple_validation_evidence import ticket_validated
 from apple_ticket_attachment import classify as classify_ticket_output
 
 require = rehearsal.require
@@ -97,16 +98,17 @@ def post_cleanup_ticket(image):
         **classify_ticket_output(result.stdout + b'\n' + result.stderr))
 
 
-def native_container_status(args, sha):
+def native_container_status(args, sha, image_sha256):
     # Verification only, after cleanup: exact-source tool, no signing credentials
     # or new notarization. Keep its validation evidence distinct from preparation.
     env = dict(os.environ, KITROVE_APPLE_TICKET_DIAGNOSTIC='1', KITROVE_NOTARY_SOURCE_COMMIT=sha)
     result = run_owned(args, timeout=60, env=env, nested_ticket_owner=True)
     require(type(result.returncode) is int and -255 <= result.returncode <= 255, 'Invalid native status')
     records = [json.loads(line.split(' ', 1)[1]) for line in safe_ticket_lines(
-        result.stderr, source=sha, validation_only=True)]
-    require(result.returncode != 0 or (len(records) == 1 and records[0]['native_exit'] == 0
-            and records[0]['output_bounded']), 'Final ticket evidence missing')
+        result.stderr, source=sha, validation_only=True, require_validation_v2=True)]
+    validated = len(records) == 1 and ticket_validated(records[0], source=sha, image_sha256=image_sha256)
+    # Even a validated ticket trace cannot override a failing complete verifier.
+    require(result.returncode != 0 or validated, 'Final ticket evidence missing')
     return result.returncode, records
 
 
@@ -144,7 +146,8 @@ def sign(target, sha):
     output = captured.getvalue().encode()
     require(len(output) <= 256 * 1024, 'Diagnostic output exceeded bound')
     receipts = safe_receipt_lines(output, source_commit=sha, target=target)
-    ticket_calls = [json.loads(line.split(' ', 1)[1]) for line in safe_ticket_lines(output, source=sha)]
+    ticket_calls = [json.loads(line.split(' ', 1)[1]) for line in safe_ticket_lines(
+        output, source=sha, require_validation_v2=True)]
     record = dict(schema_version=1, source=sha, target=target, published=False,
                   diagnostic_only=True, preparation_succeeded=prepared, cleanup_confirmed=True,
                   receipts=[json.loads(line.split(' ', 1)[1]) for line in receipts])
@@ -169,8 +172,9 @@ def sign(target, sha):
     evidence = Path('diagnostic-evidence')
     evidence.mkdir(mode=0o700)
     status = 0 if prepared else 1
-    if prepared and not (len(ticket_calls) == 2 and [v['operation'] for v in ticket_calls] == ['staple', 'validate']
-            and all(v['native_exit'] == 0 and v['output_bounded'] for v in ticket_calls)):
+    preparation_evidence = (len(ticket_calls) == 2 and [v['operation'] for v in ticket_calls] == ['staple', 'validate']
+            and all(v['native_exit'] == 0 and v['output_bounded'] for v in ticket_calls))
+    if prepared and not preparation_evidence:
         record['ticket_evidence_failure'] = 'missing-or-refused'
         status = 1
     retained_identity = None
@@ -179,6 +183,10 @@ def sign(target, sha):
         image = evidence / leaf
         pending = evidence / (leaf + '.pending')
         record['image_sha256'] = copy_image(runner / 'kitrove-installer-dmg', leaf, pending)
+        if prepared and preparation_evidence and not ticket_validated(
+                ticket_calls[1], source=sha, image_sha256=record['image_sha256']):
+            record['ticket_evidence_failure'] = 'missing-or-refused'
+            status = 1
         # Publish the fixed evidence name only after copy identity/hash confirmation.
         # Pending/failed copies are never in the workflow's closed upload list.
         os.link(pending, image, follow_symlinks=False)
@@ -197,7 +205,8 @@ def sign(target, sha):
             verify_archives(target, os.environ['RELEASE_TAG'], runner)
             code, calls = native_container_status([str(runner / 'kitrove-release-xtask'), 'verify-installer-dmg',
                 str(Path('target/distrib') / f'kitrove-installer-{target}.tar.xz'), target,
-                os.environ['RELEASE_TAG'], 'dist-manifest.json', str(runner / 'kitrove-installer-dmg' / leaf)], sha)
+                os.environ['RELEASE_TAG'], 'dist-manifest.json', str(runner / 'kitrove-installer-dmg' / leaf)],
+                sha, record['image_sha256'])
             record['post_cleanup_container_exit'] = code
             record['post_cleanup_container_ticket_calls'] = calls
             require(code == 0, 'Final container refused')

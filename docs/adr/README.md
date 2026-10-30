@@ -94,5 +94,6 @@ ADRs document foundational decisions and their consequences. Accepted ADRs are a
 
 | [0068](0068-private-native-inspection-mechanics.md) | Private native-inspection mechanics are shared without a public runner | Accepted for prerequisite implementation; validation pending | NS-07, NS-09 |
 | [0069](0069-readonly-ticket-process-ownership.md) | Read-only ticket validation has a closed owned lifetime | Accepted for prerequisite implementation; validation pending | NS-07, NS-09 |
+| [0070](0070-readonly-ticket-connection-loss-recovery.md) | Read-only ticket connection-loss recovery stays evidence-bound | Accepted for source repair; validation pending | NS-07, NS-09 |
 
 Use [`0000-template.md`](0000-template.md) for new records.

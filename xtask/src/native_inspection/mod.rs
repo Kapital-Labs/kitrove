@@ -11,6 +11,13 @@ pub(super) fn validate(file: &Path) -> Result<std::process::Output, Refused> {
     macos::validate(file)
 }
 
+#[cfg(target_os = "macos")]
+pub(super) fn recover_validation(
+    file: &Path,
+) -> Result<(String, super::ticket_validation::recovery::Recovery), Refused> {
+    macos::recovery::inspect(file)
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Refused {
     Deadline,

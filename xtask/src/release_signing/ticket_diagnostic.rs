@@ -39,7 +39,7 @@ pub(super) fn context(env: impl Fn(&str) -> Option<String>) -> Result<Option<Str
     Ok(Some(source))
 }
 
-const DOMAINS: &[&str] = &[
+pub(super) const DOMAINS: &[&str] = &[
     "NSURLErrorDomain",
     "kCFErrorDomainCFNetwork",
     "CKErrorDomain",
@@ -48,7 +48,7 @@ const DOMAINS: &[&str] = &[
     "NSPOSIXErrorDomain",
     "NSOSStatusErrorDomain",
 ];
-const PHRASES: &[(&str, &str)] = &[
+pub(super) const PHRASES: &[(&str, &str)] = &[
     ("missing-stapled-ticket", "does not have a ticket stapled"),
     ("ticket-validation-failed", "could not validate ticket"),
     ("connection-lost", "the network connection was lost"),
