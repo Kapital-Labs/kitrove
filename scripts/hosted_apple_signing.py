@@ -15,6 +15,7 @@ from pathlib import Path
 from hosted_apple_process import (ProcessCancelled, ProcessCleanupError, ProcessTimeout,
     cancellation_scope, check_pending_cancellation, raise_if_cancelled, run_owned, stop_process_group)
 from hosted_apple_receipts import ReceiptError, safe_receipt_lines, valid_source
+from hosted_apple_ticket import safe_lines as safe_ticket_lines
 
 
 def require(condition, message):
@@ -103,6 +104,10 @@ def forward_receipts(stderr, operation, env):
         raise
     for receipt in receipts:
         print(receipt, flush=True)
+    if operation == 'installer container preparation' and context.get('KITROVE_APPLE_TICKET_DIAGNOSTIC') == '1':
+        require(context.get('DIST_TARGET') == 'aarch64-apple-darwin', 'Invalid ticket diagnostic target')
+        for line in safe_ticket_lines(stderr, source=context.get('KITROVE_NOTARY_SOURCE_COMMIT')):
+            print(line, flush=True)
 
 
 def native(args, payload=None, timeout=30, *, operation, env=None):
