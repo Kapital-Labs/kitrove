@@ -74,6 +74,30 @@ checks. Parent-only rebase onto PR99's identical squash tree must preserve the
 validated candidate tree. No feature merge before exact latest main is green;
 guarded squash and exact new-main verification precede owned-worktree cleanup.
 
+## Hosted compatibility corrections
+
+Original head2149 passed the local full pair, but exact PR41116856046 and normal
+full-platform supplement41116900442 exposed distinct failures. Linux rejected
+the new262145-byte fixture's single command argument with errno7/E2BIG. The
+fixture now constructs those bytes inside a small child expression and asserts
+the exact size, retaining a valid owner start/finish prefix before excess bytes.
+The argv budget and closed cleanup-refusal category are tested; no evidence
+bound is relaxed. Current hosted Rust also deprecates AtomicU8.fetch_update under
+warnings-as-errors. A single strong compare_exchange now allocates ordinals1..8;
+contention/invalid/exhausted counters refuse before launch, with no spin, wrap or
+ordinal reuse. This keeps Rust1.88 compatibility without a warning allowance.
+Both corrections have retained failing-then-passing focused proofs.
+
+The existing Ubuntu library probe failed separately with the closed
+Launch/ExecutableFileBusy category. Test-only PR101 isolates its fixture writers
+without production probe changes; its reviewed squash468a622 is incorporated by
+a normal merge, not a published history rewrite. Its exact PR/full-platform
+checks passed; its new-main validation must pass before this feature can merge.
+The corrected combined tree needs a NEW full stable/Rust1.88 pair, manual review,
+secret/audit checks and fresh exact public PR/full-platform checks. Original local
+passes do not count as validation of these changes. Historical failures/logs
+remain; no unchanged failed run is rerun to hide them.
+
 No provider recovery, final retry fix, production artifact, fresh install, Intel
 runtime or release acceptance is claimed. The separate approved max3 exact-1005
 policy and versioned attempt evidence come only after this boundary is accepted.

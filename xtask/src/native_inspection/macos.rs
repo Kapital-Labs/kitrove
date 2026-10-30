@@ -19,6 +19,18 @@ struct OwnedResult {
 
 static NEXT_OWNER: AtomicU8 = AtomicU8::new(1);
 
+fn next_owner(counter: &AtomicU8) -> Result<u8, Refused> {
+    let ordinal = counter.load(Ordering::Relaxed);
+    if !(1..=8).contains(&ordinal) {
+        return Err(Refused::Native);
+    }
+    // One bounded CAS, available on the MSRV and current stable. Concurrent use
+    // refuses before launch rather than spinning or recycling owner ordinals.
+    counter
+        .compare_exchange(ordinal, ordinal + 1, Ordering::Relaxed, Ordering::Relaxed)
+        .map_err(|_| Refused::Native)
+}
+
 fn emit_owner(ordinal: u8, finished: bool) -> Result<(), Refused> {
     let line = super::owner::record(ordinal, finished).ok_or(Refused::Native)?;
     let mut stderr = std::io::stderr().lock();
@@ -36,11 +48,7 @@ pub(super) fn validate(file: &std::path::Path) -> Result<Output, Refused> {
     };
     let deadline = Deadline::new(now()?, parent)?;
     with_retained(file, deadline, || {
-        let ordinal = NEXT_OWNER
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
-                (value <= 8).then(|| value + 1)
-            })
-            .map_err(|_| Refused::Native)?;
+        let ordinal = next_owner(&NEXT_OWNER)?;
         emit_owner(ordinal, false)?;
         // A normal native denial still yields a complete owned result. Launch,
         // timeout, output or cleanup uncertainty never emits a confirmed finish.
@@ -142,6 +150,21 @@ fn execute(command: &mut Command, deadline: Deadline) -> Result<OwnedResult, Ref
 mod tests {
     use super::*;
     use std::time::Duration;
+
+    #[test]
+    fn finite_owner_counter_never_wraps_or_reuses_an_ordinal() {
+        let counter = AtomicU8::new(1);
+        for expected in 1..=8 {
+            assert_eq!(next_owner(&counter), Ok(expected));
+        }
+        for _ in 0..256 {
+            assert!(next_owner(&counter).is_err());
+        }
+        assert_eq!(counter.load(Ordering::Relaxed), 9);
+        for invalid in [0, 255] {
+            assert!(next_owner(&AtomicU8::new(invalid)).is_err());
+        }
+    }
 
     #[test]
     fn owned_harmless_exit_keeps_bounded_complete_output() {

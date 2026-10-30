@@ -71,10 +71,20 @@ class NestedOwnerTests(unittest.TestCase):
             self.assertFalse(thread.is_alive())
 
     def test_closed_reader_rejects_duplicate_truncated_and_excess_evidence(self):
-        for raw in (START + FINISH + FINISH, START + FINISH[:-2], b'x' * (256 * 1024 + 1)):
-            with self.subTest(size=len(raw)), self.assertRaises(process.ProcessCleanupError):
-                self.owned('import os; raw=' + repr(raw) + '; '
+        prefix = START + FINISH
+        cases = [(len(START + FINISH + FINISH), repr(START + FINISH + FINISH)),
+                 (len(START + FINISH[:-2]), repr(START + FINISH[:-2])),
+                 (256 * 1024 + 1, repr(prefix) + "+b'x'*(256*1024+1-" + str(len(prefix)) + ")")]
+        for size, expression in cases:
+            with self.subTest(size=size):
+                # Construct large data inside the child, not in its argv. A valid
+                # complete owner prefix makes the excess-byte refusal meaningful.
+                script = ('import os; raw=' + expression + '; assert len(raw)==' + str(size) + '; '
                     '[(os.write(2, raw[i:i+4096])) for i in range(0,len(raw),4096)]')
+                self.assertLess(len(script.encode()), 8192, 'fixture data must not consume the argv limit')
+                with self.assertRaises(process.ProcessCleanupError) as caught:
+                    self.owned(script)
+                self.assertEqual(caught.exception.category, 'nested-owner-unconfirmed')
 
     def test_parent_supplies_one_absolute_monotonic_deadline(self):
         observed = []
