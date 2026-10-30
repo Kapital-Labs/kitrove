@@ -185,6 +185,13 @@ Never log environment-variable values, resolver output, or full secret-bearing t
 
 ## Public-release gates
 
+Private native-inspection lifecycle/output mechanics have one shared source,
+with only exact reviewed launch exceptions; neighbouring files remain denied.
+This prerequisite alone adds no native verifier caller or retry. A future ticket
+caller must preserve the outer supervisor's cancellation/cleanup contract and
+refuse uncertainty, not hide a surviving nested group behind an outer cleanup
+claim. See ADR-0068.
+
 Independent threat-model review; secret scanning; archive and path traversal tests; Windows filesystem tests; dependency audit; complete executable trust UX; supported-version policy; canary credential tests; and no known silent-loss path.
 
 ## Required security fixtures

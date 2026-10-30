@@ -1191,6 +1191,7 @@ fn check_compiled_tier_one_sources(root: &Path) -> Result<(), String> {
     let crates = root.join("crates");
     let mut files = Vec::new();
     collect_files(&crates, &mut files)?;
+    collect_files(&root.join("support/native-inspection/src"), &mut files)?;
     let testkit = crates.join("kitrove-testkit");
     let mut external_test_modules = BTreeSet::new();
 
@@ -1321,7 +1322,7 @@ fn check_production_source(path: &Path, source: &str) -> Result<(), String> {
     let process_launch_allowed = [
         "crates/kitrove-version-probe/src/lib.rs",
         "crates/kitrove-version-probe/src/apple_process_identity.rs",
-        "crates/kitrove-version-probe/src/unix_process.rs",
+        "support/native-inspection/src/unix_process.rs",
     ]
     .into_iter()
     .any(|allowed| path == Path::new(allowed));
@@ -1997,6 +1998,42 @@ x86_64-pc-windows-msvc = ["kitrove"]
     }
 
     #[test]
+    fn shared_private_lifecycle_has_only_one_exact_launch_exception() {
+        let source = "Command::new(path);";
+        assert!(
+            check_production_source(
+                Path::new("support/native-inspection/src/unix_process.rs"),
+                source
+            )
+            .is_ok()
+        );
+        for refused in [
+            "support/native-inspection/src/adjacent.rs",
+            "support/native-inspection/src/bounded_output.rs",
+            "crates/kitrove-version-probe/src/unix_process.rs",
+            "crates/kitrove-installer/src/adjacent.rs",
+        ] {
+            assert!(check_production_source(Path::new(refused), source).is_err());
+        }
+    }
+
+    #[test]
+    fn production_governance_scans_adjacent_shared_inspection_source() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir(root.path().join("crates")).unwrap();
+        let shared = root.path().join("support/native-inspection/src");
+        std::fs::create_dir_all(&shared).unwrap();
+        std::fs::write(shared.join("adjacent.rs"), "Command::new(path);").unwrap();
+        let error = super::check_compiled_tier_one_sources(root.path()).unwrap_err();
+        assert!(
+            error
+                .replace('\\', "/")
+                .contains("support/native-inspection/src/adjacent.rs")
+        );
+        assert!(error.contains("forbidden process launch"));
+    }
+
+    #[test]
     fn owned_worker_continuation_has_only_exact_reviewed_boundaries() {
         let call = "owner.resume_owned_worker_once();";
         for allowed in [
@@ -2155,12 +2192,12 @@ mod inline {}
     #[test]
     fn production_governance_limits_process_authority_to_version_probe_boundary() {
         let launch = "std::process::Command::new(\"pi\");";
-        for module in ["apple_process_identity.rs", "unix_process.rs"] {
-            check_production_source(
-                &Path::new("crates/kitrove-version-probe/src").join(module),
-                launch,
-            )
-            .expect("reviewed closed native policy and retained lifecycle own launch");
+        for module in [
+            "crates/kitrove-version-probe/src/apple_process_identity.rs",
+            "support/native-inspection/src/unix_process.rs",
+        ] {
+            check_production_source(Path::new(module), launch)
+                .expect("reviewed closed native policy and retained lifecycle own launch");
         }
         check_production_source(
             Path::new("crates/kitrove-version-probe/src/apple_process_identities.rs"),

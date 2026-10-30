@@ -36,8 +36,10 @@ use kitrove_model::HarnessId;
 #[cfg(any(unix, windows, test))]
 use semver::{Version, VersionReq};
 #[cfg(any(unix, windows))]
+#[path = "../../../support/native-inspection/src/bounded_output.rs"]
 mod bounded_output;
 #[cfg(any(unix, windows))]
+#[path = "../../../support/native-inspection/src/inspection_failure.rs"]
 mod inspection_failure;
 #[cfg(any(unix, windows))]
 use bounded_output::{receive_probe_output, spawn_output_reader};
@@ -46,9 +48,14 @@ use inspection_failure::InspectionFailure;
 #[cfg(unix)]
 use inspection_failure::InspectionOperation;
 #[cfg(unix)]
+#[path = "../../../support/native-inspection/src/unix_process.rs"]
 mod unix_process;
 #[cfg(unix)]
 use unix_process::ProbeProcess;
+
+#[cfg(all(test, any(unix, windows)))]
+#[path = "bounded_output_tests.rs"]
+mod bounded_output_tests;
 
 #[cfg(test)]
 #[path = "native_identity_tests.rs"]

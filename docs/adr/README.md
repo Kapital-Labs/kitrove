@@ -92,4 +92,6 @@ ADRs document foundational decisions and their consequences. Accepted ADRs are a
 | [0065](0065-apple-release-host-is-separate-from-artifact-target.md) | Apple release host is separate from artifact target | Accepted for implementation; validation pending | NS-07, NS-09 |
 | [0066](0066-release-archives-carry-reviewed-third-party-materials.md) | Release archives carry reviewed third-party materials | Accepted for implementation; validation pending | NS-07, NS-09 |
 
+| [0068](0068-private-native-inspection-mechanics.md) | Private native-inspection mechanics are shared without a public runner | Accepted for prerequisite implementation; validation pending | NS-07, NS-09 |
+
 Use [`0000-template.md`](0000-template.md) for new records.
