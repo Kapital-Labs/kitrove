@@ -116,6 +116,7 @@ class PostCleanupEvidence(unittest.TestCase):
             self.assertEqual(records, [value])
             self.assertEqual(owned.call_count, 1)
             self.assertEqual(owned.call_args[0][0], args)
+            self.assertIs(owned.call_args.kwargs.get('nested_ticket_owner'), True)
             env = owned.call_args[1]['env']
             self.assertEqual(env['KITROVE_NOTARY_SOURCE_COMMIT'], 'a' * 40)
             self.assertEqual(env['KITROVE_APPLE_TICKET_DIAGNOSTIC'], '1')

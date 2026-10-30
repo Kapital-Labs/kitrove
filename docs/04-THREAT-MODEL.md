@@ -34,6 +34,16 @@ Malicious publishers, compromised repositories, careless collaborators, accident
 
 ## Key threats and mitigations
 
+### Nested native inspection cleanup
+
+Read-only Apple ticket validation uses the private owned boundary in ADR-0069.
+Its exact Python supervisors reconcile closed nested start/finish records under
+one absolute deadline. Missing/uncertain inner cleanup prevents credential-state
+deletion and subsequent controls; a successful signal or native exit alone is not
+cleanup. This does not contain hostile processes or guarantee disappearance after
+an uncatchable outer termination. All original native/image/source checks remain
+mandatory; no signer, notary, attachment retry or live invocation is authorized.
+
 ### Credential synchronization
 
 Use explicit portable/local schemas, adapter exclusions, known-auth path deny rules, canary secret tests, symbolic bindings, redaction, and a future `inspect-portable` command.
@@ -187,10 +197,10 @@ Never log environment-variable values, resolver output, or full secret-bearing t
 
 Private native-inspection lifecycle/output mechanics have one shared source,
 with only exact reviewed launch exceptions; neighbouring files remain denied.
-This prerequisite alone adds no native verifier caller or retry. A future ticket
-caller must preserve the outer supervisor's cancellation/cleanup contract and
-refuse uncertainty, not hide a surviving nested group behind an outer cleanup
-claim. See ADR-0068.
+The ADR-0068 extraction alone adds no caller or retry. The closed ADR-0069 ticket
+caller preserves the outer supervisor's cancellation/cleanup contract and refuses
+uncertainty, rather than hiding a surviving nested group behind an outer cleanup
+claim. Neither prerequisite grants automatic recovery or live signing authority.
 
 Independent threat-model review; secret scanning; archive and path traversal tests; Windows filesystem tests; dependency audit; complete executable trust UX; supported-version policy; canary credential tests; and no known silent-loss path.
 

@@ -1,0 +1,18 @@
+[
+  "KITROVE_APPLE_OWNER_V1 {\"schema_version\":1,\"ordinal\":1,\"event\":\"start\"}",
+  "KITROVE_APPLE_OWNER_V1 {\"schema_version\":1,\"ordinal\":1,\"event\":\"finish\",\"cleanup_confirmed\":true}",
+  "KITROVE_APPLE_OWNER_V1 {\"schema_version\":1,\"ordinal\":2,\"event\":\"start\"}",
+  "KITROVE_APPLE_OWNER_V1 {\"schema_version\":1,\"ordinal\":2,\"event\":\"finish\",\"cleanup_confirmed\":true}",
+  "KITROVE_APPLE_OWNER_V1 {\"schema_version\":1,\"ordinal\":3,\"event\":\"start\"}",
+  "KITROVE_APPLE_OWNER_V1 {\"schema_version\":1,\"ordinal\":3,\"event\":\"finish\",\"cleanup_confirmed\":true}",
+  "KITROVE_APPLE_OWNER_V1 {\"schema_version\":1,\"ordinal\":4,\"event\":\"start\"}",
+  "KITROVE_APPLE_OWNER_V1 {\"schema_version\":1,\"ordinal\":4,\"event\":\"finish\",\"cleanup_confirmed\":true}",
+  "KITROVE_APPLE_OWNER_V1 {\"schema_version\":1,\"ordinal\":5,\"event\":\"start\"}",
+  "KITROVE_APPLE_OWNER_V1 {\"schema_version\":1,\"ordinal\":5,\"event\":\"finish\",\"cleanup_confirmed\":true}",
+  "KITROVE_APPLE_OWNER_V1 {\"schema_version\":1,\"ordinal\":6,\"event\":\"start\"}",
+  "KITROVE_APPLE_OWNER_V1 {\"schema_version\":1,\"ordinal\":6,\"event\":\"finish\",\"cleanup_confirmed\":true}",
+  "KITROVE_APPLE_OWNER_V1 {\"schema_version\":1,\"ordinal\":7,\"event\":\"start\"}",
+  "KITROVE_APPLE_OWNER_V1 {\"schema_version\":1,\"ordinal\":7,\"event\":\"finish\",\"cleanup_confirmed\":true}",
+  "KITROVE_APPLE_OWNER_V1 {\"schema_version\":1,\"ordinal\":8,\"event\":\"start\"}",
+  "KITROVE_APPLE_OWNER_V1 {\"schema_version\":1,\"ordinal\":8,\"event\":\"finish\",\"cleanup_confirmed\":true}"
+]

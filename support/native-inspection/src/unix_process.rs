@@ -7,6 +7,11 @@ use std::time::{Duration, Instant};
 // Drop may make one further best-effort attempt, but never waits indefinitely.
 const CLEANUP_TIMEOUT: Duration = Duration::from_secs(5);
 
+// Some private callers require a stronger absence proof than version probing.
+#[cfg(target_os = "macos")]
+#[allow(dead_code)]
+pub(super) struct ConfirmedCleanup(());
+
 pub(super) struct ProbeProcess {
     child: Child,
     process_group: rustix::process::Pid,
@@ -17,6 +22,8 @@ pub(super) struct ProbeProcess {
 }
 
 impl ProbeProcess {
+    // The ticket caller only uses anchored construction; probes retain this path.
+    #[allow(dead_code)]
     pub(super) fn new(child: Child) -> Result<Self, InspectionFailure> {
         let process_group = i32::try_from(child.id())
             .ok()
@@ -74,6 +81,39 @@ impl ProbeProcess {
         self.signal_group()?;
         self.group_armed = false;
         Ok(())
+    }
+
+    #[cfg(target_os = "macos")]
+    #[allow(dead_code)]
+    pub(super) fn finish_confirmed(
+        &mut self,
+        timeout: Duration,
+    ) -> Result<ConfirmedCleanup, InspectionFailure> {
+        let deadline = Instant::now()
+            .checked_add(timeout)
+            .ok_or(InspectionFailure::Cleanup)?;
+        if timeout.is_zero() || !self.group_armed || self.suspended_anchor.is_none() {
+            return Err(InspectionFailure::Cleanup);
+        }
+        self.terminate_remaining_group()?;
+        self.reap_bounded(deadline.saturating_duration_since(Instant::now()))?;
+        loop {
+            // Only a presence query after anchor reaping; never signal a numeric
+            // group ID after its retained anchor has been consumed.
+            let absent = matches!(
+                rustix::process::test_kill_process_group(self.process_group),
+                Err(rustix::io::Errno::SRCH)
+            );
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err(InspectionFailure::Cleanup);
+            }
+            if absent {
+                return Ok(ConfirmedCleanup(()));
+            }
+            // Denial, interruption or any other uncertainty is not absence.
+            std::thread::sleep(remaining.min(Duration::from_millis(5)));
+        }
     }
 
     fn terminate_group(&mut self) -> Result<(), InspectionFailure> {
@@ -185,6 +225,53 @@ mod tests {
             .stdout(Stdio::null())
             .stderr(Stdio::null());
         ProbeProcess::spawn_anchored(&mut command).unwrap()
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn confirmed_finish_requires_reaped_child_and_absent_group() {
+        let mut process = anchored_sleep("0");
+        assert!(
+            process
+                .wait_bounded(Duration::from_secs(2))
+                .unwrap()
+                .success()
+        );
+        let group = process.process_group;
+        assert!(process.finish_confirmed(Duration::from_secs(2)).is_ok());
+        assert!(process.reaped);
+        assert!(!process.group_armed);
+        assert_eq!(
+            rustix::process::test_kill_process_group(group),
+            Err(rustix::io::Errno::SRCH)
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn expired_finish_never_mints_cleanup_proof() {
+        let mut process = anchored_sleep("30");
+        assert!(process.finish_confirmed(Duration::ZERO).is_err());
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn stronger_finish_refuses_an_unanchored_probe_group() {
+        let child = Command::new("/bin/sleep")
+            .arg("30")
+            .process_group(0)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        let mut process = ProbeProcess::new(child).unwrap();
+        let result = process.finish_confirmed(Duration::from_secs(2));
+        process.terminate_group().unwrap();
+        assert!(
+            result.is_err(),
+            "strong completion requires a retained independent anchor"
+        );
     }
 
     #[test]
