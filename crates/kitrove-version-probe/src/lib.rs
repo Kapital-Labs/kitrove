@@ -61,6 +61,10 @@ mod bounded_output_tests;
 #[path = "native_identity_tests.rs"]
 mod native_identity_tests;
 
+#[cfg(test)]
+#[path = "probe_fixture.rs"]
+mod probe_fixture;
+
 #[cfg(target_os = "macos")]
 pub mod apple_process_identity;
 
@@ -987,23 +991,14 @@ mod tests {
 
     #[cfg(unix)]
     fn probe_script(body: &str) -> (tempfile::TempDir, std::path::PathBuf) {
-        use std::os::unix::fs::PermissionsExt as _;
-
-        let root = tempfile::tempdir().unwrap();
-        let binary = root.path().join("pi");
-        fs::write(&binary, format!("#!/bin/sh\n{body}\n")).unwrap();
-        fs::set_permissions(&binary, fs::Permissions::from_mode(0o700)).unwrap();
-        (root, binary)
+        named_probe_script("pi", body)
     }
 
     #[cfg(unix)]
     fn named_probe_script(name: &str, body: &str) -> (tempfile::TempDir, std::path::PathBuf) {
-        use std::os::unix::fs::PermissionsExt as _;
-
         let root = tempfile::tempdir().unwrap();
         let binary = root.path().join(name);
-        fs::write(&binary, format!("#!/bin/sh\n{body}\n")).unwrap();
-        fs::set_permissions(&binary, fs::Permissions::from_mode(0o700)).unwrap();
+        crate::probe_fixture::write_script(root.path(), name, body);
         (root, binary)
     }
 
@@ -1031,6 +1026,22 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[test]
     fn inherited_writer_refuses_execution_until_the_owned_holder_is_reaped() {
+        if env::var_os("KITROVE_LIBRARY_BUSY_WRITER_CASE").is_none() {
+            // The intentional negative writer must not be inherited by unrelated
+            // parallel test spawns while this case checks refusal then success.
+            let status = Command::new(env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "tests::inherited_writer_refuses_execution_until_the_owned_holder_is_reaped",
+                    "--nocapture",
+                ])
+                .env_clear()
+                .env("KITROVE_LIBRARY_BUSY_WRITER_CASE", "1")
+                .status()
+                .unwrap();
+            assert!(status.success());
+            return;
+        }
         let (_root, binary) = probe_script("printf '0.83.0\\n'");
         let writer = fs::OpenOptions::new().write(true).open(&binary).unwrap();
         let mut holder = Command::new("/bin/sleep")
