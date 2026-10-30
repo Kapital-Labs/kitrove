@@ -173,6 +173,52 @@ behavior are unchanged. Other readiness monitoring remains paused by the human.
 
 ## Validation
 
+### One fresh ARM preparation diagnostic (2026-10-30)
+
+The operator separately approved ONE fresh ARM-only nonpublishing diagnostic,
+including temporary main access to the existing protected release environment.
+Retain required reviewer/no-admin-bypass and restore tag-only access plus remove
+the exact diagnostic SHA on terminal success or failure. Production activation
+stays absent. This is not another release/version/tag or channel authorization.
+Previous signed and existing-ticket controls are spent, not rerun or refreshed.
+
+Use the existing credential-free ARM build, exact source/inventory handoff and
+protected signer. Refuse Intel, attempt numbers other than one, and an expected
+source input unequal to the actual workflow SHA at driver/build/script boundaries.
+Ordinary production commands are unchanged. Only the exact approved diagnostic
+context may add verbose output to the actual preparation ticket invocation.
+Capture bounded raw output privately in memory and emit only exact source/ARM
+target, operation, native exit, elapsed milliseconds, fixed observations, closed
+error-domain/numeric codes and numeric HTTP statuses. Unknown messages, URLs,
+accounts, paths and credentials never leave that boundary. Oversized output is
+marked refused, not interpreted. No attachment retry, notary resubmission, host
+switch, firewall/TLS/trust change or weakened native check is introduced.
+
+The Python boundary validates the complete closed record and ordered attachment/
+validation sequence before forwarding. Diagnostic evidence is retained only after
+confirmed credential cleanup; cancellation/uncertainty still prevent upload.
+Failure remains failure, including when later controls pass. Successful diagnostic
+status requires actual attachment and validation evidence as well as all original
+archive/container checks. No new signing implementation or product execution.
+
+Historical attachment68 remains unexplained. The exact old ARM bytes now attach
+locally and on the original hosted path, but a fresh-ticket failure could differ.
+A passing fresh diagnostic does not prove a historical cause or production fix.
+Stop after the one attempt; select any future repair only from discriminating
+evidence and separately authorized scope. Intel removal from future release
+catalog/packaging is not implemented by this diagnostic-only ARM restriction.
+
+Keep post-cleanup ticket evidence separate: capture closed native details from
+the existing direct validation, and from the final exact-source container verifier.
+The latter uses the same exact diagnostic context without signing credentials and
+accepts only a single validation record, never an attachment record. No extra
+ticket query is added. A failed direct signature/ticket check stops further final
+verification immediately; a passing run still requires all original checks.
+
+North Star and threat impact remain NS-07/NS-09, INV-07/INV-12. Discovery/adoption,
+portable/native preservation, fidelity, receipts/provenance and synchronization/
+conflict semantics are unchanged. Other readiness checks remain paused.
+
 Synthetic structured response tests cover accepted, pending, rejected, malformed,
 oversized and secret-bearing provider output. Real harmless subprocess fixtures
 cover normal completion, timeout, cancellation and descendants that ignore TERM;

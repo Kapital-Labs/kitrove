@@ -6,6 +6,9 @@ on:
       target:
         required: true
         type: string
+      expected_source:
+        required: true
+        type: string
     outputs:
       inventory:
         value: ${{ jobs.build.outputs.inventory }}
@@ -18,6 +21,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && github.repository == 'Kapital-Labs/kitrove' &&
       github.ref == 'refs/heads/main' && github.sha == vars.KITROVE_SIGNING_REHEARSAL_SHA &&
+      github.sha == inputs.expected_source && github.run_attempt == 1 && inputs.target == 'aarch64-apple-darwin' &&
       vars.KITROVE_HOSTED_SIGNING_READY == ''
     runs-on: macos-15
     timeout-minutes: 40
@@ -27,6 +31,7 @@ jobs:
       DIST_TARGET: ${{ inputs.target }}
       KITROVE_SIGNING_REHEARSAL_SHA: ${{ vars.KITROVE_SIGNING_REHEARSAL_SHA }}
       KITROVE_HOSTED_SIGNING_READY: ${{ vars.KITROVE_HOSTED_SIGNING_READY }}
+      KITROVE_DIAGNOSTIC_EXPECTED_SOURCE: ${{ inputs.expected_source }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:

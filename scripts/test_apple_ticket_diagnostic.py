@@ -22,7 +22,8 @@ class AppleTicketDiagnosticTests(unittest.TestCase):
         self.assertIsNotNone(diagnostic, 'missing closed diagnostic helper')
 
     def environment(self):
-        return dict(DIST_TARGET='x86_64-apple-darwin', GITHUB_SHA='a' * 40,
+        return dict(DIST_TARGET='aarch64-apple-darwin', GITHUB_SHA='a' * 40,
+            GITHUB_RUN_ATTEMPT='1', KITROVE_DIAGNOSTIC_EXPECTED_SOURCE='a' * 40,
             KITROVE_SIGNING_REHEARSAL_SHA='a' * 40, RUNNER_ARCH='ARM64',
             GITHUB_ACTIONS='true', RUNNER_ENVIRONMENT='github-hosted',
             GITHUB_EVENT_NAME='workflow_dispatch', GITHUB_REPOSITORY='Kapital-Labs/kitrove',
@@ -39,6 +40,16 @@ class AppleTicketDiagnosticTests(unittest.TestCase):
             for changes in ({'RUNNER_ARCH': 'X64'}, {'DIST_TARGET': 'x86_64-pc-windows-msvc'},
                             {'KITROVE_HOSTED_SIGNING_READY': 'false'}):
                 with self.assertRaises(RuntimeError):
+                    diagnostic.context(dict(env, **changes))
+
+    def test_fresh_diagnostic_refuses_intel_rerun_or_mismatched_expected_source(self):
+        env = dict(self.environment(), DIST_TARGET='aarch64-apple-darwin',
+            GITHUB_RUN_ATTEMPT='1', KITROVE_DIAGNOSTIC_EXPECTED_SOURCE='a' * 40)
+        with patch.object(diagnostic.sys, 'platform', 'darwin'):
+            self.assertEqual(diagnostic.context(env), ('aarch64-apple-darwin', 'a' * 40))
+            for changes in ({'DIST_TARGET': 'x86_64-apple-darwin'}, {'GITHUB_RUN_ATTEMPT': '2'},
+                            {'KITROVE_DIAGNOSTIC_EXPECTED_SOURCE': 'b' * 40}):
+                with self.subTest(changes=changes), self.assertRaises(RuntimeError):
                     diagnostic.context(dict(env, **changes))
 
     def test_version_is_bound_to_source_and_existing_catalog_not_caller(self):
@@ -109,7 +120,7 @@ class AppleTicketDiagnosticTests(unittest.TestCase):
                 os.chdir(root)
                 with patch.dict(os.environ, RUNNER_TEMP=str(root / 'runner')), \
                      patch.object(diagnostic.signing, 'prepare_release', side_effect=prepare), \
-                     patch.object(diagnostic, 'run_owned', return_value=types.SimpleNamespace(returncode=0)):
+                     patch.object(diagnostic, 'run_owned', return_value=types.SimpleNamespace(returncode=0, stdout=b'', stderr=b'')):
                     with contextlib.redirect_stdout(io.StringIO()) as output:
                         self.assertEqual(diagnostic.sign('x86_64-apple-darwin', 'a' * 40), 1)
                 evidence = root / 'diagnostic-evidence'
@@ -180,9 +191,9 @@ class AppleTicketDiagnosticTests(unittest.TestCase):
                         if args[0] == '/usr/bin/codesign':
                             self.assertEqual(args, ['/usr/bin/codesign', '--verify', '--strict',
                                 '-R', requirement, str(Path('diagnostic-evidence') / leaf)])
-                            return types.SimpleNamespace(returncode=signature_status)
-                        self.assertEqual(args[:4], ['/usr/bin/xcrun', 'stapler', 'validate', '-q'])
-                        return types.SimpleNamespace(returncode=0)
+                            return types.SimpleNamespace(returncode=signature_status, stdout=b'', stderr=b'')
+                        self.assertEqual(args[:4], ['/usr/bin/xcrun', 'stapler', 'validate', '-v'])
+                        return types.SimpleNamespace(returncode=0, stdout=b'', stderr=b'')
                     prior = Path.cwd()
                     try:
                         os.chdir(root)
@@ -233,7 +244,7 @@ class AppleTicketDiagnosticTests(unittest.TestCase):
                             replacement = root / 'replacement'
                             replacement.write_bytes(image.read_bytes())
                             os.replace(replacement, image)
-                    return types.SimpleNamespace(returncode=0)
+                    return types.SimpleNamespace(returncode=0, stdout=b'', stderr=b'')
                 prior = Path.cwd()
                 try:
                     os.chdir(root)
@@ -265,12 +276,16 @@ class AppleTicketDiagnosticTests(unittest.TestCase):
         self.assertNotIn('release.yml', workflow)
         self.assertNotIn('tags:', workflow)
         self.assertEqual((workflow + build).count('runs-on: macos-15'), 2)
-        self.assertIn('EXPECTED_INVENTORY: ${{ needs[matrix.build].outputs.inventory }}', workflow)
+        self.assertIn('EXPECTED_INVENTORY: ${{ needs.build-arm.outputs.inventory }}', workflow)
         self.assertIn('value: ${{ jobs.build.outputs.inventory }}', build)
-        self.assertIn('needs: [build-arm, build-intel]', workflow)
+        self.assertIn('needs: [build-arm]', workflow)
+        self.assertNotIn('build-intel', workflow)
+        self.assertNotIn('x86_64-apple-darwin', workflow + build)
+        self.assertIn('github.sha == inputs.expected_source && github.run_attempt == 1', workflow)
+        self.assertIn('github.sha == inputs.expected_source && github.run_attempt == 1', build)
         self.assertNotIn('secrets.', build)
         self.assertIn("steps.diagnostic.outputs.evidence_ready == 'true'", workflow)
-        self.assertIn('diagnostic-evidence/kitrove-installer-${{ matrix.target }}.dmg', workflow)
+        self.assertIn('diagnostic-evidence/kitrove-installer-aarch64-apple-darwin.dmg', workflow)
 
     def test_cancelled_preparation_stops_before_copy_or_native_control(self):
         with tempfile.TemporaryDirectory() as temporary:

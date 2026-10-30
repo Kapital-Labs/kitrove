@@ -8,12 +8,15 @@ from pathlib import Path
 import re
 import stat
 import sys
+import time
 
 import hosted_apple_signing as signing
 from hosted_apple_process import run_owned, ProcessCancelled, ProcessCleanupError, ProcessTimeout
 from hosted_apple_receipts import safe_receipt_lines
 import signing_rehearsal as rehearsal
 from apple_ticket_control import REQUIREMENT
+from hosted_apple_ticket import safe_lines as safe_ticket_lines
+from apple_ticket_attachment import classify as classify_ticket_output
 
 require = rehearsal.require
 TARGETS = ('aarch64-apple-darwin', 'x86_64-apple-darwin')
@@ -21,7 +24,7 @@ TARGETS = ('aarch64-apple-darwin', 'x86_64-apple-darwin')
 
 def context(env=os.environ):
     target, sha = env.get('DIST_TARGET'), env.get('GITHUB_SHA', '')
-    require(target in TARGETS and re.fullmatch('[0-9a-f]{40}', sha), 'Invalid diagnostic identity')
+    require(target == 'aarch64-apple-darwin' and re.fullmatch('[0-9a-f]{40}', sha), 'Invalid diagnostic identity')
     require(sys.platform == 'darwin' and env.get('RUNNER_ARCH') == 'ARM64'
         and env.get('GITHUB_ACTIONS') == 'true' and env.get('RUNNER_ENVIRONMENT') == 'github-hosted'
         and env.get('GITHUB_EVENT_NAME') == 'workflow_dispatch'
@@ -29,6 +32,8 @@ def context(env=os.environ):
         and env.get('GITHUB_REF') == 'refs/heads/main'
         and env.get('GITHUB_WORKFLOW_REF') == 'Kapital-Labs/kitrove/.github/workflows/apple-ticket-diagnostic.yml@refs/heads/main'
         and env.get('KITROVE_SIGNING_REHEARSAL_SHA') == sha
+        and env.get('KITROVE_DIAGNOSTIC_EXPECTED_SOURCE') == sha
+        and env.get('GITHUB_RUN_ATTEMPT') == '1'
         and not env.get('KITROVE_HOSTED_SIGNING_READY'), 'Unapproved diagnostic context')
     return target, sha
 
@@ -84,6 +89,27 @@ def native_status(args):
     return result.returncode
 
 
+def post_cleanup_ticket(image):
+    started = time.monotonic()
+    result = run_owned(['/usr/bin/xcrun', 'stapler', 'validate', '-v', str(image)], timeout=60)
+    require(type(result.returncode) is int and -255 <= result.returncode <= 255, 'Invalid native status')
+    return dict(native_exit=result.returncode, elapsed_ms=int((time.monotonic() - started) * 1000),
+        **classify_ticket_output(result.stdout + b'\n' + result.stderr))
+
+
+def native_container_status(args, sha):
+    # Verification only, after cleanup: exact-source tool, no signing credentials
+    # or new notarization. Keep its validation evidence distinct from preparation.
+    env = dict(os.environ, KITROVE_APPLE_TICKET_DIAGNOSTIC='1', KITROVE_NOTARY_SOURCE_COMMIT=sha)
+    result = run_owned(args, timeout=60, env=env)
+    require(type(result.returncode) is int and -255 <= result.returncode <= 255, 'Invalid native status')
+    records = [json.loads(line.split(' ', 1)[1]) for line in safe_ticket_lines(
+        result.stderr, source=sha, validation_only=True)]
+    require(result.returncode != 0 or (len(records) == 1 and records[0]['native_exit'] == 0
+            and records[0]['output_bounded']), 'Final ticket evidence missing')
+    return result.returncode, records
+
+
 def verify_archives(target, tag, runner):
     tool = str(runner / 'kitrove-release-xtask')
     for name in rehearsal.archive_names(target):
@@ -98,9 +124,14 @@ def sign(target, sha):
     cleaned = []
     captured = io.StringIO()
     prepared = False
+    require('KITROVE_APPLE_TICKET_DIAGNOSTIC' not in os.environ, 'Unexpected ticket diagnostic activation')
     try:
-        with contextlib.redirect_stdout(captured):
-            signing.prepare_release(cleanup_observer=lambda: cleaned.append(True))
+        os.environ['KITROVE_APPLE_TICKET_DIAGNOSTIC'] = '1'
+        try:
+            with contextlib.redirect_stdout(captured):
+                signing.prepare_release(cleanup_observer=lambda: cleaned.append(True))
+        finally:
+            os.environ.pop('KITROVE_APPLE_TICKET_DIAGNOSTIC', None)
         prepared = True
     except (ProcessCancelled, ProcessCleanupError):
         print('Diagnostic stopped: cancelled or process cleanup uncertain', flush=True)
@@ -113,9 +144,11 @@ def sign(target, sha):
     output = captured.getvalue().encode()
     require(len(output) <= 256 * 1024, 'Diagnostic output exceeded bound')
     receipts = safe_receipt_lines(output, source_commit=sha, target=target)
+    ticket_calls = [json.loads(line.split(' ', 1)[1]) for line in safe_ticket_lines(output, source=sha)]
     record = dict(schema_version=1, source=sha, target=target, published=False,
                   diagnostic_only=True, preparation_succeeded=prepared, cleanup_confirmed=True,
                   receipts=[json.loads(line.split(' ', 1)[1]) for line in receipts])
+    record['preparation_ticket_calls'] = ticket_calls
     categories = {value for _marker, value in signing.DMG_FAILURE_MARKERS} | {
         'manifest-directory', 'interaction-required', 'certificate-chain', 'security-internal',
         'identity-unavailable', 'keychain-item-unavailable', 'timestamp-service',
@@ -136,6 +169,10 @@ def sign(target, sha):
     evidence = Path('diagnostic-evidence')
     evidence.mkdir(mode=0o700)
     status = 0 if prepared else 1
+    if prepared and not (len(ticket_calls) == 2 and [v['operation'] for v in ticket_calls] == ['staple', 'validate']
+            and all(v['native_exit'] == 0 and v['output_bounded'] for v in ticket_calls)):
+        record['ticket_evidence_failure'] = 'missing-or-refused'
+        status = 1
     retained_identity = None
     try:
         leaf = f'kitrove-installer-{target}.dmg'
@@ -151,16 +188,19 @@ def sign(target, sha):
                              identity.st_mtime_ns, identity.st_ctime_ns)
         record['signature_exit'] = native_status(['/usr/bin/codesign', '--verify', '--strict', '-R',
             REQUIREMENT, str(image)])
-        record['ticket_exit'] = native_status(['/usr/bin/xcrun', 'stapler', 'validate', '-q', str(image)])
+        record['post_cleanup_ticket_call'] = post_cleanup_ticket(image)
+        record['ticket_exit'] = record['post_cleanup_ticket_call']['native_exit']
         record['image_unchanged'] = rehearsal.digest(image) == record['image_sha256']
         require(record['image_unchanged'], 'Read-only control changed image')
         if prepared:
-            verify_archives(target, os.environ['RELEASE_TAG'], runner)
-            require(native_status([str(runner / 'kitrove-release-xtask'), 'verify-installer-dmg',
-                str(Path('target/distrib') / f'kitrove-installer-{target}.tar.xz'), target,
-                os.environ['RELEASE_TAG'], 'dist-manifest.json', str(runner / 'kitrove-installer-dmg' / leaf)]) == 0,
-                'Final container refused')
             require(record['signature_exit'] == record['ticket_exit'] == 0, 'Diagnostic control refused')
+            verify_archives(target, os.environ['RELEASE_TAG'], runner)
+            code, calls = native_container_status([str(runner / 'kitrove-release-xtask'), 'verify-installer-dmg',
+                str(Path('target/distrib') / f'kitrove-installer-{target}.tar.xz'), target,
+                os.environ['RELEASE_TAG'], 'dist-manifest.json', str(runner / 'kitrove-installer-dmg' / leaf)], sha)
+            record['post_cleanup_container_exit'] = code
+            record['post_cleanup_container_ticket_calls'] = calls
+            require(code == 0, 'Final container refused')
     except ProcessCleanupError:
         # Do not upload any evidence after uncertain process ownership.
         print('Diagnostic refused: process cleanup not confirmed', flush=True)

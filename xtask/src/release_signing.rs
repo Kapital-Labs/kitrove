@@ -12,6 +12,8 @@ use kitrove_release_policy::native_signature::{
 };
 #[path = "release_signing/notary_receipt.rs"]
 mod notary_receipt;
+#[path = "release_signing/ticket_diagnostic.rs"]
+mod ticket_diagnostic;
 
 const APPLE_IDENTITY: &str = "Developer ID Application: Kapital Labs LLC (98RZ36ES7A)";
 
@@ -204,6 +206,12 @@ fn capture_signed_file(file: &Path) -> Result<super::RetainedFile, String> {
 // can include account configuration. Ticket tools retain only closed status data.
 pub(super) fn run(command: &mut Command, label: &str) -> Result<Output, String> {
     let ticket = matches!(label, "Apple ticket stapling" | "Apple ticket validation");
+    let diagnostic = if ticket {
+        ticket_diagnostic::context(|key| env::var(key).ok())?
+    } else {
+        None
+    };
+    let started = std::time::Instant::now();
     let output = command.output().map_err(|error| {
         let detail = if ticket {
             match error.kind() {
@@ -216,6 +224,12 @@ pub(super) fn run(command: &mut Command, label: &str) -> Result<Output, String> 
         };
         format!("cannot start {label}{detail}")
     })?;
+    if let Some(source) = diagnostic {
+        eprintln!(
+            "{}",
+            ticket_diagnostic::render(&source, label, &output, started.elapsed().as_millis())
+        );
+    }
     if !output.status.success() {
         let detail = if ticket {
             match output.status.code() {
@@ -308,9 +322,11 @@ pub(super) fn sign_apple_container(file: &Path, target: &str) -> Result<(), Stri
     signed.revalidate()?;
     // Stapling intentionally changes the image, so capture final bytes only afterward.
     run(
-        Command::new("/usr/bin/xcrun")
-            .args(["stapler", "staple"])
-            .arg(file),
+        &mut ticket_command(
+            "staple",
+            file,
+            env::var_os("KITROVE_APPLE_TICKET_DIAGNOSTIC").is_some(),
+        ),
         "Apple ticket stapling",
     )?;
     let mut stapled = super::read_bounded_archive(file, false)?;
@@ -320,12 +336,24 @@ pub(super) fn sign_apple_container(file: &Path, target: &str) -> Result<(), Stri
 
 pub(super) fn verify_apple_container(file: &Path) -> Result<(), String> {
     run(
-        Command::new("/usr/bin/xcrun")
-            .args(["stapler", "validate"])
-            .arg(file),
+        &mut ticket_command(
+            "validate",
+            file,
+            env::var_os("KITROVE_APPLE_TICKET_DIAGNOSTIC").is_some(),
+        ),
         "Apple ticket validation",
     )?;
     verify_apple_signature(file, false)
+}
+
+fn ticket_command(operation: &str, file: &Path, verbose: bool) -> Command {
+    let mut command = Command::new("/usr/bin/xcrun");
+    command.args(["stapler", operation]);
+    if verbose {
+        command.arg("-v");
+    }
+    command.arg(file);
+    command
 }
 
 pub(super) fn sign(target: &str, name: &str, bytes: &[u8]) -> Result<Option<Vec<u8>>, String> {
@@ -369,6 +397,21 @@ pub(super) fn sign(target: &str, name: &str, bytes: &[u8]) -> Result<Option<Vec<
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ticket_verbose_flag_precedes_exact_path_and_normal_arguments_are_unchanged() {
+        for operation in ["staple", "validate"] {
+            for verbose in [false, true] {
+                let command = ticket_command(operation, Path::new("/private/fixture.dmg"), verbose);
+                let mut expected = vec!["stapler", operation];
+                if verbose {
+                    expected.push("-v");
+                }
+                expected.push("/private/fixture.dmg");
+                assert_eq!(command.get_args().collect::<Vec<_>>(), expected);
+            }
+        }
+    }
 
     #[test]
     fn explicit_keychain_refuses_invalid_configuration_without_fallback() {
