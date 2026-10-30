@@ -1,5 +1,6 @@
 """Actual post-cleanup errors stay distinct from preparation; no provider calls."""
 import contextlib
+import ast
 import io
 import json
 import os
@@ -13,6 +14,18 @@ import apple_ticket_diagnostic as diagnostic
 
 
 class PostCleanupEvidence(unittest.TestCase):
+    def test_copy_fixtures_declare_posix_but_pure_verifier_stays_cross_platform(self):
+        tree = ast.parse(Path(__file__).read_text())
+        methods = {node.name: node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)}
+        for name in ('test_complete_success_requires_preparation_and_final_ticket_evidence',
+                     'test_actual_post_cleanup_ticket_error_is_retained_without_raw_text'):
+            guards = [d for d in methods[name].decorator_list if isinstance(d, ast.Call)
+                and ast.unparse(d.func) == 'unittest.skipUnless' and d.args
+                and ast.unparse(d.args[0]) == "os.name == 'posix'"]
+            self.assertEqual(len(guards), 1, 'POSIX descriptor fixture must declare its platform')
+        self.assertEqual(methods['test_final_container_check_forwards_its_actual_validation_record_without_signing'].decorator_list, [])
+
+    @unittest.skipUnless(os.name == 'posix', 'POSIX-only diagnostic')
     def test_complete_success_requires_preparation_and_final_ticket_evidence(self):
         for missing in (True, False):
             with self.subTest(missing=missing), tempfile.TemporaryDirectory() as temporary:
@@ -52,6 +65,7 @@ class PostCleanupEvidence(unittest.TestCase):
                 finally:
                     os.chdir(prior)
 
+    @unittest.skipUnless(os.name == 'posix', 'POSIX-only diagnostic')
     def test_actual_post_cleanup_ticket_error_is_retained_without_raw_text(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
