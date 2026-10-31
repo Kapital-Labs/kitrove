@@ -61,6 +61,13 @@ pub fn extract_application_release(
 
 pub const APPLICATION_RELEASE_MANIFEST_NAME: &str = "kitrove-release.json";
 
+/// Current publication selection, not the historical archive recognition catalog.
+pub const PUBLICATION_TARGETS: [&str; 3] = [
+    "aarch64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+];
+
 pub const BINARY_COMPANIONS: [&str; 9] = [
     "README.md",
     "CHANGELOG.md",
@@ -233,6 +240,19 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn publication_selection_matches_policy_without_erasing_historical_intel() {
+        let policy: serde_json::Value =
+            serde_json::from_str(include_str!("../../../release/release-policy.json")).unwrap();
+        assert_eq!(
+            policy["publication_targets"],
+            serde_json::json!(super::PUBLICATION_TARGETS)
+        );
+        assert!(!super::PUBLICATION_TARGETS.contains(&"x86_64-apple-darwin"));
+        assert!(application_archive_for_target("x86_64-apple-darwin").is_ok());
+        assert!(super::installer_container_for_target("x86_64-apple-darwin").is_ok());
     }
 
     #[test]

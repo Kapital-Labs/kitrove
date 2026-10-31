@@ -190,7 +190,7 @@ jobs:
         run: |
           # Tool architecture follows the host; product architecture stays target-bound.
           case "$RUNNER_OS:$RUNNER_ARCH:$DIST_TARGET" in
-            macOS:ARM64:aarch64-apple-darwin|macOS:ARM64:x86_64-apple-darwin)
+            macOS:ARM64:aarch64-apple-darwin)
               dist_host="aarch64-apple-darwin"
               digest="aa343b2ff78ec2981f17a65140250c5ad6062c74072163f68c5c2686d94763a7"
               ;;
@@ -261,7 +261,7 @@ jobs:
             exit 1
           fi
           case "$DIST_TARGET" in
-            aarch64-apple-darwin|x86_64-apple-darwin|x86_64-unknown-linux-gnu)
+            aarch64-apple-darwin|x86_64-unknown-linux-gnu)
               archive="target/distrib/kitrove-cli-$DIST_TARGET.tar.xz"
               ;;
             x86_64-pc-windows-msvc)
@@ -433,7 +433,6 @@ jobs:
 
           for target in \
             aarch64-apple-darwin \
-            x86_64-apple-darwin \
             x86_64-unknown-linux-gnu \
             x86_64-pc-windows-msvc
           do
@@ -453,7 +452,6 @@ jobs:
             target/distrib
           for target in \
             aarch64-apple-darwin \
-            x86_64-apple-darwin \
             x86_64-unknown-linux-gnu \
             x86_64-pc-windows-msvc
           do
@@ -544,7 +542,6 @@ jobs:
         run: |
           for target in \
             aarch64-apple-darwin \
-            x86_64-apple-darwin \
             x86_64-unknown-linux-gnu \
             x86_64-pc-windows-msvc
           do
@@ -563,7 +560,6 @@ jobs:
             artifacts
           for target in \
             aarch64-apple-darwin \
-            x86_64-apple-darwin \
             x86_64-unknown-linux-gnu \
             x86_64-pc-windows-msvc
           do

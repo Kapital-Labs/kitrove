@@ -4,6 +4,29 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.5.4
+
+Fresh-install evaluation preview only. macOS binaries are Apple Silicon only;
+x86-64 Linux and Windows remain selected. Historical Intel archives remain
+verifiable, but no new Intel preview is built, signed or published. No supported
+in-place upgrade, rollback predecessor, migration, stable-support or package-channel
+update is included. All earlier RC5 tags and failed attempts remain immutable.
+
+### Fixed
+
+- Preserve closed native-provider diagnostics and use bounded, typed prerequisite
+  transport retries without changing Windows tool pins or verification.
+- Keep read-only Apple validation retries limited to confirmed connection loss,
+  the same retained image and original deadline. Signing, notarization and ticket
+  attachment remain single-pass; native signature and full verification still
+  must succeed. Uncertain ownership refuses progress and preserves private state.
+- Correct diagnostic signature requirements and isolated CI process fixtures.
+
+The fresh nonpublishing Apple Silicon diagnostic passed all native phases on the
+preceding reviewed source, without a connection-loss error or retry. It is not
+RC5.4 artifact acceptance or proof that intermittent service faults are eliminated.
+Includes the reviewed RC5-line features, recovery and notice fixes below.
+
 ## 0.1.0-rc.5.3
 
 Fresh-install evaluation preview only, with no rollback-compatible predecessor.

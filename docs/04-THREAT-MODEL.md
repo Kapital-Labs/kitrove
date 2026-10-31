@@ -166,11 +166,15 @@ from this copy-only diagnostic. Missing/expired input refuses without refresh.
 See ADR-0059; this explicit token-read grant is not an artifact-only server grant.
 
 Apple artifact CPU targets are independent of the reviewed macOS build host CPU.
-Both Apple targets use separate single-target jobs on Apple Silicon; the pinned
-build tool must match the host, while product/archive verification must match the
-artifact target. Cross-compilation grants no product execution, firewall change,
-signature bypass, retry or publication authority. All native macOS verification
-and final source/target-bound attestations remain required. See ADR-0065.
+Current publication selects only Apple Silicon macOS, alongside x86-64 Linux and
+Windows; Intel signing refuses before credential use. Historical Intel archive
+recognition remains separate from this closed publication selection. Old releases
+remain verifiable under their exact reviewed source/policy; missing current
+artifacts or extra Intel artifacts cannot satisfy complete publication inventory.
+The pinned build tool must match the host, while product/archive verification
+matches the artifact target. Cross-compilation grants no execution, firewall
+change, signature bypass, retry or publication authority. All native verification
+and final source/target-bound attestations remain required. See ADR-0065/0067.
 
 Release archives require reviewed third-party notices, complete locked inventory
 and license text as exact named companions before signing. Reproduce checked-in

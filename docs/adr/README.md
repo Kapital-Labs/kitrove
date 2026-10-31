@@ -91,7 +91,7 @@ ADRs document foundational decisions and their consequences. Accepted ADRs are a
 | [0064](0064-instruction-insertion-respects-region-ceiling.md) | Instruction insertion respects the region ceiling | Accepted for implementation; validation pending | NS-05, NS-09, NS-10 |
 | [0065](0065-apple-release-host-is-separate-from-artifact-target.md) | Apple release host is separate from artifact target | Accepted for implementation; validation pending | NS-07, NS-09 |
 | [0066](0066-release-archives-carry-reviewed-third-party-materials.md) | Release archives carry reviewed third-party materials | Accepted for implementation; validation pending | NS-07, NS-09 |
-
+| [0067](0067-upcoming-mac-previews-are-apple-silicon-only.md) | Upcoming Mac previews are Apple Silicon only | Accepted for RC5.4 implementation; validation pending | NS-07, NS-09, NS-10 |
 | [0068](0068-private-native-inspection-mechanics.md) | Private native-inspection mechanics are shared without a public runner | Accepted for prerequisite implementation; validation pending | NS-07, NS-09 |
 | [0069](0069-readonly-ticket-process-ownership.md) | Read-only ticket validation has a closed owned lifetime | Accepted for prerequisite implementation; validation pending | NS-07, NS-09 |
 | [0070](0070-readonly-ticket-connection-loss-recovery.md) | Read-only ticket connection-loss recovery stays evidence-bound | Accepted for source repair; validation pending | NS-07, NS-09 |

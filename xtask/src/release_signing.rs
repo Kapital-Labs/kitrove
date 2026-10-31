@@ -85,7 +85,7 @@ fn select_keychain<'a>(command: &'a mut Command, keychain: Option<&Path>) -> &'a
 
 fn platform(target: &str, host: &str) -> Result<Platform, String> {
     match (target, host) {
-        ("aarch64-apple-darwin" | "x86_64-apple-darwin", "macos") => Ok(Platform::Apple),
+        ("aarch64-apple-darwin", "macos") => Ok(Platform::Apple),
         ("x86_64-pc-windows-msvc", "windows") => Ok(Platform::Windows),
         ("x86_64-unknown-linux-gnu", "linux") => Ok(Platform::Linux),
         _ => Err(
@@ -512,7 +512,6 @@ mod tests {
     fn target_requires_native_host_and_closed_catalog() {
         for (target, host, expected) in [
             ("aarch64-apple-darwin", "macos", Platform::Apple),
-            ("x86_64-apple-darwin", "macos", Platform::Apple),
             ("x86_64-pc-windows-msvc", "windows", Platform::Windows),
             ("x86_64-unknown-linux-gnu", "linux", Platform::Linux),
         ] {
@@ -520,6 +519,7 @@ mod tests {
             assert!(platform(target, "unsupported").is_err());
         }
         assert!(platform("aarch64-unknown-linux-gnu", "linux").is_err());
+        assert!(platform("x86_64-apple-darwin", "macos").is_err());
         assert!(platform("x86_64-pc-windows-msvc", "macos").is_err());
     }
 

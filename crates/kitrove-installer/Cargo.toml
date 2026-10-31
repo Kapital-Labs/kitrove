@@ -18,7 +18,6 @@ dist = true
 
 [package.metadata.dist.binaries]
 aarch64-apple-darwin = ["kitrove-installer"]
-x86_64-apple-darwin = ["kitrove-installer"]
 x86_64-unknown-linux-gnu = ["kitrove-installer"]
 x86_64-pc-windows-msvc = ["kitrove-installer"]
 

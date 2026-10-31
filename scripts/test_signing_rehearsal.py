@@ -226,13 +226,14 @@ class SigningRehearsalTests(unittest.TestCase):
         self.assertEqual(positions, sorted(positions))
         self.assertIn("if: always() && runner.os == 'Windows' && steps.windows-login.outcome != 'skipped'", sign)
         release = (ROOT / '.github/workflows/release.yml').read_text()
-        # Production builds both Apple artifact CPUs on the reviewed ARM host;
+        # Current production selects only Apple Silicon on the reviewed ARM host;
         # historical native-Intel rehearsal keeps its own pinned tool unchanged.
         for host in ('aarch64-apple-darwin', 'x86_64-pc-windows-msvc'):
             self.assertIn(rehearsal.DIST_DIGESTS[host], release)
         self.assertNotIn(rehearsal.DIST_DIGESTS['x86_64-apple-darwin'], release)
         self.assertIn('case "$RUNNER_OS:$RUNNER_ARCH:$DIST_TARGET" in', release)
-        self.assertIn('macOS:ARM64:aarch64-apple-darwin|macOS:ARM64:x86_64-apple-darwin)', release)
+        self.assertIn('macOS:ARM64:aarch64-apple-darwin)', release)
+        self.assertNotIn('x86_64-apple-darwin', release)
         for line in (driver + workflow).splitlines():
             if 'uses:' in line and './.github/' not in line:
                 self.assertRegex(line, r'uses: [\w/-]+@[0-9a-f]{40}$')
