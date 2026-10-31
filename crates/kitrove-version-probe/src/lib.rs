@@ -1212,14 +1212,16 @@ mod tests {
             probe_pi_version(&binary).unwrap();
             return;
         }
-        let status = Command::new(env::current_exe().unwrap())
-            .arg("tests::probe_does_not_expose_ambient_secret_environment")
-            .arg("--exact")
-            .arg("--nocapture")
-            .env("KITROVE_ENV_CANARY_HELPER", "1")
-            .env("KITROVE_AMBIENT_SECRET", "must-not-cross-boundary")
-            .status()
-            .unwrap();
+        let mut child = unix_process::spawn_test_child(
+            Command::new(env::current_exe().unwrap())
+                .arg("tests::probe_does_not_expose_ambient_secret_environment")
+                .arg("--exact")
+                .arg("--nocapture")
+                .env("KITROVE_ENV_CANARY_HELPER", "1")
+                .env("KITROVE_AMBIENT_SECRET", "must-not-cross-boundary"),
+        )
+        .unwrap();
+        let status = child.wait().unwrap();
         assert!(status.success());
     }
 }
