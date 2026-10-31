@@ -11,19 +11,19 @@ mod release_archive;
 mod release_staging;
 
 const REVIEWED_CARGO_LOCK_BLAKE3: &str =
-    "f07327abbfe36a3d0496ea89d03fa31cdfe875c702be28ab99d83f38286ed7de";
+    "cda0adf79c2599aa2ecfb9cab9d3be06bab077308bc38a3afc895e1318ec95b5";
 const REVIEWED_SIGSTORE_REKOR_TREE_BLAKE3: &str =
     "898ca8f9c61bd79c3ef16bcc22650249eb4f32872540d281660f07b1c828c355";
 const REVIEWED_SIGSTORE_TSA_TREE_BLAKE3: &str =
     "c48b716039e6942cf81eba8cf3558d7fe6d08facf5353ca5de99b03072cfc8db";
 const REVIEWED_RELEASE_WORKFLOW_BLAKE3: &str =
-    "ea1cd42fc7f17bc12d287352ca3f5283a5e9973c59fedc32ea48b021a13531e4";
+    "3b72a266765e11c9639b4d4a7b695743060d34efc0cb9d265f4d211d4d4fba24";
 const REVIEWED_DIST_CONFIG_BLAKE3: &str =
-    "7d4f318b292df1f49e8c2dff2fae903acba9682916ed752fc4eab369075ce5d0";
+    "0f5c695bb633db7d1fe4bdd8f85aba21262069181635445b0b79e35d80a3b003";
 const REVIEWED_RELEASE_POLICY_BLAKE3: &str =
-    "1d23d1d844d794018625dfc7c19a8e4077b3aec057b1e267318397d55e311b34";
+    "2c09f172925dbfb82bb6735730890a660a550cdf58d68d380348abd86ba4fc26";
 const REVIEWED_APPLICATION_COMPATIBILITY_BLAKE3: &str =
-    "daa6c2df94ab7ca500eb872a94e0a45a49b94347c1700a2cc29ca8ec917274c0";
+    "239ac4324e7dee1d9c9d6893355af86739f98a606358020472c7e471d9840fda";
 const RELEASE_ACTION_PINS: [(&str, &str); 5] = [
     ("azure/login", "8216e11d8cd9b42fe925c852af8e76311ff067ac"),
     ("actions/attest", "1e69f48acb82d1966a394da916b4c1698aa569d6"),
@@ -559,10 +559,7 @@ fn check_dist_configuration(source: &str) -> Result<(), String> {
     if dist.get("ci").and_then(toml::Value::as_str) != Some("github") {
         return Err("dist-workspace.toml [dist].ci must equal \"github\"".to_owned());
     }
-    let release_targets = kitrove_release_policy::APPLICATION_ARCHIVES
-        .iter()
-        .map(|spec| spec.target())
-        .collect::<Vec<_>>();
+    let release_targets = kitrove_release_policy::PUBLICATION_TARGETS;
     for (key, expected) in [
         ("installers", &["shell", "powershell"][..]),
         ("packages", &["kitrove-cli", "kitrove-installer"][..]),
@@ -604,12 +601,10 @@ fn check_dist_configuration(source: &str) -> Result<(), String> {
         .and_then(toml::Value::as_table)
         .ok_or_else(|| "dist-workspace.toml is missing [dist.github-custom-runners]".to_owned())?;
     if dist.get("merge-tasks").and_then(toml::Value::as_bool) != Some(false)
-        || custom_runners.len() != 2
-        || ["aarch64-apple-darwin", "x86_64-apple-darwin"]
-            .iter()
-            .any(|target| {
-                custom_runners.get(*target).and_then(toml::Value::as_str) != Some("macos-15")
-            })
+        || custom_runners.len() != 1
+        || ["aarch64-apple-darwin"].iter().any(|target| {
+            custom_runners.get(*target).and_then(toml::Value::as_str) != Some("macos-15")
+        })
     {
         return Err(
             "dist-workspace.toml must bind separate Apple target jobs to macos-15".to_owned(),
@@ -788,11 +783,11 @@ fn check_dist_package_configuration(
         .get("binaries")
         .and_then(toml::Value::as_table)
         .ok_or_else(|| format!("{location} must select its exact product binary"))?;
-    let targets = kitrove_release_policy::APPLICATION_ARCHIVES;
+    let targets = kitrove_release_policy::PUBLICATION_TARGETS;
     if binaries.len() != targets.len()
-        || targets.iter().any(|spec| {
+        || targets.iter().any(|target| {
             binaries
-                .get(spec.target())
+                .get(*target)
                 .and_then(toml::Value::as_array)
                 .is_none_or(|values| values.len() != 1 || values[0].as_str() != Some(binary))
         })
@@ -1600,17 +1595,16 @@ mod tests {
         let document = valid.parse::<toml::Table>().unwrap();
         let dist = document["dist"].as_table().unwrap();
         assert_eq!(dist["merge-tasks"].as_bool(), Some(false));
-        for target in ["aarch64-apple-darwin", "x86_64-apple-darwin"] {
-            assert_eq!(
-                dist["github-custom-runners"][target].as_str(),
-                Some("macos-15")
-            );
-            let invalid = valid.replace(
-                &format!("{target} = \"macos-15\""),
-                &format!("{target} = \"macos-15-intel\""),
-            );
-            assert!(check_dist_configuration(&invalid).is_err());
-        }
+        let target = "aarch64-apple-darwin";
+        assert_eq!(
+            dist["github-custom-runners"][target].as_str(),
+            Some("macos-15")
+        );
+        let invalid = valid.replace(
+            &format!("{target} = \"macos-15\""),
+            &format!("{target} = \"macos-15-intel\""),
+        );
+        assert!(check_dist_configuration(&invalid).is_err());
         assert!(
             check_dist_configuration(&valid.replace("merge-tasks = false", "merge-tasks = true"))
                 .is_err()
@@ -1621,6 +1615,34 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn actual_publication_manifests_require_the_exact_current_targets() {
+        check_dist_configuration(include_str!("../../dist-workspace.toml")).unwrap();
+        for (source, binary) in [
+            (
+                include_str!("../../crates/kitrove-cli/Cargo.toml"),
+                "kitrove",
+            ),
+            (
+                include_str!("../../crates/kitrove-installer/Cargo.toml"),
+                "kitrove-installer",
+            ),
+        ] {
+            check_dist_package_configuration(source, true, "actual product manifest").unwrap();
+            let widened = source.replacen(
+                "[package.metadata.dist.binaries]\n",
+                &format!(
+                    "[package.metadata.dist.binaries]\nx86_64-apple-darwin = [\"{binary}\"]\n"
+                ),
+                1,
+            );
+            assert!(
+                check_dist_package_configuration(&widened, true, "widened product manifest")
+                    .is_err()
+            );
+        }
     }
 
     #[test]
@@ -1709,7 +1731,6 @@ name = "kitrove-cli"
 dist = true
 [package.metadata.dist.binaries]
 aarch64-apple-darwin = ["kitrove"]
-x86_64-apple-darwin = ["kitrove"]
 x86_64-unknown-linux-gnu = ["kitrove"]
 x86_64-pc-windows-msvc = ["kitrove"]
 "#;

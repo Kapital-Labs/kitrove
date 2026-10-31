@@ -35,6 +35,9 @@ RELEASE_TARGETS = frozenset({
     "aarch64-apple-darwin", "x86_64-apple-darwin",
     "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc",
 })
+PUBLICATION_TARGETS = (
+    "aarch64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc",
+)
 
 WINDOWS_RESERVED_STEMS = frozenset(
     {"CON", "PRN", "AUX", "NUL", "CLOCK$", "CONIN$", "CONOUT$"}
@@ -65,12 +68,14 @@ def parse_application_archive_policy(
             not isinstance(policy, dict)
             or set(policy) != {
                 "schema", "application_archives", "installer_archives", "installer_containers",
-                "binary_companions", "release_manifest", "limits"
+                "binary_companions", "release_manifest", "limits", "publication_targets"
             }
             or type(policy["schema"]) is not int
             or policy["schema"] != 1
         ):
             raise ValueError("unsupported release policy schema")
+        if policy["publication_targets"] != list(PUBLICATION_TARGETS):
+            raise ValueError("release policy requires the exact current publication targets")
         companions = policy["binary_companions"]
         if (
             not isinstance(companions, list)
@@ -211,8 +216,16 @@ MAX_ENTRY_BYTES = RELEASE_LIMITS["max_entry_bytes"]
 MAX_EXPANDED_BYTES = RELEASE_LIMITS["max_expanded_bytes"]
 MAX_PATH_BYTES = RELEASE_LIMITS["max_path_bytes"]
 MAX_COMPONENT_BYTES = RELEASE_LIMITS["max_component_bytes"]
-EXPECTED_RELEASE_ARCHIVES = frozenset(EXPECTED_BINARY_ARCHIVES) | {"source.tar.gz"}
-EXPECTED_RELEASE_ARTIFACTS = EXPECTED_RELEASE_ARCHIVES | EXPECTED_INSTALLER_CONTAINERS.keys()
+PUBLICATION_BINARY_ARCHIVES = {
+    name: spec for name, spec in EXPECTED_BINARY_ARCHIVES.items()
+    if EXPECTED_BINARY_TARGETS[name] in PUBLICATION_TARGETS
+}
+PUBLICATION_INSTALLER_CONTAINERS = {
+    name: target for name, target in EXPECTED_INSTALLER_CONTAINERS.items()
+    if target in PUBLICATION_TARGETS
+}
+EXPECTED_RELEASE_ARCHIVES = frozenset(PUBLICATION_BINARY_ARCHIVES) | {"source.tar.gz"}
+EXPECTED_RELEASE_ARTIFACTS = EXPECTED_RELEASE_ARCHIVES | PUBLICATION_INSTALLER_CONTAINERS.keys()
 GENERATED_INSTALLERS = frozenset(
     f"{package}-installer.{extension}"
     for package, _ in RELEASE_FAMILIES.values()
@@ -1151,7 +1164,7 @@ def release_file_digest(path: Path, destination: Path | None = None) -> str:
 
 
 def complete_release_checksums(source: Path, destination: Path) -> None:
-    """Validate cargo-dist's checksum authority before adding the two native containers."""
+    """Validate cargo-dist's checksum authority before adding selected native containers."""
     artifacts = discover_archives([source])
     digests: dict[str, str] = {}
     for path in artifacts:
@@ -1225,7 +1238,7 @@ def unique_installer_assignment(body: str, variable: str) -> str:
 def validate_staged_installers(directory: Path, digests: dict[str, str]) -> None:
     for package, binary in RELEASE_FAMILIES.values():
         archives = {
-            name for name, (_, executable) in EXPECTED_BINARY_ARCHIVES.items()
+            name for name, (_, executable) in PUBLICATION_BINARY_ARCHIVES.items()
             if executable in {binary, f"{binary}.exe"}
         }
         validate_family_installers(directory, digests, package, archives)

@@ -265,7 +265,7 @@ def prepare_release(*, cleanup_observer=None):
     container_mode = os.environ.get('KITROVE_PREPARE_DMG', '')
     require(container_mode in ('', '1'), 'Invalid container preparation mode')
     target = os.environ.get('DIST_TARGET', '')
-    require(target in ('aarch64-apple-darwin', 'x86_64-apple-darwin'), 'Unsupported Apple target')
+    require(target == 'aarch64-apple-darwin', 'Unsupported Apple target')
     source = os.environ.get('GITHUB_SHA', '')
     require(valid_source(source), 'Invalid hosted source context')
     tag = os.environ.get('RELEASE_TAG', '')

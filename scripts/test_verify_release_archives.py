@@ -150,7 +150,7 @@ def corrupt_zip_local_name(path: Path, name: str) -> None:
 
 
 def write_release_directory(root: Path) -> None:
-    for name, (stem, binary) in verifier.EXPECTED_BINARY_ARCHIVES.items():
+    for name, (stem, binary) in verifier.PUBLICATION_BINARY_ARCHIVES.items():
         path = root / name
         executable = b"binary"
         files = COMPANIONS | {
@@ -169,7 +169,7 @@ def write_release_directory(root: Path) -> None:
         {"README.md": b"source"},
         root_name="kitrove-installer-1.2.3",
     )
-    for name in verifier.EXPECTED_INSTALLER_CONTAINERS:
+    for name in verifier.PUBLICATION_INSTALLER_CONTAINERS:
         (root / name).write_bytes(b"synthetic opaque container; not native signing evidence")
     digests = {
         name: hashlib.sha256((root / name).read_bytes()).hexdigest()
@@ -192,7 +192,7 @@ def write_release_directory(root: Path) -> None:
     ):
         package = name.rsplit("-installer.", 1)[0]
         family_archives = {
-            archive for archive in verifier.EXPECTED_BINARY_ARCHIVES
+            archive for archive in verifier.PUBLICATION_BINARY_ARCHIVES
             if archive.startswith(f"{package}-")
         }
         if name.endswith(".sh"):
@@ -418,7 +418,8 @@ class ReleaseArchiveVerifierTests(unittest.TestCase):
         source = (Path(__file__).resolve().parents[1] / "release/release-policy.json").read_text()
         policy = json.loads(source)
         for entry in policy["installer_containers"]:
-            self.assertIn(entry["image"], verifier.EXPECTED_RELEASE_FILES)
+            self.assertEqual(entry["image"] in verifier.EXPECTED_RELEASE_FILES,
+                             entry["target"] in verifier.PUBLICATION_TARGETS)
             self.assertNotIn(entry["image"], verifier.EXPECTED_BINARY_ARCHIVES)
         for mutation in (
             {"target": "x86_64-unknown-linux-gnu"}, {"target": []},

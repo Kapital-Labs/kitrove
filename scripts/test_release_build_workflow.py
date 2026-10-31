@@ -45,7 +45,7 @@ class ReleaseBuildWorkflowTests(unittest.TestCase):
         linux = 'x86_64-unknown-linux-gnu'
         cases = [
             ('macOS', 'ARM64', arm, arm),
-            ('macOS', 'ARM64', intel, arm),
+            ('macOS', 'ARM64', intel, None),
             ('Linux', 'X64', linux, linux),
             ('macOS', 'X64', intel, None),
             ('macOS', 'ARM64', linux, None),
