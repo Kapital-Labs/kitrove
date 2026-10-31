@@ -4,6 +4,28 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.5.5
+
+Fresh-install evaluation preview only: Apple Silicon macOS, x86-64 Linux and
+Windows. No Intel Mac build, supported in-place upgrade, rollback predecessor,
+migration, stable-support or package-channel update is included. All earlier
+RC5 tags and failed attempts remain immutable; none produced a public release.
+
+### Fixed
+
+- Bind the final production Mac image verifier to its exact release source, as
+  the preparation verifier already does. Existing validation-only recovery still
+  requires positively classified connection-loss evidence, unchanged bytes and
+  the original deadline. Unknown failures still refuse publication.
+- Correct isolated CI fixture launch sequencing without changing production
+  process ownership, cleanup, timeout or safety checks.
+
+RC5.4 completed Apple signing, notarization, ticket attachment and initial native
+validation, then failed its later independent image validation before publication.
+The missing source binding is repaired; the underlying native error remains
+unknown. Source checks and earlier diagnostics are not RC5.5 artifact acceptance
+or proof that intermittent provider failures are eliminated.
+
 ## 0.1.0-rc.5.4
 
 Fresh-install evaluation preview only. macOS binaries are Apple Silicon only;
