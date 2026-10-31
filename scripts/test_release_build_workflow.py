@@ -188,6 +188,64 @@ class ReleaseBuildWorkflowTests(unittest.TestCase):
                 f'  {following}:\n', 1)[0]
             self.assertIn('pattern: artifacts-*', section)
 
+    @unittest.skipUnless(os.name == 'posix', 'executes the explicit Bash verification body')
+    def test_later_apple_image_gate_receives_source_from_its_own_workflow_step(self):
+        step = self.local.split('      - id: verified-local\n', 1)[1].split(
+            '      - name: Attest the exact application archive', 1)[0]
+        header, body = step.split('        run: |\n', 1)
+        script = textwrap.dedent(body)
+        source, target = 'a' * 40, 'aarch64-apple-darwin'
+        expressions = {'${{ github.sha }}': source, '${{ matrix.targets[0] }}': target}
+        # Resolve the real step's env, not the private preparation child's env.
+        # Removing its source field must reproduce the missed release boundary.
+        step_env = {}
+        for line in header.split('        env:\n', 1)[1].splitlines():
+            key, expression = line.strip().split(': ', 1)
+            self.assertIn(expression, expressions)
+            step_env[key] = expressions[expression]
+        for key, value in [('path', 'cli.tar.xz'), ('installer_path', 'installer.tar.xz')]:
+            script = script.replace('${{ steps.application-archive.outputs.' + key + ' }}', value)
+        # No signer/native tools: archive/native verifier boundaries are stand-ins.
+        # The actual workflow performs its staging/copies/output writes unchanged.
+        stub = '''cargo() {
+          if [[ "$2" == "create-release-staging" ]]; then
+            mkdir verified-local-artifacts
+          elif [[ "$2" == "verify-installer-dmg" ]]; then
+            printf '%s\\n' "${KITROVE_NOTARY_SOURCE_COMMIT-unset}" >> image-calls
+            [[ "${KITROVE_NOTARY_SOURCE_COMMIT-unset}" == "$GITHUB_SHA" ]] || return 73
+            return "$VERIFIER_RESULT"
+          fi
+        }
+        python3() { [[ "$1" == "scripts/verify_release_archives.py" ]]; }
+        '''
+        for verifier_result in (0, 65, 68):
+            with self.subTest(verifier_result=verifier_result), \
+                    tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                runner = root / 'runner'
+                (runner / 'kitrove-installer-dmg').mkdir(parents=True)
+                image = 'kitrove-installer-' + target + '.dmg'
+                for name in ('cli.tar.xz', 'installer.tar.xz', 'cli.tar.xz.sha256',
+                             'installer.tar.xz.sha256', 'dist-manifest.json'):
+                    (root / name).write_text('synthetic verifier input')
+                for name in (image, image + '.sha256'):
+                    (runner / 'kitrove-installer-dmg' / name).write_text('synthetic image input')
+                # Deliberately do not inherit shell/profile/signing credentials.
+                env = dict(PATH=os.environ['PATH'], RUNNER_OS='macOS', RUNNER_TEMP=str(runner),
+                    GITHUB_ACTIONS='true', GITHUB_REPOSITORY='Kapital-Labs/kitrove', GITHUB_SHA=source,
+                    RELEASE_TAG='v0.1.0-rc.5.4', GITHUB_OUTPUT='outputs',
+                    BUILD_MANIFEST_NAME='verified-local-artifacts/arm-dist-manifest.json',
+                    VERIFIER_RESULT=str(verifier_result), **step_env)
+                result = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', stub + script],
+                    cwd=root, env=env, capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, verifier_result,
+                    'Later workflow gate lacks its exact source binding: ' + result.stderr)
+                self.assertEqual((root / 'image-calls').read_text().splitlines(), [source])
+                outputs = (root / 'outputs').read_text()
+                self.assertEqual('container_staged_path=' in outputs, verifier_result == 0)
+                self.assertEqual((root / 'verified-local-artifacts' / image).read_bytes(),
+                                 (runner / 'kitrove-installer-dmg' / image).read_bytes())
+
     @unittest.skipUnless(os.name == 'posix', 'executes the explicit Bash workflow body')
     def test_build_passes_tag_and_stops_before_success_on_failure(self):
         step = self.local.split('      - name: Build artifacts\n', 1)[1].split(

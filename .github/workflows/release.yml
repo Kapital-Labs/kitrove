@@ -326,6 +326,7 @@ jobs:
         shell: bash
         env:
           DIST_TARGET: ${{ matrix.targets[0] }}
+          KITROVE_NOTARY_SOURCE_COMMIT: ${{ github.sha }}
         run: |
           cargo xtask create-release-staging
           for archive in \

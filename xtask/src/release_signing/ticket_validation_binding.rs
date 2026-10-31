@@ -80,6 +80,33 @@ mod tests {
     }
 
     #[test]
+    fn later_release_workflow_gate_selects_the_real_source_bound_verifier() {
+        let workflow = include_str!("../../../.github/workflows/release.yml");
+        let step = workflow
+            .split("      - id: verified-local\n")
+            .nth(1)
+            .unwrap()
+            .split("        run: |\n")
+            .next()
+            .unwrap();
+        let source = "a".repeat(40);
+        let mut env = BTreeMap::from([
+            ("DIST_TARGET", "aarch64-apple-darwin".to_owned()),
+            ("GITHUB_ACTIONS", "true".to_owned()),
+            ("GITHUB_SHA", source.clone()),
+            ("GITHUB_REPOSITORY", "Kapital-Labs/kitrove".to_owned()),
+        ]);
+        if let Some(expression) = step
+            .lines()
+            .find_map(|line| line.trim().strip_prefix("KITROVE_NOTARY_SOURCE_COMMIT: "))
+        {
+            assert_eq!(expression, "${{ github.sha }}");
+            env.insert("KITROVE_NOTARY_SOURCE_COMMIT", source.clone());
+        }
+        assert_eq!(bound_source(|key| env.get(key).cloned()), Ok(Some(source)));
+    }
+
+    #[test]
     fn malformed_or_ambiguous_source_refuses_without_a_native_request() {
         for value in [
             "",
