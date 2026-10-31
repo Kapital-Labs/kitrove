@@ -12,17 +12,19 @@ pub(crate) fn write_script(root: &Path, name: &str, body: &str) {
     assert!(body.len() <= 16 * 1024);
     // Only the isolated child opens the executable for writing. Reaping it
     // closes that writer before any real probe, including under parallel spawn.
-    let status = Command::new(std::env::current_exe().unwrap())
-        .args(["--exact", "probe_fixture::writer_child", "--ignored"])
-        .env_clear()
-        .env("KITROVE_LIBRARY_FIXTURE_ROOT", root)
-        .env("KITROVE_LIBRARY_FIXTURE_NAME", name)
-        .env("KITROVE_LIBRARY_FIXTURE_BODY", body)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .unwrap();
+    let mut child = crate::unix_process::spawn_test_child(
+        Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "probe_fixture::writer_child", "--ignored"])
+            .env_clear()
+            .env("KITROVE_LIBRARY_FIXTURE_ROOT", root)
+            .env("KITROVE_LIBRARY_FIXTURE_NAME", name)
+            .env("KITROVE_LIBRARY_FIXTURE_BODY", body)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null()),
+    )
+    .unwrap();
+    let status = child.wait().unwrap();
     assert!(
         status.success(),
         "isolated library fixture writer failed: {status}"

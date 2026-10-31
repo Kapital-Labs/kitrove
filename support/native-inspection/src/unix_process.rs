@@ -209,11 +209,123 @@ impl ProbeProcess {
     }
 }
 
+// Test helpers must obey the same cooperative launch contract as native pipes.
+// Waiting remains the caller's responsibility, outside this short spawn scope.
+#[cfg(test)]
+pub(super) fn spawn_test_child(command: &mut std::process::Command) -> std::io::Result<Child> {
+    #[cfg(target_os = "macos")]
+    {
+        spawn_test_child_with_budget(command, CLEANUP_TIMEOUT)
+    }
+    #[cfg(not(target_os = "macos"))]
+    command.spawn()
+}
+
+#[cfg(all(test, target_os = "macos"))]
+fn spawn_test_child_with_budget(
+    command: &mut std::process::Command,
+    budget: Duration,
+) -> std::io::Result<Child> {
+    let _launch = kitrove_macos_process::acquire_launch_guard(budget)
+        .map_err(|_| std::io::Error::other("test fixture launch gate unavailable"))?;
+    command.spawn()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::os::unix::process::CommandExt as _;
     use std::process::{Command, Stdio};
+
+    #[cfg(target_os = "macos")]
+    fn reap_fixture_child(mut child: Child) {
+        let pid = rustix::process::Pid::from_raw(i32::try_from(child.id()).unwrap()).unwrap();
+        let killed = child.kill();
+        let reaped = child.wait();
+        killed.unwrap();
+        assert!(!reaped.unwrap().success());
+        assert_eq!(
+            rustix::process::waitpid(Some(pid), rustix::process::WaitOptions::NOHANG).unwrap_err(),
+            rustix::io::Errno::CHILD
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn test_fixture_spawn_respects_mac_launch_gate() {
+        use rustix::fs::{OFlags, fcntl_getfl, fcntl_setfl};
+        if std::env::var_os("KITROVE_TEST_FIXTURE_LAUNCH_GATE_CHILD").is_none() {
+            // This intentionally creates a non-CLOEXEC writer. Isolate it from
+            // unrelated launches in the parallel test process, including callers
+            // outside the standalone consumer's cooperative launch contract.
+            let module = module_path!().split_once("::").unwrap().1;
+            let name = format!("{module}::test_fixture_spawn_respects_mac_launch_gate");
+            let mut child = spawn_test_child(
+                Command::new(std::env::current_exe().unwrap())
+                    .args(["--exact", &name, "--nocapture"])
+                    .env_clear()
+                    .env("KITROVE_TEST_FIXTURE_LAUNCH_GATE_CHILD", "1"),
+            )
+            .unwrap();
+            assert!(child.wait().unwrap().success());
+            return;
+        }
+        let gate = kitrove_macos_process::acquire_launch_guard(Duration::from_secs(1)).unwrap();
+        // Force the exact temporary non-CLOEXEC pipe window without a timing race.
+        let (read, write) = rustix::pipe::pipe().unwrap();
+        let flags = fcntl_getfl(&read).unwrap();
+        fcntl_setfl(&read, flags | OFlags::NONBLOCK).unwrap();
+        let mut command = Command::new("/bin/sleep");
+        command
+            .arg("30")
+            .env_clear()
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        let attempted = spawn_test_child_with_budget(&mut command, Duration::from_millis(20));
+        drop(write);
+        let during = rustix::io::read(&read, &mut [0]);
+        drop(gate);
+        let refused = match attempted {
+            Ok(child) => {
+                reap_fixture_child(child);
+                false
+            }
+            Err(_) => true,
+        };
+        // With the temporary writer closed, the ordinary helper may launch but
+        // must not keep this unrelated stream open. Reap before all assertions.
+        let child = spawn_test_child(&mut command).unwrap();
+        let after = rustix::io::read(&read, &mut [0]);
+        reap_fixture_child(child);
+        assert!(
+            refused,
+            "test helper bypassed held launch gate; pipe observation: {during:?}"
+        );
+        assert_eq!(during, Ok(0));
+        assert_eq!(after, Ok(0));
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn test_fixture_spawn_releases_gate_before_wait() {
+        let mut command = Command::new("/bin/sleep");
+        command
+            .arg("30")
+            .env_clear()
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        let child = spawn_test_child(&mut command).unwrap();
+        let gate = kitrove_macos_process::acquire_launch_guard(CLEANUP_TIMEOUT);
+        let released = gate.is_ok();
+        drop(gate);
+        reap_fixture_child(child);
+        assert!(
+            released,
+            "fixture spawn retained the launch gate across caller wait"
+        );
+    }
 
     #[cfg(target_os = "macos")]
     fn anchored_sleep(seconds: &str) -> ProbeProcess {
@@ -257,14 +369,15 @@ mod tests {
     #[test]
     #[cfg(target_os = "macos")]
     fn stronger_finish_refuses_an_unanchored_probe_group() {
-        let child = Command::new("/bin/sleep")
-            .arg("30")
-            .process_group(0)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
+        let child = spawn_test_child(
+            Command::new("/bin/sleep")
+                .arg("30")
+                .process_group(0)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null()),
+        )
+        .unwrap();
         let mut process = ProbeProcess::new(child).unwrap();
         let result = process.finish_confirmed(Duration::from_secs(2));
         process.terminate_group().unwrap();
@@ -369,15 +482,16 @@ mod tests {
     fn anchored_cleanup_signals_other_live_group_members() {
         use std::os::unix::process::ExitStatusExt as _;
         let mut process = anchored_sleep("30");
-        let mut other = Command::new("/bin/sleep")
-            .arg("30")
-            .env_clear()
-            .process_group(process.process_group.as_raw_pid())
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
+        let mut other = spawn_test_child(
+            Command::new("/bin/sleep")
+                .arg("30")
+                .env_clear()
+                .process_group(process.process_group.as_raw_pid())
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null()),
+        )
+        .unwrap();
         let cleanup = process.terminate_group();
         let observed = wait_for_exit(&mut other, Duration::from_secs(2));
         // Preserve test-fixture cleanup even if the group assertion fails.
@@ -433,15 +547,16 @@ mod tests {
 
     #[test]
     fn expired_reap_budget_preserves_ownership_for_termination() {
-        let child = Command::new("/bin/sleep")
-            .arg("30")
-            .env_clear()
-            .process_group(0)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
+        let child = spawn_test_child(
+            Command::new("/bin/sleep")
+                .arg("30")
+                .env_clear()
+                .process_group(0)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null()),
+        )
+        .unwrap();
         let mut process = ProbeProcess::new(child).unwrap();
         assert_eq!(
             process.reap_bounded(Duration::ZERO),
