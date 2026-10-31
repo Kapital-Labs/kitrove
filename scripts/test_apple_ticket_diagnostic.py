@@ -53,7 +53,7 @@ class AppleTicketDiagnosticTests(unittest.TestCase):
                     diagnostic.context(dict(env, **changes))
 
     def test_version_is_bound_to_source_and_existing_catalog_not_caller(self):
-        self.assertEqual(diagnostic.version_tag(ROOT), 'v0.1.0-rc.5.4')
+        self.assertEqual(diagnostic.version_tag(ROOT), 'v0.1.0-rc.5.5')
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / 'release').mkdir()
