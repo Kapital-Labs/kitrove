@@ -43,8 +43,8 @@
         <div class="hero-copy">
           <a
             class="release"
-            href="https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.4.2"
-            ><span class="dot"></span> RC4.2 · Install the preview
+            href="https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.5"
+            ><span class="dot"></span> RC5.5 · Try the preview
             <span aria-hidden="true">↗</span></a
           >
           <h1>
@@ -225,8 +225,26 @@
           <p class="eyebrow">Start here</p>
           <h2>Install. Then let<br />Kitrove walk you through.</h2>
           <p>
-            Kitrove is a release candidate. Start with a small collection and
-            review each change.
+            RC5.5 is a fresh-install evaluation preview. Use a new isolated
+            collection and empty destination with disposable capabilities. This
+            is not a supported in-place upgrade from RC4.2.
+          </p>
+          <p>
+            <a
+              href="https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.5"
+              >Download RC5.5</a
+            >
+            ·
+            <a
+              href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.5/release/notes/v0.1.0-rc.5.5.md"
+              >Read the release notes</a
+            >. Verify before running: follow the
+            <a
+              href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.5/docs/INSTALLER.md"
+              >versioned verification guide</a
+            >
+            using an independently trusted or reviewed-source-built verifier. A
+            checksum alone does not authenticate a download.
           </p>
         </div>
         <div class="install-panel">
@@ -237,100 +255,138 @@
           <section id="macos" class="platform-panel">
             <div class="panel-label">
               <h3>macOS · Apple Silicon</h3>
-              <span class="status">Available</span>
+              <span class="status">RC5.5 download</span>
             </div>
             <p>
-              Install the preview with Homebrew, then open the guided setup.
+              Choose the Apple Silicon archive or installer DMG from the RC5.5
+              release. Authenticate it before execution, then open guided setup
+              with <code>kitrove init</code>. Intel Macs are unsupported in
+              RC5.5. Do not remove quarantine or disable Gatekeeper.
             </p>
-            <div class="command">
-              <pre><code>brew install --cask kapital-labs/tap/kitrove-rc</code></pre>
-              <button
-                class="copy"
-                data-copy="brew install --cask kapital-labs/tap/kitrove-rc"
-                aria-label="Copy Homebrew install command"
-                hidden
-              >
-                Copy
-              </button>
-            </div>
-            <div class="command">
-              <pre><code>kitrove init</code></pre>
-              <button
-                class="copy"
-                data-copy="kitrove init"
-                aria-label="Copy setup command"
-                hidden
-              >
-                Copy
-              </button>
-            </div>
-            <p class="fine">
-              Requires <a href="https://brew.sh/">Homebrew</a>. The cask
-              currently supports Apple Silicon Macs only.
-            </p>
+            <a
+              class="text-link"
+              href="https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.5"
+              >Get the Apple Silicon preview →</a
+            >
             <details>
-              <summary>Already installed the preview?</summary>
+              <summary>Older Homebrew preview · RC4.2</summary>
+              <p>
+                Homebrew remains on RC4.2. These commands do not install RC5.5.
+                Do not use the standalone installer to replace Homebrew-managed
+                files or use RC4.2 to open an RC5.5 collection.
+              </p>
               <div class="command">
-                <pre><code>brew update
-brew upgrade --cask kapital-labs/tap/kitrove-rc
-kitrove configure</code></pre>
+                <pre><code>brew install --cask kapital-labs/tap/kitrove-rc</code></pre>
                 <button
                   class="copy"
-                  data-copy="brew update&#10;brew upgrade --cask kapital-labs/tap/kitrove-rc&#10;kitrove configure"
+                  data-copy="brew install --cask kapital-labs/tap/kitrove-rc"
+                  aria-label="Copy Homebrew install command"
                   hidden
                 >
                   Copy
                 </button>
               </div>
-              <p>
-                Homebrew updates the binary. Your collection and setup are
-                separate.
+              <div class="command">
+                <pre><code>kitrove init</code></pre>
+                <button
+                  class="copy"
+                  data-copy="kitrove init"
+                  aria-label="Copy setup command"
+                  hidden
+                >
+                  Copy
+                </button>
+              </div>
+              <p class="fine">
+                Requires <a href="https://brew.sh/">Homebrew</a>. The cask
+                currently supports Apple Silicon Macs only.
               </p>
+              <details>
+                <summary>Already installed RC4.2 with Homebrew?</summary>
+                <div class="command">
+                  <pre><code>brew update
+brew upgrade --cask kapital-labs/tap/kitrove-rc
+kitrove configure</code></pre>
+                  <button
+                    class="copy"
+                    data-copy="brew update&#10;brew upgrade --cask kapital-labs/tap/kitrove-rc&#10;kitrove configure"
+                    hidden
+                  >
+                    Copy
+                  </button>
+                </div>
+                <p>
+                  Homebrew updates the binary. Your collection and setup are
+                  separate.
+                </p>
+              </details>
             </details>
           </section>
           <section id="windows" class="platform-panel">
             <div class="panel-label">
               <h3>Windows</h3>
-              <span class="status pending">Manual preview</span>
+              <span class="status">RC5.5 download</span>
             </div>
             <p>
-              Windows x86-64 release downloads are available for manual setup.
-              WinGet community approval is pending. No Chocolatey package is
-              published.
+              Choose the Windows x86-64 archive from the RC5.5 release and
+              verify it before execution. The RC4.2 WinGet submission is not an
+              RC5.5 install path. No Chocolatey package is published.
             </p>
             <p>
-              Use the release verification instructions before running a
-              download. See the release guide for tested workflows and remaining
-              Windows acceptance limits.
+              Native signing does not guarantee immediate Windows SmartScreen
+              reputation. Generated convenience scripts are not the supported
+              authenticated bootstrap procedure; do not pipe downloads into
+              PowerShell.
             </p>
             <a
               class="text-link"
-              href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/RELEASES.md"
-              >Read the manual release guide →</a
+              href="https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.5"
+              >Get the Windows preview →</a
             >
           </section>
           <section id="linux" class="platform-panel">
             <div class="panel-label">
               <h3>Linux</h3>
-              <span class="status">APT / DNF preview</span>
+              <span class="status">RC5.5 download</span>
             </div>
             <p>
-              Install the x86-64 preview through our signed APT or DNF
-              repository. We tested installation, upgrade and removal on
-              Ubuntu 24.04 and Fedora 44.
-            </p>
-            <p>
-              Choose your setup guide:
-              <a href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/LINUX-INSTALL.md#ubuntu--apt">Ubuntu / APT</a>
-              or <a href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/LINUX-INSTALL.md#fedora--dnf">Fedora / DNF</a>.
-              Check the signing key and add the repository before installing,
-              then run <code>kitrove init</code> as your normal user.
+              Choose the Linux x86-64 archive from the RC5.5 release. Verify
+              provenance before extraction or execution; do not pipe downloads
+              into a shell.
             </p>
             <a
               class="text-link"
-              href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/RELEASES.md"
-              >Read the manual release guide →</a
+              href="https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.5"
+              >Get the Linux preview →</a
             >
+            <details>
+              <summary>Older APT / DNF preview · RC4.2</summary>
+              <p>
+                The RC4.2 signed APT or DNF repository is unchanged. These
+                package channels do not install RC5.5. The RC4.2 package tests
+                covered installation, upgrade and removal on Ubuntu 24.04 and
+                Fedora 44; they are not RC5.5 install acceptance.
+              </p>
+              <p>
+                Choose your setup guide:
+                <a
+                  href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/LINUX-INSTALL.md#ubuntu--apt"
+                  >Ubuntu / APT</a
+                >
+                or
+                <a
+                  href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/LINUX-INSTALL.md#fedora--dnf"
+                  >Fedora / DNF</a
+                >. Check the signing key and add the repository before
+                installing, then run <code>kitrove init</code> as your normal
+                user.
+              </p>
+              <a
+                class="text-link"
+                href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.4.2/docs/RELEASES.md"
+                >Read the RC4.2 release guide →</a
+              >
+            </details>
           </section>
           <p class="copy-status" role="status" aria-live="polite"></p>
         </div>
@@ -385,11 +441,12 @@ kitrove configure</code></pre>
         <details>
           <summary>Is this a stable release?</summary>
           <p>
-            No. RC4.2 is a prerelease. A bounded skill round trip between an
-            existing Apple Silicon Mac and Ubuntu passed using a filesystem
-            snapshot backend transferred between steps. That does not establish
-            clean-Mac online/offline first launch, all capability types, live
-            agent-tool execution, or concurrent sync.
+            No. RC5.5 is a fresh-install evaluation preview, not stable support
+            or a migration release. Published artifacts passed independent
+            provenance and native Mac image verification. That does not
+            establish full fresh-install acceptance, clean-Mac online/offline
+            first launch, all capability types, live agent-tool execution, or
+            concurrent sync. Cloud-provider sync is roadmap work.
           </p>
         </details>
       </section>

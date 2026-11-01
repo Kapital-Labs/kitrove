@@ -59,9 +59,19 @@ release status change. The website is a curated summary, not generated reference
 documentation. Tests freeze current commands and verify local links, but cannot
 replace semantic review of product claims.
 
-Apple Silicon Homebrew and x86-64 APT/DNF preview repositories are available.
-The Linux guide includes key verification and repository setup. WinGet and
-Chocolatey are not published and must not be presented as usable commands.
+The primary download is the published RC5.5 fresh-install evaluation preview for
+Apple Silicon macOS, x86-64 Linux and x86-64 Windows. Intel Macs are unsupported
+in this preview. Link its exact tag, reviewed notes and versioned installer guide;
+do not turn generated scripts into an authenticated bootstrap claim. Keep the
+new-collection/empty-destination and no-supported-in-place-upgrade boundaries.
+Artifact verification is not full fresh-install or clean-Mac acceptance.
+
+Apple Silicon Homebrew and x86-64 APT/DNF repositories still distribute RC4.2;
+their commands belong under explicitly older-version instructions, not RC5.5
+installation. The Linux guide includes key verification and repository setup.
+The RC4.2 WinGet submission is not an RC5.5 distribution path; do not imply its
+approval or offer WinGet/Chocolatey install commands. This copy change does not
+change any package bytes, signing metadata, channel or publication workflow.
 A future package channel needs its own package, distribution trust review,
 ordinary-user install/upgrade/uninstall acceptance, and publication approval.
 Windows should prioritize WinGet, with Chocolatey optional. Linux packaging

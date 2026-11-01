@@ -89,14 +89,14 @@ class SiteTests(unittest.TestCase):
         home = (ROOT / "index.html").read_text()
         visible = " ".join(" ".join(Page(ROOT / "index.html").text).split())
         self.assertIn("brew install --cask kapital-labs/tap/kitrove-rc", home)
-        self.assertIn("v0.1.0-rc.4.2", home)
+        self.assertIn("v0.1.0-rc.5.5", home)
         self.assertNotIn("v0.1.0-rc.4.1", home)
         self.assertIn("Apple Silicon Macs only", home)
         for command in ("winget install", "choco install", "apt install", "dnf install"):
             self.assertNotIn(command, home)
-        self.assertIn("WinGet community approval is pending", visible)
+        self.assertIn("RC4.2 WinGet submission is not an RC5.5 install path", visible)
         self.assertIn("No Chocolatey package is published", visible)
-        self.assertIn("signed APT or DNF repository", visible)
+        self.assertIn("RC4.2 signed APT or DNF repository", visible)
         self.assertIn("docs/LINUX-INSTALL.md", home)
 
     def test_release_and_acceptance_boundaries(self):
@@ -104,18 +104,38 @@ class SiteTests(unittest.TestCase):
             page = ROOT / relative
             source = page.read_text()
             visible = " ".join(" ".join(Page(page).text).split())
+            self.assertIn("RC5.5", visible)
             self.assertIn("RC4.2", visible)
-            self.assertIn("WinGet community approval is pending", visible)
+            self.assertIn("RC4.2 WinGet submission is not an RC5.5 install path", visible)
             self.assertIn("#ubuntu--apt", source)
             self.assertIn("#fedora--dnf", source)
-            self.assertIn("bounded skill round trip", visible)
-            self.assertIn("transferred between steps", visible)
+            self.assertIn("fresh-install evaluation", visible)
+            self.assertIn("new isolated collection", visible)
+            self.assertIn("not a supported in-place upgrade", visible)
+            self.assertIn("Intel Macs are unsupported", visible)
+            self.assertIn("clean-Mac", visible)
             self.assertIn("live agent-tool execution", visible)
             self.assertIn("concurrent sync", visible)
             self.assertNotIn("winget install", source)
         docs = " ".join(" ".join(Page(ROOT / "docs/index.html").text).split())
-        self.assertIn("not included in the published RC4.2 packages", docs)
+        self.assertIn("authored packs", docs)
         self.assertIn("Cloud-provider sync is roadmap work", docs)
+
+    def test_exact_preview_links_and_verification_before_execution(self):
+        release = "https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.5"
+        versioned = "https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.5/"
+        for relative in ("index.html", "docs/index.html"):
+            page = Page(ROOT / relative)
+            self.assertIn(release, page.refs)
+            self.assertIn(versioned + "docs/INSTALLER.md", page.refs)
+            self.assertIn(versioned + "release/notes/v0.1.0-rc.5.5.md", page.refs)
+            visible = " ".join(" ".join(page.text).split())
+            self.assertIn("Verify before running", visible)
+            self.assertIn("Homebrew", visible)
+            self.assertIn("do not install RC5.5", visible)
+            self.assertNotIn("Intel Mac and Windows", visible)
+            self.assertNotIn("curl |", visible)
+            self.assertNotIn("iex", visible)
 
 
 if __name__ == "__main__":
