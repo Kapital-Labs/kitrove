@@ -19,6 +19,8 @@ use crate::portable::{load_manifest, run_adopt, run_status};
 use crate::scan::{resolve_required_environment_root, resolve_required_state_root, scan_report};
 use crate::scan_display::{name, safe, selectable};
 
+mod collection;
+
 struct Dialog<R, W> {
     input: R,
     output: W,
@@ -84,9 +86,19 @@ impl<R: BufRead, W: Write> Dialog<R, W> {
     }
 
     fn confirm(&mut self, message: &str) -> Result<bool, CliError> {
-        Ok(self.ask(&format!(
-            "{message}\nType yes to confirm; Enter skips; q stops."
-        ))? == "yes")
+        loop {
+            match self
+                .ask(&format!(
+                    "{message}\ny/yes confirms; n or Enter skips; q stops."
+                ))?
+                .to_ascii_lowercase()
+                .as_str()
+            {
+                "y" | "yes" => return Ok(true),
+                "" | "n" | "no" => return Ok(false),
+                _ => self.say("Choose y to confirm or n to skip. Nothing has changed.")?,
+            }
+        }
     }
 
     fn choose(&mut self, message: &str, labels: &[String]) -> Result<Vec<usize>, CliError> {
@@ -95,8 +107,8 @@ impl<R: BufRead, W: Write> Dialog<R, W> {
             self.say(&format!("  {}. {}", index + 1, safe(label)))?;
         }
         loop {
-            let response =
-                self.ask("Select numbers separated by commas, all, or Enter to skip (q stops):")?;
+            let response = self
+                .ask("Select 1,4,7; all; all,-3,-8 (all except); or n/Enter to skip (q stops):")?;
             match selection(&response, labels.len()) {
                 Some(indices) => return Ok(indices),
                 None => self.say("Choose only numbers shown above. Nothing has changed.")?,
@@ -106,21 +118,42 @@ impl<R: BufRead, W: Write> Dialog<R, W> {
 }
 
 fn selection(value: &str, length: usize) -> Option<Vec<usize>> {
-    if value.is_empty() {
+    if value.is_empty() || value == "n" {
         return Some(Vec::new());
     }
-    if value == "all" {
-        return Some((0..length).collect());
+    let mut parts = value.split(',').map(str::trim).peekable();
+    let exclude = parts
+        .peek()
+        .is_some_and(|part| *part == "all" || part.starts_with('-'));
+    if parts.peek() == Some(&"all") {
+        parts.next();
+        if parts.peek().is_none() {
+            return Some((0..length).collect());
+        }
     }
     let mut chosen = BTreeSet::new();
-    for part in value.split(',') {
-        let number = part.trim().parse::<usize>().ok()?;
+    for part in parts {
+        let digits = if exclude {
+            part.strip_prefix('-')?
+        } else {
+            part
+        };
+        if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+            return None;
+        }
+        let number = digits.parse::<usize>().ok()?;
         if number == 0 || number > length {
             return None;
         }
         chosen.insert(number - 1);
     }
-    Some(chosen.into_iter().collect())
+    Some(if exclude {
+        (0..length)
+            .filter(|index| !chosen.contains(index))
+            .collect()
+    } else {
+        chosen.into_iter().collect()
+    })
 }
 
 pub(crate) fn entry(environment: Option<PathBuf>, configure: bool) -> u8 {
@@ -166,7 +199,7 @@ fn run<R: BufRead, W: Write>(
     configure: bool,
     registry: &PolicyRegistry,
 ) -> Result<(), CliError> {
-    dialog.say("Kitrove setup\nCredentials, trust and deployment receipts stay on this computer.\nEach change has its own confirmation. Type q at any prompt to stop.")?;
+    dialog.say("Kitrove setup\nCredentials, trust and deployment receipts stay on this computer.\nPreview skills together or review individually. Apply and sync are separate approvals.\nType q at any prompt to stop.")?;
     let start = if configure {
         String::new()
     } else {
@@ -292,95 +325,7 @@ fn collect<R: BufRead, W: Write>(
     root: &std::path::Path,
     registry: &PolicyRegistry,
 ) -> Result<(), CliError> {
-    let report = scan_report(
-        ScanArgs {
-            harnesses: tier_one_harnesses(),
-            scope: ScopeSelection::User,
-            project_root: None,
-            roots: Vec::new(),
-            environment: Some(root.to_owned()),
-            json: false,
-            verbose: false,
-        },
-        registry,
-    )?;
-    dialog.say(&crate::scan_display::render(&report))?;
-    let candidates: Vec<_> = report.entries.iter().filter(|e| selectable(e)).collect();
-    let labels: Vec<_> = candidates
-        .iter()
-        .map(|e| format!("{} ({}, {:?})", name(e), e.harness.as_str(), e.scope))
-        .collect();
-    'skills: for index in dialog.choose(
-        "Select skills to collect. Originals remain unchanged.",
-        &labels,
-    )? {
-        let entry = candidates[index];
-        let id = loop {
-            let response = dialog.ask(&format!(
-                "Collection name for {} [{}] (type - to skip this skill):",
-                safe(name(entry)),
-                safe(name(entry))
-            ))?;
-            if response == "-" {
-                continue 'skills;
-            }
-            let id = match AssetId::parse(if response.is_empty() {
-                name(entry).to_owned()
-            } else {
-                response
-            }) {
-                Ok(id) => id,
-                Err(_) => {
-                    dialog.say("Choose a valid item name using letters, digits and hyphens.")?;
-                    continue;
-                }
-            };
-            let current = load_manifest(root)?;
-            if current.assets.contains_key(&id) || current.packs.contains_key(&id) {
-                dialog.say("That collection name is already in use. Choose a different name to keep both, or - to skip. Nothing is overwritten.")?;
-                continue;
-            }
-            break id;
-        };
-        let args = AdoptArgs {
-            approval: crate::args::ApprovalMode::Interactive,
-            observation_id: entry
-                .observation_id
-                .as_ref()
-                .expect("selectable")
-                .as_str()
-                .to_owned(),
-            asset_id: Some(id),
-            update_asset_id: None,
-            expected_prior: None,
-            binding: None,
-            harnesses: BTreeSet::from([entry.harness.clone()]),
-            scope: ScopeSelection::User,
-            project_root: None,
-            roots: Vec::new(),
-            environment: Some(root.to_owned()),
-            json: true,
-        };
-        let mut prompt_error = None;
-        let result = run_adopt(args, registry, |plan| match dialog.confirm_plan(plan) {
-            Ok(yes) => yes,
-            Err(error) => {
-                prompt_error = Some(error);
-                false
-            }
-        });
-        if let Some(error) = prompt_error {
-            return Err(error);
-        }
-        match result {
-            Ok(done) => dialog.summary(&done.output)?,
-            Err(error) if error.code == "adoption.confirmation_required" => {
-                dialog.say("Skipped this skill.")?
-            }
-            Err(error) => return Err(error),
-        }
-    }
-    Ok(())
+    collection::collect(dialog, root, registry)
 }
 
 fn remote<R: BufRead, W: Write>(dialog: &mut Dialog<R, W>) -> Result<SyncRemoteArgs, CliError> {
@@ -707,6 +652,10 @@ fn io_error() -> CliError {
 }
 
 #[cfg(test)]
+#[path = "setup_quick_tests.rs"]
+mod quick_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -737,14 +686,14 @@ mod tests {
         }
     }
 
-    fn machine(root: &std::path::Path, name: &str) -> PathBuf {
+    pub(super) fn machine(root: &std::path::Path, name: &str) -> PathBuf {
         let path = root.join(name);
         std::fs::create_dir_all(path.join("home/.claude/skills")).unwrap();
         std::fs::create_dir_all(path.join("working")).unwrap();
         path
     }
 
-    fn skill(machine: &std::path::Path, name: &str, body: &str) {
+    pub(super) fn skill(machine: &std::path::Path, name: &str, body: &str) {
         let directory = machine.join("home/.claude/skills").join(name);
         std::fs::create_dir_all(&directory).unwrap();
         std::fs::write(
@@ -754,14 +703,30 @@ mod tests {
         .unwrap();
     }
 
-    fn script(machine: &std::path::Path, input: &str, configure: bool, expected: &str) -> String {
+    pub(super) fn script(
+        machine: &std::path::Path,
+        input: &str,
+        configure: bool,
+        expected: &str,
+    ) -> String {
+        script_target(
+            machine,
+            input,
+            configure,
+            expected,
+            "setup::tests::scripted_child",
+        )
+    }
+
+    pub(super) fn script_target(
+        machine: &std::path::Path,
+        input: &str,
+        configure: bool,
+        expected: &str,
+        target: &str,
+    ) -> String {
         let output = std::process::Command::new(std::env::current_exe().unwrap())
-            .args([
-                "--exact",
-                "setup::tests::scripted_child",
-                "--ignored",
-                "--nocapture",
-            ])
+            .args(["--exact", target, "--ignored", "--nocapture"])
             .current_dir(machine.join("working"))
             .env("HOME", machine.join("home"))
             .env("USERPROFILE", machine.join("home"))
@@ -781,10 +746,15 @@ mod tests {
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
-        String::from_utf8(output.stdout).unwrap()
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        assert!(
+            stdout.contains("running 1 test"),
+            "child selector must execute exactly one fixture: {target}"
+        );
+        stdout
     }
 
-    fn manifest(machine: &std::path::Path) -> kitrove_model::EnvironmentManifest {
+    pub(super) fn manifest(machine: &std::path::Path) -> kitrove_model::EnvironmentManifest {
         load_manifest(&machine.join("collection")).unwrap()
     }
 
@@ -801,7 +771,7 @@ mod tests {
         skill(&a, "beta", "Preserve beta instructions.");
         let original = std::fs::read(a.join("home/.claude/skills/alpha/SKILL.md")).unwrap();
         let input = format!(
-            "1\n{}\nmachine-a\nyes\n1,2\n\nyes\n\nyes\n2\n1\n{}\nyes\n5\n",
+            "1\n{}\nmachine-a\nyes\n1,2\nyes\n2\n1\n{}\nyes\n5\n",
             a.join("collection").display(),
             remote.display()
         );
@@ -853,7 +823,7 @@ mod tests {
         script(
             &d,
             &format!(
-                "4\n{}\nmachine-d\nyes\n1\n{}\nyes\n1\n\nyes\nyes\n5\n",
+                "4\n{}\nmachine-d\nyes\n1\n{}\nyes\n1\nyes\nyes\n5\n",
                 d.join("collection").display(),
                 remote.display()
             ),
@@ -902,7 +872,7 @@ mod tests {
         let root = std::fs::canonicalize(tmp.path()).unwrap();
         let a = machine(&root, "a");
         skill(&a, "example", "Default-home fixture instructions.");
-        script(&a, "1\n\na\nyes\n1\n\nyes\n4\n1\n2\nyes\n5\n", false, "");
+        script(&a, "1\n\na\nyes\n1\nyes\n4\n1\n2\nyes\n5\n", false, "");
         assert!(a.join("home/Kitrove/kitrove.toml").is_file());
         assert!(a.join("home/.agents/skills/example/SKILL.md").is_file());
     }
@@ -920,7 +890,7 @@ mod tests {
         script(
             &a,
             &format!(
-                "1\n{}\na\nyes\n1\n\nyes\n2\n1\n{}\nyes\n5\n",
+                "1\n{}\na\nyes\n1\nyes\n2\n1\n{}\nyes\n5\n",
                 a.join("collection").display(),
                 remote.display()
             ),
@@ -929,12 +899,12 @@ mod tests {
         );
         script(
             &b,
-            &format!("1\n{}\nb\nyes\n\n5\n", b.join("collection").display()),
+            &format!("1\n{}\nb\nyes\nn\n5\n", b.join("collection").display()),
             false,
             "",
         );
         let before = manifest(&b);
-        script(&b, "\n1\n1\n\n\n5\n", true, "");
+        script(&b, "\n1\n1\nn\n5\n", true, "");
         assert_eq!(manifest(&b), before);
         script(
             &b,
@@ -943,7 +913,7 @@ mod tests {
             "",
         );
         assert_eq!(manifest(&b), before);
-        script(&b, "\n1\n1\n\nyes\n5\n", true, "");
+        script(&b, "\n1\n1\nyes\n5\n", true, "");
         let local = manifest(&b);
         let source = manifest(&a);
         script(
@@ -964,7 +934,7 @@ mod tests {
         assert_eq!(selection("", 3), Some(vec![]));
         assert_eq!(selection("all", 3), Some(vec![0, 1, 2]));
         assert_eq!(selection("3,1,1", 3), Some(vec![0, 2]));
-        for invalid in ["0", "4", "-1", "1,", "yes"] {
+        for invalid in ["0", "4", "--1", "1,", "yes"] {
             assert_eq!(selection(invalid, 3), None);
         }
     }

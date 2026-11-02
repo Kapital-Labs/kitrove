@@ -48,6 +48,10 @@ ID to copy. The same directory can be visible to multiple tools, so review the
 source tool before choosing. Each adoption has its own preview and confirmation.
 The source files remain in place.
 
+The [quick collection flow](SETUP-QUICK-ADOPTION.md), including one approval for
+a previewed set and numbered exclusions, is under development. It is not in
+the published RC5.5 binary described here.
+
 Use **Apply selected items** to select destinations. This is a separate plan and
 confirmation. Fidelity results explain what transfers; an unmanaged destination
 conflict is refused, not overwritten. Pi and OpenCode may require the absolute
