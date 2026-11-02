@@ -3,9 +3,34 @@
 Kitrove collects skills from your agent tools and lets you apply compatible
 capabilities elsewhere. It does not install those tools or copy their accounts.
 
+## Install the latest preview
+
+These instructions start with a fresh installation of the latest reviewed
+preview, currently **RC5.5**. On an Apple Silicon Mac with
+[Homebrew](https://brew.sh/) already installed:
+
+```sh
+brew install --cask kapital-labs/tap/kitrove
+kitrove --version
+```
+
+The package is named `kitrove`; the installed version still identifies itself as
+`0.1.0-rc.5.5`. This is an evaluation preview, not stable support. Use a new isolated
+collection and empty destinations with synthetic or disposable capabilities.
+Homebrew checks the pinned archive checksum; you trust Homebrew and the reviewed
+[tap](https://github.com/Kapital-Labs/homebrew-tap) to select the package. It does
+not initialize Kitrove, scan skills, or grant execution trust during installation.
+Leave quarantine and Gatekeeper enabled.
+
+For Linux x86-64 and Windows x86-64, use the exact
+[RC5.5 downloads](https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.5)
+and follow the [verification guide](INSTALLER.md) with an independently trusted
+or reviewed-source-built verifier **before execution**. A checksum alone is not
+provenance. Intel Macs are unsupported in this preview.
+
 ## Start on your first computer
 
-After installing the release candidate, run this in a terminal:
+After installing, run this in a terminal:
 
 ```sh
 kitrove init
@@ -131,3 +156,21 @@ kitrove init --environment /absolute/path/to/collection --machine-id my-machine
 
 Bare `init` and `configure` refuse non-terminal input instead of pretending setup
 completed. JSON scan and existing explicit operations remain available to scripts.
+
+## Existing installations
+
+The fresh-install instructions do not migrate an older collection. RC5.5 has no
+rollback-compatible predecessor; RC4.2 cannot read authored-pack collections.
+Keep older collections and local state separate. Binary rollback is not data
+rollback.
+
+The retained Homebrew casks `kitrove-rc` (RC4.2) and `kitrove-rc@5.5` (RC5.5) are
+not automatically renamed or replaced by `kitrove`. The new cask refuses both
+installed tokens and an occupied executable path. Check ownership and recovery
+needs before changing an existing installation; do not force an overwrite, delete
+state, or use `--zap` to bypass a conflict. Never point `kitrove-installer` at a
+Homebrew-managed binary. Normal cask removal preserves Kitrove collections and
+local state; use the token that actually owns your installed binary.
+
+The older APT/DNF package channels remain RC4.2, not an RC5.5 install or upgrade
+path. See the [Linux package guide](LINUX-INSTALL.md) for their exact scope.

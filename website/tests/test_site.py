@@ -88,7 +88,7 @@ class SiteTests(unittest.TestCase):
     def test_current_distribution_claims(self):
         home = (ROOT / "index.html").read_text()
         visible = " ".join(" ".join(Page(ROOT / "index.html").text).split())
-        self.assertIn("brew install --cask kapital-labs/tap/kitrove-rc", home)
+        self.assertIn("brew install --cask kapital-labs/tap/kitrove</code>", home)
         self.assertIn("v0.1.0-rc.5.5", home)
         self.assertNotIn("v0.1.0-rc.4.1", home)
         self.assertIn("Apple Silicon Macs only", home)
@@ -136,6 +136,24 @@ class SiteTests(unittest.TestCase):
             self.assertNotIn("Intel Mac and Windows", visible)
             self.assertNotIn("curl |", visible)
             self.assertNotIn("iex", visible)
+
+    def test_homebrew_is_current_fresh_install_not_hidden_in_legacy_details(self):
+        for relative in ("index.html", "docs/index.html"):
+            source = (ROOT / relative).read_text()
+            command = "<pre><code>brew install --cask kapital-labs/tap/kitrove"
+            self.assertRegex(source, command + r"(?:\n|</code>)")
+            self.assertLess(source.index(command), source.index("<details>"))
+            self.assertNotIn("Homebrew remains on RC4.2", source)
+            self.assertNotIn("Homebrew and APT/DNF still distribute RC4.2", source)
+            self.assertIn("Homebrew checks the pinned archive checksum", " ".join(source.split()))
+
+    def test_repository_setup_guide_starts_with_current_homebrew_install(self):
+        guide = (ROOT.parent / "docs/GETTING-STARTED.md").read_text()
+        readme = (ROOT.parent / "README.md").read_text()
+        for text in (guide, readme):
+            self.assertIn("brew install --cask kapital-labs/tap/kitrove\n", text)
+        self.assertLess(guide.index("brew install"), guide.index("kitrove init"))
+        self.assertIn("## Existing installations", guide)
 
 
 if __name__ == "__main__":

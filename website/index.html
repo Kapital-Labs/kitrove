@@ -226,8 +226,7 @@
           <h2>Install. Then let<br />Kitrove walk you through.</h2>
           <p>
             RC5.5 is a fresh-install evaluation preview. Use a new isolated
-            collection and empty destination with disposable capabilities. This
-            is not a supported in-place upgrade from RC4.2.
+            collection and empty destination with disposable capabilities.
           </p>
           <p>
             <a
@@ -238,7 +237,7 @@
             <a
               href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.5/release/notes/v0.1.0-rc.5.5.md"
               >Read the release notes</a
-            >. Verify before running: follow the
+            >. Verify before running a manual download: follow the
             <a
               href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.5/docs/INSTALLER.md"
               >versioned verification guide</a
@@ -255,71 +254,63 @@
           <section id="macos" class="platform-panel">
             <div class="panel-label">
               <h3>macOS · Apple Silicon</h3>
-              <span class="status">RC5.5 download</span>
+              <span class="status">Homebrew · RC5.5</span>
             </div>
             <p>
-              Choose the Apple Silicon archive or installer DMG from the RC5.5
-              release. Authenticate it before execution, then open guided setup
-              with <code>kitrove init</code>. Intel Macs are unsupported in
-              RC5.5. Do not remove quarantine or disable Gatekeeper.
+              With Homebrew installed, get the latest reviewed preview and start
+              guided setup. The package is named kitrove; RC5.5 is still a
+              prerelease. Apple Silicon Macs only. Intel Macs are unsupported in
+              RC5.5.
+            </p>
+            <div class="command">
+              <pre><code>brew install --cask kapital-labs/tap/kitrove</code></pre>
+              <button
+                class="copy"
+                data-copy="brew install --cask kapital-labs/tap/kitrove"
+                aria-label="Copy Homebrew install command"
+                hidden
+              >
+                Copy
+              </button>
+            </div>
+            <div class="command">
+              <pre><code>kitrove init</code></pre>
+              <button
+                class="copy"
+                data-copy="kitrove init"
+                aria-label="Copy setup command"
+                hidden
+              >
+                Copy
+              </button>
+            </div>
+            <p class="fine">
+              Requires <a href="https://brew.sh/">Homebrew</a>. Homebrew checks
+              the pinned archive checksum; you trust Homebrew and the
+              <a href="https://github.com/Kapital-Labs/homebrew-tap"
+                >reviewed tap</a
+              >
+              to select the package. Keep quarantine and Gatekeeper enabled.
             </p>
             <a
               class="text-link"
               href="https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.5"
-              >Get the Apple Silicon preview →</a
+              >Prefer a manual download? →</a
             >
             <details>
-              <summary>Older Homebrew preview · RC4.2</summary>
+              <summary>Already have an older Homebrew installation?</summary>
               <p>
-                Homebrew remains on RC4.2. These commands do not install RC5.5.
-                Do not use the standalone installer to replace Homebrew-managed
-                files or use RC4.2 to open an RC5.5 collection.
+                The retained kitrove-rc cask is RC4.2; kitrove-rc@5.5 is RC5.5.
+                The new kitrove cask refuses either installed token and an
+                occupied executable. It is not a supported in-place upgrade from
+                RC4.2. Review ownership and recovery before replacing an
+                installation; do not force an overwrite, use --zap, or delete
+                collection data. Do not use the standalone installer to replace
+                Homebrew-managed files or use RC4.2 to open an RC5.5 collection.
               </p>
-              <div class="command">
-                <pre><code>brew install --cask kapital-labs/tap/kitrove-rc</code></pre>
-                <button
-                  class="copy"
-                  data-copy="brew install --cask kapital-labs/tap/kitrove-rc"
-                  aria-label="Copy Homebrew install command"
-                  hidden
-                >
-                  Copy
-                </button>
-              </div>
-              <div class="command">
-                <pre><code>kitrove init</code></pre>
-                <button
-                  class="copy"
-                  data-copy="kitrove init"
-                  aria-label="Copy setup command"
-                  hidden
-                >
-                  Copy
-                </button>
-              </div>
-              <p class="fine">
-                Requires <a href="https://brew.sh/">Homebrew</a>. The cask
-                currently supports Apple Silicon Macs only.
-              </p>
-              <details>
-                <summary>Already installed RC4.2 with Homebrew?</summary>
-                <div class="command">
-                  <pre><code>brew update
-brew upgrade --cask kapital-labs/tap/kitrove-rc
-kitrove configure</code></pre>
-                  <button
-                    class="copy"
-                    data-copy="brew update&#10;brew upgrade --cask kapital-labs/tap/kitrove-rc&#10;kitrove configure"
-                    hidden
-                  >
-                    Copy
-                  </button>
-                </div>
-                <p>
-                  Homebrew updates the binary. Your collection and setup are
-                  separate.
-                </p>
-              </details>
+              <a href="./docs/#existing-installations"
+                >Read existing-install guidance →</a
+              >
             </details>
           </section>
           <section id="windows" class="platform-panel">
