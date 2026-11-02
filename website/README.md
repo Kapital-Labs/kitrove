@@ -66,9 +66,15 @@ do not turn generated scripts into an authenticated bootstrap claim. Keep the
 new-collection/empty-destination and no-supported-in-place-upgrade boundaries.
 Artifact verification is not full fresh-install or clean-Mac acceptance.
 
-Apple Silicon Homebrew and x86-64 APT/DNF repositories still distribute RC4.2;
-their commands belong under explicitly older-version instructions, not RC5.5
-installation. The Linux guide includes key verification and repository setup.
+Apple Silicon Homebrew is the primary fresh-install path:
+`brew install --cask kapital-labs/tap/kitrove`, currently pinned to reviewed RC5.5.
+The package name is not a stable-support or automatic-latest discovery claim.
+Keep older-token conflicts under existing-install guidance, not default onboarding.
+Homebrew checks a pinned digest; consumers trust Homebrew and the reviewed tap,
+not a claim that every brew invocation runs Kitrove's attestation verifier.
+Retained older casks and x86-64 APT/DNF repositories still include RC4.2;
+their commands belong under explicitly older-version instructions.
+The Linux guide includes key verification and repository setup.
 The RC4.2 WinGet submission is not an RC5.5 distribution path; do not imply its
 approval or offer WinGet/Chocolatey install commands. This copy change does not
 change any package bytes, signing metadata, channel or publication workflow.

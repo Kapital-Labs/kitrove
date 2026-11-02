@@ -23,7 +23,27 @@ For example, you can adopt a skill from Claude Code, preview how it maps to Code
 and apply it there. Kitrove reports any feature that has no equivalent at the
 destination, so you can see what would be lost.
 
-## Try it from source
+## Install and set up
+
+On an Apple Silicon Mac with [Homebrew](https://brew.sh/) installed:
+
+```sh
+brew install --cask kapital-labs/tap/kitrove
+kitrove --version
+kitrove init
+```
+
+The Homebrew cask installs the latest reviewed preview, currently RC5.5, not a
+stable release. Start with a new isolated collection and empty destinations using
+disposable capabilities. Each adoption and application has a separate preview
+and confirmation. Existing-install conflicts are not automatically overwritten.
+
+See [Getting started](docs/GETTING-STARTED.md) for setup, existing-install
+troubleshooting, and verified downloads for Linux and Windows. Intel Macs are
+unsupported in this preview. Homebrew and the reviewed tap are your package trust
+authority; do not use the standalone installer on Homebrew-managed files.
+
+## Build from source
 
 You need Rust 1.88 or newer. Build from a source revision you have reviewed:
 

@@ -49,10 +49,23 @@
           RC5.5 is a fresh-install evaluation preview for Apple Silicon macOS,
           x86-64 Linux and x86-64 Windows. Intel Macs are unsupported in RC5.5.
           Use a new isolated collection and empty destination with synthetic or
-          disposable capabilities. This is not a supported in-place upgrade or
-          migration from RC4.2; no rollback-compatible predecessor is declared.
-          Binary rollback does not roll back collection data. Do not bypass
-          installer refusals or point RC4.2 at an RC5.5 collection.
+          disposable capabilities.
+        </p>
+        <p>
+          On an Apple Silicon Mac with
+          <a href="https://brew.sh/">Homebrew</a> installed:
+        </p>
+        <pre><code>brew install --cask kapital-labs/tap/kitrove
+kitrove --version</code></pre>
+        <p>
+          This installs the latest reviewed preview, currently RC5.5. The
+          shorter package name does not make it a stable release. Homebrew
+          checks the pinned archive checksum; you trust Homebrew and the
+          <a href="https://github.com/Kapital-Labs/homebrew-tap"
+            >reviewed tap</a
+          >
+          to select it. Installation does not initialize a collection or change
+          your agent tools. Keep quarantine and Gatekeeper enabled.
         </p>
         <p>
           <a
@@ -63,7 +76,8 @@
           <a
             href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.5/release/notes/v0.1.0-rc.5.5.md"
             >versioned release notes</a
-          >. Verify before running: follow the
+          >. Verify before running a manual download on macOS, Linux or Windows:
+          follow the
           <a
             href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.5/docs/INSTALLER.md"
             >versioned verification and staging guide</a
@@ -75,22 +89,11 @@
           remove quarantine, or disable Gatekeeper.
         </p>
         <details>
-          <summary>Older package channels · RC4.2 only</summary>
+          <summary>Older Linux package channels · RC4.2 only</summary>
           <p>
-            Homebrew and APT/DNF still distribute RC4.2 and do not install
-            RC5.5. The RC4.2 WinGet submission is not an RC5.5 install path. No
-            Chocolatey package is published. These channels were not updated by
-            RC5.5.
-          </p>
-          <p>On an Apple Silicon Mac with Homebrew:</p>
-          <pre><code>brew install --cask kapital-labs/tap/kitrove-rc</code></pre>
-          <p>For an existing preview installation:</p>
-          <pre><code>brew update
-brew upgrade --cask kapital-labs/tap/kitrove-rc</code></pre>
-          <p>
-            Homebrew owns the binary. Uninstalling the cask preserves your
-            collection and local state. Do not use the standalone installer to
-            replace Homebrew-managed files.
+            APT/DNF still distribute RC4.2 and do not install RC5.5. The RC4.2
+            WinGet submission is not an RC5.5 install path. No Chocolatey
+            package is published. These channels were not updated by RC5.5.
           </p>
           <p>
             Linux x86-64 users can choose
@@ -258,11 +261,26 @@ kitrove adopt humanizer --harness claude --scope user</code></pre>
           fields. These features are not in the older RC4.2 package channels.
           Cloud-provider sync is roadmap work, not an available feature.
         </p>
+        <h2 id="existing-installations">Existing installations</h2>
+        <p>
+          These instructions assume a fresh install. RC5.5 is not a supported
+          in-place upgrade from RC4.2; no rollback-compatible predecessor is
+          declared. Binary rollback does not roll back collection data.
+        </p>
+        <p>
+          The retained Homebrew tokens kitrove-rc (RC4.2) and kitrove-rc@5.5
+          (RC5.5) are not automatically renamed. The new kitrove cask refuses
+          both installed tokens and an occupied executable. Check ownership and
+          recovery needs before replacing an installation. Do not force an
+          overwrite, delete state, use --zap, or use the standalone installer on
+          Homebrew-managed files. Normal cask removal preserves collections and
+          local state.
+        </p>
         <h2 id="help">Go deeper or get help</h2>
         <p>
           The repository contains the
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.5/docs/GETTING-STARTED.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/GETTING-STARTED.md"
             >full setup guide</a
           >,
           <a

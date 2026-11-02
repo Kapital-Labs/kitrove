@@ -29,14 +29,11 @@ if (!output)
   await page.getByRole("tab", { name: "Linux", exact: true }).press("Home");
   assert(await page.locator("#macos").isVisible());
   await page
-    .getByText("Older Homebrew preview · RC4.2", { exact: true })
-    .click();
-  await page
     .getByRole("button", { name: "Copy Homebrew install command" })
     .click();
   assert.equal(
     await page.evaluate(() => navigator.clipboard.readText()),
-    "brew install --cask kapital-labs/tap/kitrove-rc",
+    "brew install --cask kapital-labs/tap/kitrove",
   );
   await page.evaluate(() =>
     Object.defineProperty(navigator.clipboard, "writeText", {
