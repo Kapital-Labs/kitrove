@@ -13,7 +13,7 @@ No operation runs an upstream script or installs a prerequisite.
 
 The first-computer path selects a collection directory and local machine identity,
 shows both portable and local paths, confirms initialization, scans without writes,
-selects skills by readable names and scopes, confirms each adoption, and separately
+selects skills by readable names and scopes, explicitly approves adoption, and separately
 plans and confirms destination application. A later `configure` can revisit these
 operations. Completed steps are retained on cancellation and reported honestly;
 the entire walkthrough is not a new all-or-nothing transaction.
@@ -84,3 +84,31 @@ selective import, conflicting identities, corrupt/missing/stale remote objects,
 unchanged native variants and unrelated local content, and secret/local-state
 exclusion. RC4 publication requires full local CI/MSRV, reviewed exact-head checks,
 green main, normal protected signing and independent artifact authentication.
+
+## Guided selection amendment (2026-11-02)
+
+Maintainer-approved setup UX may preview a recommended set and accept one `y`
+for that exact displayed, ordered set of first skill adoptions. Enter selects
+recommendations but does not approve bulk writes. `all,-3,-8` (or `-3,-8`)
+excludes numbered observations; `1,4,7` selects only those observations. Numbers
+are bound to the displayed scan, never a later scan's ordering. Invalid or
+mixed inclusion/exclusion input reprompts without mutation. Full inventory is
+available on request rather than printed twice by default.
+
+Recommendations omit invalid/occupied names, every same-name ambiguity, and
+blocked plans. Do not privilege a harness, collapse distinct native sources,
+invent names or overwrite existing assets. Show omissions and per-target fidelity
+with loss reasons. Users can switch to individual review and explicitly rename
+an item; Enter approves only that currently displayed single adoption plan.
+`n` skips and `q`/EOF stops. Other write confirmations retain skip-on-Enter;
+`y` and `yes` are explicit equivalents, never session-wide approval.
+
+Plan the bulk sequence against successive proposed manifests, retain only its
+exact per-item approval digests, and invoke the existing freshly replanned
+`Confirm` adoption boundary for each commit. A stale source, manifest, digest,
+pending recovery, or commit failure stops later items; report prior completed
+items honestly. This is not an atomic batch or automatic recovery. No new domain
+API, portable schema, trust grant, receipt, synchronization, or Apply authority
+is introduced. Original source files/native variants and local-only boundaries
+remain unchanged. The UX is unreleased until a separately authorized binary
+release includes it; current RC5.5 documentation must not claim it is installed.

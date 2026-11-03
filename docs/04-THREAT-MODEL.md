@@ -77,6 +77,13 @@ Serialize trust, adoption, skill, extension, and synchronization mutations throu
 
 Classify Markdown instructions as agent-active, retain provenance and diffs, pin sources, and never equate text-only with safe.
 
+Guided bulk adoption approves only an explicitly displayed ordered set of exact
+plans. Numbered exclusions bind the original scan, not a fresh list. Fresh commit
+planning must match each preview digest; source/state changes or pending recovery
+stop later items. Names, loss reasons and omissions remain visible. No blanket
+future approval, implicit overwrite, trust, Apply or sync follows from collection.
+See ADR-0047. Enter selects recommendations but never approves bulk writes.
+
 ### Path traversal and symlink escape
 
 Normalize paths, reject absolute and parent-traversal entries, inspect symlinks, stage in isolated directories, and test cross-platform edge cases.
