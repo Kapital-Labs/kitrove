@@ -6,7 +6,7 @@ capabilities elsewhere. It does not install those tools or copy their accounts.
 ## Install the latest preview
 
 These instructions start with a fresh installation of the latest reviewed
-preview, currently **RC5.5**. On an Apple Silicon Mac with
+preview, currently **RC5.6**. On an Apple Silicon Mac with
 [Homebrew](https://brew.sh/) already installed:
 
 ```sh
@@ -15,7 +15,7 @@ kitrove --version
 ```
 
 The package is named `kitrove`; the installed version still identifies itself as
-`0.1.0-rc.5.5`. This is an evaluation preview, not stable support. Use a new isolated
+`0.1.0-rc.5.6`. This is an evaluation preview, not stable support. Use a new isolated
 collection and empty destinations with synthetic or disposable capabilities.
 Homebrew checks the pinned archive checksum; you trust Homebrew and the reviewed
 [tap](https://github.com/Kapital-Labs/homebrew-tap) to select the package. It does
@@ -23,7 +23,7 @@ not initialize Kitrove, scan skills, or grant execution trust during installatio
 Leave quarantine and Gatekeeper enabled.
 
 For Linux x86-64 and Windows x86-64, use the exact
-[RC5.5 downloads](https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.5)
+[RC5.6 downloads](https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.6)
 and follow the [verification guide](INSTALLER.md) with an independently trusted
 or reviewed-source-built verifier **before execution**. A checksum alone is not
 provenance. Intel Macs are unsupported in this preview.
@@ -42,15 +42,22 @@ Before creating anything it shows both the collection and machine-local state
 locations. On macOS the default local state location is
 `~/Library/Application Support/kitrove`.
 
-Kitrove then scans your user-level skills. Select the numbers beside skills you
-want, or `all`. Names, source tools and scopes are shown; there is no observation
-ID to copy. The same directory can be visible to multiple tools, so review the
-source tool before choosing. Each adoption has its own preview and confirmation.
-The source files remain in place.
+Kitrove then scans your user-level skills and shows the first 20 numbered entries.
+Enter previews the recommended eligible set without writing it. Use `v` to see
+the full inventory, `1,4,7` to choose only those entries, or `all,-3,-8` (also
+`-3,-8`) for everything except entries 3 and 8. Numbers belong to this scan.
+The same directory can appear through multiple tools; review source tools and
+scopes, not just names. Ambiguous names do not silently pick a source.
 
-For RC5.6's one-approval preview and numbered exclusions, see the
-[quick collection flow](SETUP-QUICK-ADOPTION.md). Those shortcuts are not in
-the RC5.5 binary described by the current installation instructions above.
+Review the preview's fidelity and loss warnings. `y` or `yes` approves only the
+displayed ready set; Enter does not approve bulk writes. Use `r` for individual
+review: Enter/y accepts the current shown plan, n skips, and r renames before a
+new preview. `n` at selection skips collection. Original source files stay in place.
+
+Bulk adoption is sequential, not atomic. A stale source, changed collection,
+pending recovery or failed commit stops later items; completed items remain and
+are reported. See the [quick collection flow](SETUP-QUICK-ADOPTION.md) for omitted
+items, naming conflicts and exact confirmation semantics.
 
 Use **Apply selected items** to select destinations. This is a separate plan and
 confirmation. Fidelity results explain what transfers; an unmanaged destination
@@ -59,7 +66,8 @@ path of an independently trusted local binary for the existing bounded version
 probe. Executable capabilities still require separate local trust; setup does
 not grant trust or install prerequisites.
 
-`q` stops at any prompt. Enter skips a confirmation. Previously confirmed steps
+`q` stops at any prompt. Other write confirmations still skip on Enter; individual
+adoption review is the explicit exception described above. Previously confirmed steps
 remain completed if you stop later. Setup is not a single transaction covering
 all earlier choices, and nothing starts running in the background.
 
@@ -163,7 +171,7 @@ completed. JSON scan and existing explicit operations remain available to script
 
 ## Existing installations
 
-The fresh-install instructions do not migrate an older collection. RC5.5 has no
+The fresh-install instructions do not migrate an older collection. RC5.6 has no
 rollback-compatible predecessor; RC4.2 cannot read authored-pack collections.
 Keep older collections and local state separate. Binary rollback is not data
 rollback.
@@ -176,5 +184,5 @@ state, or use `--zap` to bypass a conflict. Never point `kitrove-installer` at a
 Homebrew-managed binary. Normal cask removal preserves Kitrove collections and
 local state; use the token that actually owns your installed binary.
 
-The older APT/DNF package channels remain RC4.2, not an RC5.5 install or upgrade
+The older APT/DNF package channels remain RC4.2, not an RC5.6 install or upgrade
 path. See the [Linux package guide](LINUX-INSTALL.md) for their exact scope.

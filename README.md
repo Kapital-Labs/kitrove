@@ -33,10 +33,11 @@ kitrove --version
 kitrove init
 ```
 
-The Homebrew cask installs the latest reviewed preview, currently RC5.5, not a
+The Homebrew cask installs the latest reviewed preview, currently RC5.6, not a
 stable release. Start with a new isolated collection and empty destinations using
-disposable capabilities. Each adoption and application has a separate preview
-and confirmation. Existing-install conflicts are not automatically overwritten.
+disposable capabilities. Preview recommended skills, exclude entries by number,
+and approve the displayed ready set once or review individually. Application
+remains separately confirmed. Existing-install conflicts are not overwritten.
 
 See [Getting started](docs/GETTING-STARTED.md) for setup, existing-install
 troubleshooting, and verified downloads for Linux and Windows. Intel Macs are
