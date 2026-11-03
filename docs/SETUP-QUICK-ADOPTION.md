@@ -1,7 +1,9 @@
-# Quick skill collection (unreleased)
+# Quick skill collection (RC5.6)
 
-This describes the next source build, **not the published RC5.5 binary**.
-No Homebrew update or new application release is included in this change.
+This flow is included in RC5.6. RC5.5 has the older per-item prompts; check
+`kitrove --version` before following these shortcuts. This guide does not itself
+establish publication or update an installed binary. Use the current download
+and installation guidance, with verification before executing a new artifact.
 
 In `kitrove init` or `kitrove configure`, choose skill collection. Setup shows
 counts and the first 20 numbered observations. Enter previews recommendations;

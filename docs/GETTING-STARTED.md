@@ -48,9 +48,9 @@ ID to copy. The same directory can be visible to multiple tools, so review the
 source tool before choosing. Each adoption has its own preview and confirmation.
 The source files remain in place.
 
-The [quick collection flow](SETUP-QUICK-ADOPTION.md), including one approval for
-a previewed set and numbered exclusions, is under development. It is not in
-the published RC5.5 binary described here.
+For RC5.6's one-approval preview and numbered exclusions, see the
+[quick collection flow](SETUP-QUICK-ADOPTION.md). Those shortcuts are not in
+the RC5.5 binary described by the current installation instructions above.
 
 Use **Apply selected items** to select destinations. This is a separate plan and
 confirmation. Fidelity results explain what transfers; an unmanaged destination

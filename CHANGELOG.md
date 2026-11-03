@@ -4,6 +4,28 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.5.6
+
+Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows. Use isolated
+collections and disposable destinations. No migration, supported in-place upgrade,
+rollback-compatible predecessor, stable-support or APT/RPM/WinGet update is included.
+RC5.5 remains immutable; its successful release is the preceding preview.
+
+### Changed
+
+- Guided skill collection previews a recommended eligible set before writing.
+  Select numbered observations, or use `all,-3,-8` / `-3,-8` to exclude specific
+  entries. `v` shows the complete scan. One `y` approves only the displayed ready
+  set; individual review supports Enter/y to adopt, n to skip and r to rename.
+- Show source identity, per-tool fidelity and loss reasons. Ambiguous names,
+  occupied/invalid names and blocked plans are omitted rather than silently chosen.
+- Preserve fresh exact-plan checks for each sequential adoption. A stale source,
+  changed state or failed commit stops later items and reports completed work.
+  Adoption grants no execution trust, Apply or sync authority.
+
+Full source checks and local unsigned smokes are not published-artifact or
+clean-machine acceptance. Candidate-specific verification is recorded separately.
+
 ## 0.1.0-rc.5.5
 
 Fresh-install evaluation preview only: Apple Silicon macOS, x86-64 Linux and
