@@ -4,6 +4,13 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.5.7
+
+Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows. Existing
+RC5.6 assets stay immutable. No migration, supported in-place upgrade, rollback
+predecessor, stable-support or APT/RPM/WinGet update is included. Homebrew and
+website follow-up requires independently verified publication.
+
 ### Changed
 
 - Separate guided setup questions, previews and command results with clear labels,
