@@ -82,12 +82,12 @@ pub(super) fn collect<R: BufRead, W: Write>(
             "y" | "yes" => {
                 for (completed, item) in items.iter().enumerate() {
                     if let Err(error) = commit(root, candidates[item.index], item, registry) {
-                        dialog.say(&format!("Stopped after {completed} completed adoptions; later items did not run. Use status before continuing."))?;
+                        dialog.warning(&format!("Stopped after {completed} completed adoptions; later items did not run. Use status before continuing."))?;
                         return Err(error);
                     }
-                    dialog.say(&format!("Adopted {}.", item.id.as_str()))?;
+                    dialog.success(&format!("Adopted {}.", item.id.as_str()))?;
                 }
-                return dialog.say(&format!("Adopted {} skills. Apply and sync remain separate choices.", items.len()));
+                return dialog.success(&format!("Adopted {} skills. Apply and sync remain separate choices.", items.len()));
             }
             "r" => return individually(dialog, root, &report, &candidates, &selected, registry),
             "n" | "no" => return dialog.say("Collection skipped."),
@@ -145,7 +145,7 @@ fn show_plan<R: BufRead, W: Write>(
         .map(|(harness, result)| format!("{}={:?}", harness.as_str(), result.fidelity()))
         .collect::<Vec<_>>()
         .join(", ");
-    dialog.say(&format!(
+    dialog.detail(&format!(
         "  {}. {} -> {} | {fidelity}",
         index + 1,
         label(entry),
@@ -153,7 +153,7 @@ fn show_plan<R: BufRead, W: Write>(
     ))?;
     for (harness, result) in &plan.asset().compatibility {
         for reason in result.reasons() {
-            dialog.say(&format!(
+            dialog.detail(&format!(
                 "     {}: {}: {}",
                 harness.as_str(),
                 safe(&reason.code),
@@ -173,10 +173,11 @@ fn preview<R: BufRead, W: Write>(
 ) -> Result<Vec<PreviewedItem>, CliError> {
     let mut manifest = load_manifest(root)?;
     let mut items = Vec::new();
-    dialog.say("Adoption preview (no writes). Names and four-tool fidelity follow. Each item is a separate transaction; on failure completed items remain and later items stop.")?;
+    dialog.heading("Adoption preview (no writes)")?;
+    dialog.hint("Names and four-tool fidelity follow. Each item is a separate transaction; on failure completed items remain and later items stop.")?;
     for (index, entry) in candidates.iter().enumerate() {
         if !selected.contains(&index) {
-            dialog.say(&format!("Excluded: {}. {}", index + 1, label(entry)))?;
+            dialog.detail(&format!("Excluded: {}. {}", index + 1, label(entry)))?;
             continue;
         }
         let reason = if selected
@@ -196,7 +197,7 @@ fn preview<R: BufRead, W: Write>(
             Ok(_) => None,
         });
         if let Some(reason) = reason {
-            dialog.say(&format!(
+            dialog.detail(&format!(
                 "Omitted: {}. {}: {reason}",
                 index + 1,
                 label(entry)
@@ -214,7 +215,7 @@ fn preview<R: BufRead, W: Write>(
                 });
                 manifest = plan.proposed_manifest().clone();
             }
-            AdoptionPlanOutcome::Blocked(blocked) => dialog.say(&format!(
+            AdoptionPlanOutcome::Blocked(blocked) => dialog.detail(&format!(
                 "Omitted: {}. {}: {:?}. No trust is granted.",
                 index + 1,
                 label(entry),
@@ -222,7 +223,7 @@ fn preview<R: BufRead, W: Write>(
             ))?,
         }
     }
-    dialog.say(&format!(
+    dialog.detail(&format!(
         "{} ready; {} selected but omitted; {} excluded by selection.",
         items.len(),
         selected.len() - items.len(),
@@ -284,7 +285,7 @@ fn individually<R: BufRead, W: Write>(
             let manifest = load_manifest(root)?;
             let id = AssetId::parse(proposed_name.clone());
             if id.as_ref().map_or(true, |id| occupied(&manifest, id)) {
-                dialog.say(&format!(
+                dialog.warning(&format!(
                     "{}: name invalid or already in use. Nothing is overwritten.",
                     label(entry)
                 ))?;
@@ -299,13 +300,14 @@ fn individually<R: BufRead, W: Write>(
             let plan = match plan(report, entry, id.clone(), &manifest)? {
                 AdoptionPlanOutcome::Ready(plan) => plan,
                 AdoptionPlanOutcome::Blocked(blocked) => {
-                    dialog.say(&format!(
+                    dialog.warning(&format!(
                         "Skipped this skill: {:?}. No trust is granted.",
                         blocked.reason()
                     ))?;
                     break;
                 }
             };
+            dialog.heading("Adoption preview (no writes)")?;
             show_plan(dialog, index, entry, &plan)?;
             let response =
                 dialog.ask("Enter/y = adopt this skill; n = skip; r = rename; q = stop:")?;
@@ -321,7 +323,7 @@ fn individually<R: BufRead, W: Write>(
                         },
                         registry,
                     )?;
-                    dialog.say(&format!("Adopted {}.", plan.asset().id.as_str()))?;
+                    dialog.success(&format!("Adopted {}.", plan.asset().id.as_str()))?;
                     break;
                 }
                 "n" | "no" | "-" => {

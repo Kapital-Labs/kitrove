@@ -20,18 +20,20 @@ use crate::scan::{resolve_required_environment_root, resolve_required_state_root
 use crate::scan_display::{name, safe, selectable};
 
 mod collection;
+mod initialization;
+mod presentation;
 
 struct Dialog<R, W> {
     input: R,
     output: W,
+    color: bool,
 }
 
 impl<R: BufRead, W: Write> Dialog<R, W> {
     fn report(&mut self, text: &str) -> Result<(), CliError> {
-        for line in text.lines() {
-            self.say(&safe(line))?;
-        }
-        Ok(())
+        let text = text.lines().map(safe).collect::<Vec<_>>().join("\n");
+        presentation::block(&mut self.output, self.color, "Command output", &text)
+            .map_err(|_| io_error())
     }
 
     fn confirm_plan(&mut self, plan: &str) -> Result<bool, CliError> {
@@ -41,7 +43,76 @@ impl<R: BufRead, W: Write> Dialog<R, W> {
 
     fn summary(&mut self, encoded: &str) -> Result<(), CliError> {
         let value: serde_json::Value = serde_json::from_str(encoded).map_err(|_| io_error())?;
-        self.say(&human_summary(&value, 0))
+        presentation::block(
+            &mut self.output,
+            self.color,
+            "Preview (no changes yet)",
+            &human_summary(&value, 0),
+        )
+        .map_err(|_| io_error())
+    }
+
+    fn outcome(&mut self, encoded: &str) -> Result<(), CliError> {
+        let value: serde_json::Value = serde_json::from_str(encoded).map_err(|_| io_error())?;
+        presentation::block(
+            &mut self.output,
+            self.color,
+            "Result",
+            &human_summary(&value, 0),
+        )
+        .map_err(|_| io_error())
+    }
+
+    fn heading(&mut self, message: &str) -> Result<(), CliError> {
+        writeln!(self.output).map_err(|_| io_error())?;
+        presentation::styled(
+            &mut self.output,
+            self.color,
+            presentation::Tone::Heading,
+            message,
+        )
+        .map_err(|_| io_error())?;
+        writeln!(self.output).map_err(|_| io_error())
+    }
+
+    fn hint(&mut self, message: &str) -> Result<(), CliError> {
+        presentation::styled(
+            &mut self.output,
+            self.color,
+            presentation::Tone::Hint,
+            message,
+        )
+        .map_err(|_| io_error())?;
+        writeln!(self.output).map_err(|_| io_error())
+    }
+
+    fn success(&mut self, message: &str) -> Result<(), CliError> {
+        presentation::notice(
+            &mut self.output,
+            self.color,
+            presentation::Tone::Success,
+            "Completed",
+            message,
+        )
+        .map_err(|_| io_error())
+    }
+
+    fn warning(&mut self, message: &str) -> Result<(), CliError> {
+        presentation::notice(
+            &mut self.output,
+            self.color,
+            presentation::Tone::Warning,
+            "Warning",
+            message,
+        )
+        .map_err(|_| io_error())
+    }
+
+    fn detail(&mut self, message: &str) -> Result<(), CliError> {
+        for line in message.lines() {
+            writeln!(self.output, "  | {line}").map_err(|_| io_error())?;
+        }
+        Ok(())
     }
 
     fn say(&mut self, message: &str) -> Result<(), CliError> {
@@ -49,7 +120,7 @@ impl<R: BufRead, W: Write> Dialog<R, W> {
     }
 
     fn ask(&mut self, message: &str) -> Result<String, CliError> {
-        self.say(message)?;
+        presentation::prompt(&mut self.output, self.color, message).map_err(|_| io_error())?;
         self.output.flush().map_err(|_| io_error())?;
         let mut bytes = Vec::new();
         // Bound input without reading an unlimited line, and never accept EOF as consent.
@@ -102,13 +173,14 @@ impl<R: BufRead, W: Write> Dialog<R, W> {
     }
 
     fn choose(&mut self, message: &str, labels: &[String]) -> Result<Vec<usize>, CliError> {
-        self.say(message)?;
+        let mut prompt = message.to_owned();
         for (index, label) in labels.iter().enumerate() {
-            self.say(&format!("  {}. {}", index + 1, safe(label)))?;
+            prompt.push_str(&format!("\n{}. {}", index + 1, safe(label)));
         }
+        prompt
+            .push_str("\nSelect 1,4,7; all; all,-3,-8 (all except); or n/Enter to skip (q stops):");
         loop {
-            let response = self
-                .ask("Select 1,4,7; all; all,-3,-8 (all except); or n/Enter to skip (q stops):")?;
+            let response = self.ask(&prompt)?;
             match selection(&response, labels.len()) {
                 Some(indices) => return Ok(indices),
                 None => self.say("Choose only numbers shown above. Nothing has changed.")?,
@@ -166,6 +238,7 @@ pub(crate) fn entry(environment: Option<PathBuf>, configure: bool) -> u8 {
     let mut dialog = Dialog {
         input: io::stdin().lock(),
         output: io::stdout(),
+        color: presentation::detect(io::stdout().is_terminal()),
     };
     let result = crate::registry::try_tier_one_registry()
         .map_err(|_| io_error())
@@ -173,9 +246,15 @@ pub(crate) fn entry(environment: Option<PathBuf>, configure: bool) -> u8 {
     match result {
         Ok(()) => 0,
         Err(error) => {
-            eprintln!(
-                "error[{}]: {error}\nPreviously confirmed steps are retained. No later step ran.",
-                error.code
+            let _ = presentation::notice(
+                &mut io::stderr().lock(),
+                presentation::detect(io::stderr().is_terminal()),
+                presentation::Tone::Error,
+                "Error",
+                &format!(
+                    "error[{}]: {error}\nPreviously confirmed steps are retained. No later step ran.",
+                    error.code
+                ),
             );
             1
         }
@@ -199,8 +278,9 @@ fn run<R: BufRead, W: Write>(
     configure: bool,
     registry: &PolicyRegistry,
 ) -> Result<(), CliError> {
-    dialog.say("Kitrove setup\nCredentials, trust and deployment receipts stay on this computer.\nPreview skills together or review individually. Apply and sync are separate approvals.\nType q at any prompt to stop.")?;
-    let start = if configure {
+    dialog.heading("Kitrove setup")?;
+    dialog.hint("Credentials, trust and deployment receipts stay on this computer.\nPreview skills together or review individually. Apply and sync are separate approvals.\nType q at any prompt to stop.")?;
+    let mut start = if configure {
         String::new()
     } else {
         loop {
@@ -224,7 +304,7 @@ fn run<R: BufRead, W: Write>(
             },
             registry,
         )?;
-        return dialog.say(&crate::scan_display::render(&report));
+        return dialog.report(&crate::scan_display::render(&report));
     }
     let root = if configure {
         let suggested = match environment {
@@ -245,40 +325,13 @@ fn run<R: BufRead, W: Write>(
             PathBuf::from(response)
         }))?
     } else {
-        let suggestion = default_collection()?;
-        let response = dialog.ask(&format!(
-            "Where should your portable collection live? [{}]",
-            safe(&suggestion.display().to_string())
-        ))?;
-        let root = if response.is_empty() {
-            suggestion
-        } else {
-            PathBuf::from(response)
+        let Some((root, resumed)) = initialization::select(dialog, registry)? else {
+            return Ok(());
         };
-        let root = if root.is_absolute() {
-            root
-        } else {
-            std::env::current_dir().map_err(|_| io_error())?.join(root)
-        };
-        let machine = dialog.ask("Name this computer (for example mac-mini):")?;
-        let machine = MachineId::parse(machine).map_err(|_| {
-            CliError::new(
-                "setup.machine_invalid",
-                "choose a valid machine name using lowercase letters, digits and hyphens",
-            )
-        })?;
-        let local = resolve_required_state_root()?;
-        if !dialog.confirm(&format!("Create an empty collection at {}\nLocal-only state at {}\nExisting agent files will not be changed.", safe(&root.display().to_string()), safe(&local.display().to_string())))? { return Ok(()); }
-        let completed = crate::init::run_init(
-            InitArgs {
-                machine_id: Some(machine),
-                project_root: None,
-                environment: Some(root.clone()),
-                json: false,
-            },
-            registry,
-        )?;
-        dialog.report(&completed.output)?;
+        if resumed {
+            // Resume reaches the ordinary menu, not the selected new-machine action.
+            start.clear();
+        }
         root
     };
     let status = run_status(EnvironmentArgs {
@@ -298,8 +351,9 @@ fn run<R: BufRead, W: Write>(
         "3" => import(dialog, &root)?,
         "4" => {
             dialog.say("First connect this empty collection to the existing one. Then select local skills to add, and review publishing those additions. Existing agent files remain untouched.")?;
-            let backend = remote(dialog)?;
-            if synchronize_with(dialog, &root, backend.clone())? {
+            if let Some(backend) = remote(dialog)?
+                && synchronize_with(dialog, &root, backend.clone())?
+            {
                 collect(dialog, &root, registry)?;
                 synchronize_with(dialog, &root, backend)?;
             }
@@ -307,17 +361,20 @@ fn run<R: BufRead, W: Write>(
         _ => {}
     }
     loop {
-        dialog.say("\nWhat would you like to do?\n  1. Collect skills from this computer\n  2. Connect / sync the whole collection (bidirectional)\n  3. Import specific items from another collection (one-time)\n  4. Apply selected items to tools on this computer\n  5. Finish\nFor an empty second-computer collection, connect with 2 before collecting local additions. Selective import can combine items without establishing ongoing sync. Conflicts stop without choosing a winner.")?;
-        match dialog.ask("Choose 1-5 [5]:")?.as_str() {
+        match dialog.ask("What would you like to do?\n1. Add skills from this computer\n2. Choose skills to add to your AI tools\n3. Share this collection with another computer\n4. Copy selected items from another collection\n5. Finish for now\nChoose 1-5 [5]:")?.as_str() {
             "1" => collect(dialog, &root, registry)?,
-            "2" => synchronize(dialog, &root)?,
-            "3" => import(dialog, &root)?,
-            "4" => apply(dialog, &root)?,
+            "2" => apply(dialog, &root)?,
+            "3" => synchronize(dialog, &root)?,
+            "4" => import(dialog, &root)?,
             "" | "5" => break,
             _ => dialog.say("Choose a number from 1 to 5.")?,
         }
     }
-    dialog.say(&format!("\nSetup finished. Collection: {}\nNothing runs in the background. Revisit with kitrove configure --environment PATH.\nOn another computer, install Kitrove, run kitrove init, then choose connect or selective import.\nNo credentials, trust decisions or harness installations are cloned.", safe(&root.display().to_string())))
+    dialog.success(&format!(
+        "Setup finished. Collection: {}",
+        safe(&root.display().to_string())
+    ))?;
+    dialog.hint("Nothing runs in the background. Revisit with kitrove configure --environment PATH.\nNo credentials, trust decisions or harness installations are cloned.")
 }
 
 fn collect<R: BufRead, W: Write>(
@@ -328,24 +385,18 @@ fn collect<R: BufRead, W: Write>(
     collection::collect(dialog, root, registry)
 }
 
-fn remote<R: BufRead, W: Write>(dialog: &mut Dialog<R, W>) -> Result<SyncRemoteArgs, CliError> {
-    dialog.say("Use an existing Kitrove sync backend, not an arbitrary Git checkout.\n1. Filesystem/shared directory\n2. HTTPS Git\n3. SSH Git\nCredentials are handled by the existing Git provider, never stored in the collection.")?;
-    match dialog.ask("Backend 1-3:")?.as_str() {
-        "1" => Ok(SyncRemoteArgs::Filesystem(PathBuf::from(
-            dialog.ask("Existing backend directory:")?,
-        ))),
-        "2" => Ok(SyncRemoteArgs::Git {
-            url: dialog.ask("HTTPS URL without embedded credentials:")?,
-            credentials: GitCredentialSource::Terminal,
-        }),
-        "3" => Ok(SyncRemoteArgs::Ssh {
-            url: dialog.ask("SSH URL:")?,
-            known_hosts: PathBuf::from(dialog.ask("Known-hosts file path:")?),
-        }),
-        _ => Err(CliError::new(
-            "setup.backend_invalid",
-            "choose a supported backend",
-        )),
+fn remote<R: BufRead, W: Write>(
+    dialog: &mut Dialog<R, W>,
+) -> Result<Option<SyncRemoteArgs>, CliError> {
+    dialog.hint("Use a shared folder reserved for Kitrove, or an existing Kitrove Git remote - not an unrelated repository.\nGit credentials stay with the existing provider, never in your collection.")?;
+    loop {
+        match dialog.ask("Where is the shared collection stored?\n1. Shared folder or drive\n2. Git repository using HTTPS (advanced)\n3. Git repository using SSH (advanced)\nn. Not now\nChoose 1-3 [n]:")?.as_str() {
+            "" | "n" => return Ok(None),
+            "1" => return Ok(Some(SyncRemoteArgs::Filesystem(PathBuf::from(dialog.ask("Shared Kitrove folder path:")?)))),
+            "2" => return Ok(Some(SyncRemoteArgs::Git { url: dialog.ask("HTTPS URL without embedded credentials:")?, credentials: GitCredentialSource::Terminal })),
+            "3" => return Ok(Some(SyncRemoteArgs::Ssh { url: dialog.ask("SSH URL:")?, known_hosts: PathBuf::from(dialog.ask("Known-hosts file path:")?) })),
+            _ => dialog.warning("Choose 1, 2, 3 or n. Nothing has changed.")?,
+        }
     }
 }
 
@@ -353,8 +404,10 @@ fn synchronize<R: BufRead, W: Write>(
     dialog: &mut Dialog<R, W>,
     root: &std::path::Path,
 ) -> Result<(), CliError> {
-    let remote = remote(dialog)?;
-    synchronize_with(dialog, root, remote).map(|_| ())
+    match remote(dialog)? {
+        Some(remote) => synchronize_with(dialog, root, remote).map(|_| ()),
+        None => Ok(()),
+    }
 }
 
 fn synchronize_with<R: BufRead, W: Write>(
@@ -362,7 +415,7 @@ fn synchronize_with<R: BufRead, W: Write>(
     root: &std::path::Path,
     remote: SyncRemoteArgs,
 ) -> Result<bool, CliError> {
-    dialog.say("Full sync combines portable collections with shared history and can publish local items to the remote. It does not apply anything to agent tools. Unrelated nonempty collections and same-item conflicts block. No background sync is enabled.")?;
+    dialog.hint("Sharing sends and receives collection changes between computers. It does not add skills to your AI tools.\nReview the upload/download plan before approving. Unrelated collections or conflicting items stop without choosing a winner. Nothing runs in the background.")?;
     let planned = crate::sync::run_sync_plan(SyncArgs {
         remote: remote.clone(),
         environment: Some(root.to_owned()),
@@ -400,17 +453,18 @@ fn import<R: BufRead, W: Write>(
 ) -> Result<(), CliError> {
     dialog.say("Selective import is a one-time copy, not ongoing selective sync. The remote is not modified. Differing local identities refuse the import.")?;
     match remote(dialog)? {
-        SyncRemoteArgs::Filesystem(path) => import_backend(
+        None => Ok(()),
+        Some(SyncRemoteArgs::Filesystem(path)) => import_backend(
             dialog,
             root,
             FilesystemSyncBackend::open(&path).map_err(crate::sync::backend_error)?,
         ),
-        SyncRemoteArgs::Git { url, credentials } => import_backend(
+        Some(SyncRemoteArgs::Git { url, credentials }) => import_backend(
             dialog,
             root,
             crate::sync::open_git_backend(&url, credentials)?,
         ),
-        SyncRemoteArgs::Ssh { url, known_hosts } => import_backend(
+        Some(SyncRemoteArgs::Ssh { url, known_hosts }) => import_backend(
             dialog,
             root,
             SshGitSyncBackend::open(&url, known_hosts).map_err(crate::sync::backend_error)?,
@@ -515,7 +569,9 @@ fn import_backend<R: BufRead, W: Write, B: SyncBackend>(
     if !dialog.confirm(&format!("Import {chosen} and required pack members ({} verified objects)?\nNative content and provenance remain intact. Nothing is applied or trusted for execution.", objects.len()))? { return Ok(()); }
     commit_collection_import(&plan, &objects, root, CaptureLimits::default())
         .map_err(|error| CliError::new(error.code(), error.message()))?;
-    dialog.say("Selected items imported. Choose Apply separately when ready.")
+    dialog.success(
+        "Selected items imported. Choose skills to add to your AI tools separately when ready.",
+    )
 }
 
 fn apply<R: BufRead, W: Write>(
@@ -530,7 +586,8 @@ fn apply<R: BufRead, W: Write>(
         .cloned()
         .collect();
     let labels: Vec<_> = items.iter().map(|id| id.as_str().to_owned()).collect();
-    let selected = dialog.choose("Choose collection items to apply:", &labels)?;
+    dialog.hint("This adds selected collection items to tools on this computer. It does not run them or share them with another computer.")?;
+    let selected = dialog.choose("Which saved items would you like to add?", &labels)?;
     if selected.is_empty() {
         return Ok(());
     }
@@ -545,7 +602,10 @@ fn apply<R: BufRead, W: Write>(
         .map(|h| h.as_str().to_owned())
         .collect::<Vec<_>>();
     let targets: BTreeSet<_> = dialog
-        .choose("Choose destination tools (user scope):", &labels)?
+        .choose(
+            "Which AI tools should receive these items on this computer?",
+            &labels,
+        )?
         .into_iter()
         .map(|i| harnesses[i].clone())
         .collect();
@@ -596,7 +656,7 @@ fn apply<R: BufRead, W: Write>(
         return Err(error);
     }
     match result {
-        Ok(done) => dialog.summary(&done.output),
+        Ok(done) => dialog.outcome(&done.output),
         Err(error) if error.code == "apply.confirmation_required" => {
             dialog.say("Application skipped.")
         }
@@ -656,6 +716,14 @@ fn io_error() -> CliError {
 mod quick_tests;
 
 #[cfg(test)]
+#[path = "setup_existing_tests.rs"]
+mod existing_tests;
+
+#[cfg(test)]
+#[path = "setup_presentation_tests.rs"]
+mod presentation_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -670,6 +738,7 @@ mod tests {
         let mut dialog = Dialog {
             input: io::Cursor::new(input),
             output: Vec::new(),
+            color: false,
         };
         let result = run(
             &mut dialog,
@@ -771,7 +840,7 @@ mod tests {
         skill(&a, "beta", "Preserve beta instructions.");
         let original = std::fs::read(a.join("home/.claude/skills/alpha/SKILL.md")).unwrap();
         let input = format!(
-            "1\n{}\nmachine-a\nyes\n1,2\nyes\n2\n1\n{}\nyes\n5\n",
+            "1\n{}\nmachine-a\nyes\n1,2\nyes\n3\n1\n{}\nyes\n5\n",
             a.join("collection").display(),
             remote.display()
         );
@@ -807,10 +876,10 @@ mod tests {
         let local = std::fs::read_to_string(c.join("state/state.json")).unwrap();
         assert!(local.contains("machine-c"));
         assert!(!local.contains("machine-a"));
-        script(&c, "\n4\n1\n2\n\n5\n", true, "");
+        script(&c, "\n2\n1\n2\n\n5\n", true, "");
         assert!(!c.join("home/.agents/skills/alpha").exists());
         // Configure applies only the selected item, using receipt-backed normal APIs.
-        script(&c, "\n4\n1\n2\nyes\n5\n", true, "");
+        script(&c, "\n2\n1\n2\nyes\n5\n", true, "");
         assert!(c.join("home/.agents/skills/alpha/SKILL.md").is_file());
         assert!(!c.join("home/.agents/skills/beta").exists());
         // A second computer can start with its own independent skill, then merge.
@@ -833,7 +902,7 @@ mod tests {
         assert_eq!(manifest(&d).assets.len(), 3);
         script(
             &a,
-            &format!("\n2\n1\n{}\nyes\n5\n", remote.display()),
+            &format!("\n3\n1\n{}\nyes\n5\n", remote.display()),
             true,
             "",
         );
@@ -872,7 +941,7 @@ mod tests {
         let root = std::fs::canonicalize(tmp.path()).unwrap();
         let a = machine(&root, "a");
         skill(&a, "example", "Default-home fixture instructions.");
-        script(&a, "1\n\na\nyes\n1\nyes\n4\n1\n2\nyes\n5\n", false, "");
+        script(&a, "1\n\na\nyes\n1\nyes\n2\n1\n2\nyes\n5\n", false, "");
         assert!(a.join("home/Kitrove/kitrove.toml").is_file());
         assert!(a.join("home/.agents/skills/example/SKILL.md").is_file());
     }
@@ -890,7 +959,7 @@ mod tests {
         script(
             &a,
             &format!(
-                "1\n{}\na\nyes\n1\nyes\n2\n1\n{}\nyes\n5\n",
+                "1\n{}\na\nyes\n1\nyes\n3\n1\n{}\nyes\n5\n",
                 a.join("collection").display(),
                 remote.display()
             ),
@@ -908,7 +977,7 @@ mod tests {
         assert_eq!(manifest(&b), before);
         script(
             &b,
-            &format!("\n3\n1\n{}\nall\n\n5\n", remote.display()),
+            &format!("\n4\n1\n{}\nall\n\n5\n", remote.display()),
             true,
             "",
         );
@@ -918,14 +987,14 @@ mod tests {
         let source = manifest(&a);
         script(
             &b,
-            &format!("\n3\n1\n{}\nall\n", remote.display()),
+            &format!("\n4\n1\n{}\nall\n", remote.display()),
             true,
             "collection.identity_conflict",
         );
         assert_eq!(manifest(&b), local);
         assert_eq!(manifest(&a), source);
         // Full sync also refuses to choose a winner, and returns to the menu.
-        let output = script(&b, &format!("\n2\n1\n{}\n5\n", remote.display()), true, "");
+        let output = script(&b, &format!("\n3\n1\n{}\n5\n", remote.display()), true, "");
         assert!(output.contains("blocked"));
         assert_eq!(manifest(&b), local);
     }
@@ -944,12 +1013,14 @@ mod tests {
             let mut dialog = Dialog {
                 input: io::Cursor::new(input),
                 output: Vec::new(),
+                color: false,
             };
             assert!(dialog.confirm("change?").is_err());
         }
         let mut dialog = Dialog {
             input: io::Cursor::new("\n"),
             output: Vec::new(),
+            color: false,
         };
         assert!(!dialog.confirm("change?").unwrap());
     }
@@ -973,6 +1044,7 @@ mod tests {
         let mut dialog = Dialog {
             input: io::Cursor::new(format!("{}\n", "x".repeat(8192))),
             output: Vec::new(),
+            color: false,
         };
         assert_eq!(dialog.ask("input").unwrap_err().code, "setup.input_limit");
     }

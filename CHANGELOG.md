@@ -4,6 +4,26 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+### Changed
+
+- Separate guided setup questions, previews and command results with clear labels,
+  indentation, spacing and an input marker. Recognized interactive ANSI terminals
+  use cyan questions, subdued hints and labeled success/warning/error colors;
+  `NO_COLOR`, unknown/dumb terminals and redirected output remain plain text.
+  JSON and confirmation defaults are unchanged.
+- Use goal-based setup navigation, including “Choose skills to add to your AI
+  tools.” Sharing and one-time copying remain separate operations; storage choices
+  appear only inside those paths and offer “Not now” before selecting a location.
+
+### Fixed
+
+- Guided `init` detects an existing collection or machine-local state before
+  asking for a new machine identity or initialization approval. A valid setup
+  offers explicit continuation into the normal setup menu without re-creating
+  state or automatically collecting, applying or synchronizing anything.
+  Incomplete, invalid or in-use setup stops with inspection guidance; nothing
+  is deleted or repaired implicitly. Scripted initialization remains unchanged.
+
 ## 0.1.0-rc.5.6
 
 Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows. Use isolated
