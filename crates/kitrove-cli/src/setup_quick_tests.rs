@@ -261,6 +261,7 @@ fn short_confirmations_do_not_change_other_blank_defaults() {
         let mut dialog = Dialog {
             input: io::Cursor::new(input),
             output: Vec::new(),
+            color: false,
         };
         assert!(dialog.confirm("change?").unwrap());
     }
@@ -268,12 +269,14 @@ fn short_confirmations_do_not_change_other_blank_defaults() {
         let mut dialog = Dialog {
             input: io::Cursor::new(input),
             output: Vec::new(),
+            color: false,
         };
         assert!(!dialog.confirm("change?").unwrap());
     }
     let mut dialog = Dialog {
         input: io::Cursor::new("maybe\ny\n"),
         output: Vec::new(),
+        color: false,
     };
     assert!(dialog.confirm("change?").unwrap());
     assert!(
@@ -397,6 +400,7 @@ fn race_child() {
     let mut init = Dialog {
         input: io::Cursor::new(std::env::var("KITROVE_TEST_SETUP_INPUT").unwrap()),
         output: Vec::new(),
+        color: false,
     };
     run(
         &mut init,
@@ -410,6 +414,7 @@ fn race_child() {
     let state = std::fs::read(&state_path).unwrap();
     let mut dialog = Dialog {
         input: io::Cursor::new("\ny\n"),
+        color: false,
         output: RaceWriter {
             output: Vec::new(),
             collection: collection.clone(),

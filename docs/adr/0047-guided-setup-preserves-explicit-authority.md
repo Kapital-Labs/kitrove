@@ -62,6 +62,25 @@ does not freeze authority or bypass fresh mutation checks. Scripted `init` and
 `configure` retain their contracts. This is not data migration or new compatibility
 support, and remains unreleased until included in a separately approved binary.
 
+### Presentation amendment (2026-11-04)
+
+Questions and input markers have their own spacing and fixed prompt style.
+Command output and previews remain labeled and indented, including every line of
+escaped untrusted output. Optional ANSI styles supplement textual labels; they
+never carry authority or replace loss/omission details. Only a recognized terminal
+may receive color, with `NO_COLOR` (even empty), missing/unknown TERM and dumb
+terminals disabling it. Redirected output and JSON automation gain no ANSI codes.
+Styles are fixed, reset before input, and never derived from capability content.
+
+Goal-based navigation keeps adding saved items to local tools separate from
+sharing a collection and from one-time copying. The setup menu's second choice
+is “Choose skills to add to your AI tools.” Sharing still discloses upload and
+download scope and requires the exact existing sync plan approval. Storage
+selection can return “Not now” before opening a backend or invoking a credential
+provider. Previously confirmed setup steps remain; skipping does not undo them.
+No `Enter`, `y`, EOF, cancellation, trust, mutation, remote or receipt authority
+changes. These UI changes remain unreleased until separately published.
+
 Portable/local schemas, asset identity, fidelity derivation, trust decisions and
 receipt ownership remain unchanged. Remote import grants no execution authority.
 Credentials, machine IDs, local paths, trust and receipts never synchronize.

@@ -182,6 +182,12 @@ it. Do not delete a collection or local state to rerun initialization. The
 existing-setup continuation in `init` is tracked under Unreleased in the changelog;
 it is not part of the currently published RC5.6 binary.
 
+The Unreleased setup UI also separates cyan questions/input markers from labeled
+command output and previews, with plain text when `NO_COLOR` is set or the terminal
+is not recognized. Its second menu choice is “Choose skills to add to your AI
+tools”; sharing and one-time copying have their own choices. RC5.6 still has the
+older menu labels/numbers. Do not use unreleased menu numbers with that binary.
+
 The fresh-install instructions do not migrate an older collection. RC5.6 has no
 rollback-compatible predecessor; RC4.2 cannot read authored-pack collections.
 Keep older collections and local state separate. Binary rollback is not data

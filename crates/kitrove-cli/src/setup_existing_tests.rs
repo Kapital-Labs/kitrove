@@ -174,7 +174,7 @@ fn an_in_use_state_refuses_resume_without_repair_or_new_identity() {
     let before = snapshot(&a);
     let authority =
         kitrove_state_lifecycle::StateAuthority::open_existing(&a.join("state")).unwrap();
-    let _guard = authority.try_lock_exclusive().unwrap();
+    let guard = authority.try_lock_exclusive().unwrap();
     let output = script(
         &a,
         &format!("1\n{}\n", a.join("collection").display()),
@@ -182,6 +182,9 @@ fn an_in_use_state_refuses_resume_without_repair_or_new_identity() {
         "setup.existing_attention",
     );
     assert!(!output.contains("Continue setup with this existing collection?"));
+    // Windows locks also prevent reading this file. Keep the lock through the
+    // child's refusal, then release it before comparing every fixture byte.
+    drop(guard);
     assert_eq!(snapshot(&a), before);
 }
 
