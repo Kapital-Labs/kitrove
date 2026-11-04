@@ -4,6 +4,15 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+### Fixed
+
+- Guided `init` detects an existing collection or machine-local state before
+  asking for a new machine identity or initialization approval. A valid setup
+  offers explicit continuation into the normal setup menu without re-creating
+  state or automatically collecting, applying or synchronizing anything.
+  Incomplete, invalid or in-use setup stops with inspection guidance; nothing
+  is deleted or repaired implicitly. Scripted initialization remains unchanged.
+
 ## 0.1.0-rc.5.6
 
 Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows. Use isolated

@@ -44,6 +44,24 @@ tool is absent.
 
 ## Boundaries and validation
 
+### Existing-setup routing amendment (2026-11-04)
+
+After selecting a collection path, guided `init` checks for existing collection
+control files or local state before asking for a machine name or creation approval.
+Presence is only a routing hint, not ownership or permission to mutate. A valid
+portable status, bounded no-follow local-state decode and existing shared lifecycle
+lock are required before offering continuation. Missing, invalid, redirected or
+in-use authority stops with inspection guidance, never implicit repair/deletion.
+
+An explicit `y`/`yes` continues at the ordinary configuration menu. It does not
+repeat the selected first/second-computer action, scan for collection, adopt,
+apply, synchronize, create another machine identity or change existing authority.
+Enter/`n` skips and `q`/EOF cancels. Normal fresh initialization and every later
+operation still enforce their original preconditions; the routing observation
+does not freeze authority or bypass fresh mutation checks. Scripted `init` and
+`configure` retain their contracts. This is not data migration or new compatibility
+support, and remains unreleased until included in a separately approved binary.
+
 Portable/local schemas, asset identity, fidelity derivation, trust decisions and
 receipt ownership remain unchanged. Remote import grants no execution authority.
 Credentials, machine IDs, local paths, trust and receipts never synchronize.

@@ -20,6 +20,7 @@ use crate::scan::{resolve_required_environment_root, resolve_required_state_root
 use crate::scan_display::{name, safe, selectable};
 
 mod collection;
+mod initialization;
 
 struct Dialog<R, W> {
     input: R,
@@ -200,7 +201,7 @@ fn run<R: BufRead, W: Write>(
     registry: &PolicyRegistry,
 ) -> Result<(), CliError> {
     dialog.say("Kitrove setup\nCredentials, trust and deployment receipts stay on this computer.\nPreview skills together or review individually. Apply and sync are separate approvals.\nType q at any prompt to stop.")?;
-    let start = if configure {
+    let mut start = if configure {
         String::new()
     } else {
         loop {
@@ -245,40 +246,13 @@ fn run<R: BufRead, W: Write>(
             PathBuf::from(response)
         }))?
     } else {
-        let suggestion = default_collection()?;
-        let response = dialog.ask(&format!(
-            "Where should your portable collection live? [{}]",
-            safe(&suggestion.display().to_string())
-        ))?;
-        let root = if response.is_empty() {
-            suggestion
-        } else {
-            PathBuf::from(response)
+        let Some((root, resumed)) = initialization::select(dialog, registry)? else {
+            return Ok(());
         };
-        let root = if root.is_absolute() {
-            root
-        } else {
-            std::env::current_dir().map_err(|_| io_error())?.join(root)
-        };
-        let machine = dialog.ask("Name this computer (for example mac-mini):")?;
-        let machine = MachineId::parse(machine).map_err(|_| {
-            CliError::new(
-                "setup.machine_invalid",
-                "choose a valid machine name using lowercase letters, digits and hyphens",
-            )
-        })?;
-        let local = resolve_required_state_root()?;
-        if !dialog.confirm(&format!("Create an empty collection at {}\nLocal-only state at {}\nExisting agent files will not be changed.", safe(&root.display().to_string()), safe(&local.display().to_string())))? { return Ok(()); }
-        let completed = crate::init::run_init(
-            InitArgs {
-                machine_id: Some(machine),
-                project_root: None,
-                environment: Some(root.clone()),
-                json: false,
-            },
-            registry,
-        )?;
-        dialog.report(&completed.output)?;
+        if resumed {
+            // Resume reaches the ordinary menu, not the selected new-machine action.
+            start.clear();
+        }
         root
     };
     let status = run_status(EnvironmentArgs {
@@ -654,6 +628,10 @@ fn io_error() -> CliError {
 #[cfg(test)]
 #[path = "setup_quick_tests.rs"]
 mod quick_tests;
+
+#[cfg(test)]
+#[path = "setup_existing_tests.rs"]
+mod existing_tests;
 
 #[cfg(test)]
 mod tests {

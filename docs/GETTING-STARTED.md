@@ -171,6 +171,17 @@ completed. JSON scan and existing explicit operations remain available to script
 
 ## Existing installations
 
+Already initialized this collection and computer? Use the existing-setup menu:
+
+```sh
+kitrove configure --environment /absolute/path/to/your/collection
+```
+
+RC5.6's first-computer `init` path refuses an existing setup rather than replacing
+it. Do not delete a collection or local state to rerun initialization. The
+existing-setup continuation in `init` is tracked under Unreleased in the changelog;
+it is not part of the currently published RC5.6 binary.
+
 The fresh-install instructions do not migrate an older collection. RC5.6 has no
 rollback-compatible predecessor; RC4.2 cannot read authored-pack collections.
 Keep older collections and local state separate. Binary rollback is not data
