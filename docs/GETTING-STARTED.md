@@ -177,16 +177,17 @@ Already initialized this collection and computer? Use the existing-setup menu:
 kitrove configure --environment /absolute/path/to/your/collection
 ```
 
-RC5.6's first-computer `init` path refuses an existing setup rather than replacing
-it. Do not delete a collection or local state to rerun initialization. The
-existing-setup continuation in `init` is tracked under Unreleased in the changelog;
-it is not part of the currently published RC5.6 binary.
+RC5.7 adds explicit existing-setup continuation in `init`, after validating the
+collection and local state. Do not delete either to rerun initialization. The
+previous RC5.6 first-computer path refuses existing setup; use `configure` above
+with that binary. RC5.7 publication and package-channel availability are verified
+separately; this source guide is not a claim that Homebrew has already updated.
 
-The Unreleased setup UI also separates cyan questions/input markers from labeled
+The RC5.7 setup UI also separates cyan questions/input markers from labeled
 command output and previews, with plain text when `NO_COLOR` is set or the terminal
 is not recognized. Its second menu choice is “Choose skills to add to your AI
 tools”; sharing and one-time copying have their own choices. RC5.6 still has the
-older menu labels/numbers. Do not use unreleased menu numbers with that binary.
+older menu labels/numbers. Do not use RC5.7 menu numbers with that binary.
 
 The fresh-install instructions do not migrate an older collection. RC5.6 has no
 rollback-compatible predecessor; RC4.2 cannot read authored-pack collections.
