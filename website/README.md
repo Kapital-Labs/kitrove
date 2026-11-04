@@ -59,7 +59,7 @@ release status change. The website is a curated summary, not generated reference
 documentation. Tests freeze current commands and verify local links, but cannot
 replace semantic review of product claims.
 
-The primary download is the published RC5.6 fresh-install evaluation preview for
+The primary download is the published RC5.7 fresh-install evaluation preview for
 Apple Silicon macOS, x86-64 Linux and x86-64 Windows. Intel Macs are unsupported
 in this preview. Link its exact tag, reviewed notes and versioned installer guide;
 do not turn generated scripts into an authenticated bootstrap claim. Keep the
@@ -67,7 +67,7 @@ new-collection/empty-destination and no-supported-in-place-upgrade boundaries.
 Artifact verification is not full fresh-install or clean-Mac acceptance.
 
 Apple Silicon Homebrew is the primary fresh-install path:
-`brew install --cask kapital-labs/tap/kitrove`, currently pinned to reviewed RC5.6.
+`brew install --cask kapital-labs/tap/kitrove`, currently pinned to reviewed RC5.7.
 The package name is not a stable-support or automatic-latest discovery claim.
 Keep older-token conflicts under existing-install guidance, not default onboarding.
 Guided collection copy must distinguish Enter-to-preview, y/yes approval of the
@@ -80,7 +80,7 @@ not a claim that every brew invocation runs Kitrove's attestation verifier.
 Retained older casks and x86-64 APT/DNF repositories still include RC4.2;
 their commands belong under explicitly older-version instructions.
 The Linux guide includes key verification and repository setup.
-The RC4.2 WinGet submission is not an RC5.6 distribution path; do not imply its
+The RC4.2 WinGet submission is not an RC5.7 distribution path; do not imply its
 approval or offer WinGet/Chocolatey install commands. This copy change does not
 change any package bytes, signing metadata, channel or publication workflow.
 A future package channel needs its own package, distribution trust review,

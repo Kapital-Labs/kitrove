@@ -6,7 +6,7 @@ capabilities elsewhere. It does not install those tools or copy their accounts.
 ## Install the latest preview
 
 These instructions start with a fresh installation of the latest reviewed
-preview, currently **RC5.6**. On an Apple Silicon Mac with
+preview, currently **RC5.7**. On an Apple Silicon Mac with
 [Homebrew](https://brew.sh/) already installed:
 
 ```sh
@@ -15,7 +15,7 @@ kitrove --version
 ```
 
 The package is named `kitrove`; the installed version still identifies itself as
-`0.1.0-rc.5.6`. This is an evaluation preview, not stable support. Use a new isolated
+`0.1.0-rc.5.7`. This is an evaluation preview, not stable support. Use a new isolated
 collection and empty destinations with synthetic or disposable capabilities.
 Homebrew checks the pinned archive checksum; you trust Homebrew and the reviewed
 [tap](https://github.com/Kapital-Labs/homebrew-tap) to select the package. It does
@@ -23,7 +23,7 @@ not initialize Kitrove, scan skills, or grant execution trust during installatio
 Leave quarantine and Gatekeeper enabled.
 
 For Linux x86-64 and Windows x86-64, use the exact
-[RC5.6 downloads](https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.6)
+[RC5.7 downloads](https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.7)
 and follow the [verification guide](INSTALLER.md) with an independently trusted
 or reviewed-source-built verifier **before execution**. A checksum alone is not
 provenance. Intel Macs are unsupported in this preview.
@@ -59,8 +59,8 @@ pending recovery or failed commit stops later items; completed items remain and
 are reported. See the [quick collection flow](SETUP-QUICK-ADOPTION.md) for omitted
 items, naming conflicts and exact confirmation semantics.
 
-Use **Apply selected items** to select destinations. This is a separate plan and
-confirmation. Fidelity results explain what transfers; an unmanaged destination
+Select **Choose skills to add to your AI tools** to select destinations. This is a
+separate plan and confirmation. Fidelity results explain what transfers; an unmanaged destination
 conflict is refused, not overwritten. Pi and OpenCode may require the absolute
 path of an independently trusted local binary for the existing bounded version
 probe. Executable capabilities still require separate local trust; setup does
@@ -77,9 +77,18 @@ all earlier choices, and nothing starts running in the background.
 kitrove configure
 ```
 
-The walkthrough asks for your existing collection. You can collect more skills,
-synchronize, selectively import, or apply a different selection. To select a
-non-default collection explicitly:
+The walkthrough asks for your existing collection. The menu separates these goals:
+
+1. **Add skills from this computer** copies selected skills into your collection.
+2. **Choose skills to add to your AI tools** previews applying a selection locally.
+3. **Share this collection with another computer** reviews bidirectional sync.
+4. **Copy selected items from another collection** performs a one-time import.
+5. **Finish for now** leaves setup.
+
+Questions and the input marker are cyan in recognized interactive terminals;
+command results and no-write previews are labeled and indented. `NO_COLOR` or an
+unrecognized terminal keeps plain text, with the same labels and approvals.
+To select a non-default collection explicitly:
 
 ```sh
 kitrove configure --environment /absolute/path/to/collection
@@ -91,8 +100,8 @@ locations are requested per operation rather than saved with credentials.
 
 ## Prepare a collection for another computer
 
-In Configure, choose **Connect / sync the whole collection**. Select an existing
-filesystem/shared directory, HTTPS Git remote, or SSH Git remote with an explicit
+In Configure, choose **Share this collection with another computer**. Select an
+existing filesystem/shared directory, HTTPS Git remote, or SSH Git remote with an explicit
 known-hosts file. This must be a Kitrove snapshot backend, not merely a checkout
 containing skill files. An empty existing backend can receive the first approved
 publication. Create and authorize any remote repository separately.
@@ -180,8 +189,9 @@ kitrove configure --environment /absolute/path/to/your/collection
 RC5.7 adds explicit existing-setup continuation in `init`, after validating the
 collection and local state. Do not delete either to rerun initialization. The
 previous RC5.6 first-computer path refuses existing setup; use `configure` above
-with that binary. RC5.7 publication and package-channel availability are verified
-separately; this source guide is not a claim that Homebrew has already updated.
+with that older binary. RC5.7 asks before continuing a valid existing setup and
+does not delete or recreate either the collection or local state. Incomplete,
+unsafe or in-use state stops for inspection rather than implicit repair.
 
 The RC5.7 setup UI also separates cyan questions/input markers from labeled
 command output and previews, with plain text when `NO_COLOR` is set or the terminal
@@ -189,7 +199,7 @@ is not recognized. Its second menu choice is “Choose skills to add to your AI
 tools”; sharing and one-time copying have their own choices. RC5.6 still has the
 older menu labels/numbers. Do not use RC5.7 menu numbers with that binary.
 
-The fresh-install instructions do not migrate an older collection. RC5.6 has no
+The fresh-install instructions do not migrate an older collection. RC5.7 has no
 rollback-compatible predecessor; RC4.2 cannot read authored-pack collections.
 Keep older collections and local state separate. Binary rollback is not data
 rollback.
@@ -202,5 +212,5 @@ state, or use `--zap` to bypass a conflict. Never point `kitrove-installer` at a
 Homebrew-managed binary. Normal cask removal preserves Kitrove collections and
 local state; use the token that actually owns your installed binary.
 
-The older APT/DNF package channels remain RC4.2, not an RC5.6 install or upgrade
+The older APT/DNF package channels remain RC4.2, not an RC5.7 install or upgrade
 path. See the [Linux package guide](LINUX-INSTALL.md) for their exact scope.

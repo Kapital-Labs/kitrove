@@ -89,12 +89,12 @@ class SiteTests(unittest.TestCase):
         home = (ROOT / "index.html").read_text()
         visible = " ".join(" ".join(Page(ROOT / "index.html").text).split())
         self.assertIn("brew install --cask kapital-labs/tap/kitrove</code>", home)
-        self.assertIn("v0.1.0-rc.5.6", home)
+        self.assertIn("v0.1.0-rc.5.7", home)
         self.assertNotIn("v0.1.0-rc.4.1", home)
         self.assertIn("Apple Silicon Macs only", home)
         for command in ("winget install", "choco install", "apt install", "dnf install"):
             self.assertNotIn(command, home)
-        self.assertIn("RC4.2 WinGet submission is not an RC5.6 install path", visible)
+        self.assertIn("RC4.2 WinGet submission is not an RC5.7 install path", visible)
         self.assertIn("No Chocolatey package is published", visible)
         self.assertIn("RC4.2 signed APT or DNF repository", visible)
         self.assertIn("docs/LINUX-INSTALL.md", home)
@@ -104,9 +104,9 @@ class SiteTests(unittest.TestCase):
             page = ROOT / relative
             source = page.read_text()
             visible = " ".join(" ".join(Page(page).text).split())
-            self.assertIn("RC5.6", visible)
+            self.assertIn("RC5.7", visible)
             self.assertIn("RC4.2", visible)
-            self.assertIn("RC4.2 WinGet submission is not an RC5.6 install path", visible)
+            self.assertIn("RC4.2 WinGet submission is not an RC5.7 install path", visible)
             self.assertIn("#ubuntu--apt", source)
             self.assertIn("#fedora--dnf", source)
             self.assertIn("fresh-install evaluation", visible)
@@ -122,17 +122,17 @@ class SiteTests(unittest.TestCase):
         self.assertIn("Cloud-provider sync is roadmap work", docs)
 
     def test_exact_preview_links_and_verification_before_execution(self):
-        release = "https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.6"
-        versioned = "https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.6/"
+        release = "https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.7"
+        versioned = "https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.7/"
         for relative in ("index.html", "docs/index.html"):
             page = Page(ROOT / relative)
             self.assertIn(release, page.refs)
             self.assertIn(versioned + "docs/INSTALLER.md", page.refs)
-            self.assertIn(versioned + "release/notes/v0.1.0-rc.5.6.md", page.refs)
+            self.assertIn(versioned + "release/notes/v0.1.0-rc.5.7.md", page.refs)
             visible = " ".join(" ".join(page.text).split())
             self.assertIn("Verify before running", visible)
             self.assertIn("Homebrew", visible)
-            self.assertIn("do not install RC5.6", visible)
+            self.assertIn("do not install RC5.7", visible)
             self.assertNotIn("Intel Mac and Windows", visible)
             self.assertNotIn("curl |", visible)
             self.assertNotIn("iex", visible)
@@ -166,6 +166,24 @@ class SiteTests(unittest.TestCase):
             self.assertIn("stale", text)
         self.assertIn("Enter does not approve bulk", docs)
         self.assertIn("individual", docs)
+
+    def test_current_preview_links_select_rc57(self):
+        for relative in ("index.html", "docs/index.html"):
+            page = Page(ROOT / relative)
+            self.assertIn("https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.7", page.refs)
+            self.assertNotIn("https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.6", page.refs)
+
+    def test_setup_docs_use_current_goal_labels_and_optional_prompt_color(self):
+        guide = (ROOT.parent / "docs/GETTING-STARTED.md").read_text()
+        docs = " ".join(" ".join(Page(ROOT / "docs/index.html").text).split())
+        for text in (guide, docs):
+            for label in ("Choose skills to add to your AI tools", "Share this collection with another computer"):
+                self.assertIn(label, text)
+            self.assertNotIn("Connect / sync the whole collection", text)
+            self.assertIn("NO_COLOR", text)
+            self.assertIn("existing setup", text)
+            self.assertIn("cyan", text)
+        self.assertIn("does not delete or recreate", docs)
 
 
 if __name__ == "__main__":

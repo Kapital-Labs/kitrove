@@ -37,7 +37,7 @@
         ><a href="#help">More documentation</a>
       </nav>
       <main id="main" class="docs-content">
-        <p class="eyebrow">Getting started · RC5.6</p>
+        <p class="eyebrow">Getting started · RC5.7</p>
         <h1>Your first collection.</h1>
         <p>
           Kitrove collects skills from your agent tools and helps you apply
@@ -46,8 +46,8 @@
         </p>
         <h2 id="install">Install the preview</h2>
         <p>
-          RC5.6 is a fresh-install evaluation preview for Apple Silicon macOS,
-          x86-64 Linux and x86-64 Windows. Intel Macs are unsupported in RC5.6.
+          RC5.7 is a fresh-install evaluation preview for Apple Silicon macOS,
+          x86-64 Linux and x86-64 Windows. Intel Macs are unsupported in RC5.7.
           Use a new isolated collection and empty destination with synthetic or
           disposable capabilities.
         </p>
@@ -58,7 +58,7 @@
         <pre><code>brew install --cask kapital-labs/tap/kitrove
 kitrove --version</code></pre>
         <p>
-          This installs the latest reviewed preview, currently RC5.6. The
+          This installs the latest reviewed preview, currently RC5.7. The
           shorter package name does not make it a stable release. Homebrew
           checks the pinned archive checksum; you trust Homebrew and the
           <a href="https://github.com/Kapital-Labs/homebrew-tap"
@@ -69,17 +69,17 @@ kitrove --version</code></pre>
         </p>
         <p>
           <a
-            href="https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.6"
-            >Download RC5.6</a
+            href="https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.7"
+            >Download RC5.7</a
           >
           and read its
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.6/release/notes/v0.1.0-rc.5.6.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.7/release/notes/v0.1.0-rc.5.7.md"
             >versioned release notes</a
           >. Verify before running a manual download on macOS, Linux or Windows:
           follow the
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.6/docs/INSTALLER.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.7/docs/INSTALLER.md"
             >versioned verification and staging guide</a
           >
           with an independently trusted or reviewed-source-built verifier. Match
@@ -91,9 +91,9 @@ kitrove --version</code></pre>
         <details>
           <summary>Older Linux package channels · RC4.2 only</summary>
           <p>
-            APT/DNF still distribute RC4.2 and do not install RC5.6. The RC4.2
-            WinGet submission is not an RC5.6 install path. No Chocolatey
-            package is published. These channels were not updated by RC5.6.
+            APT/DNF still distribute RC4.2 and do not install RC5.7. The RC4.2
+            WinGet submission is not an RC5.7 install path. No Chocolatey
+            package is published. These channels were not updated by RC5.7.
           </p>
           <p>
             Linux x86-64 users can choose
@@ -105,7 +105,7 @@ kitrove --version</code></pre>
             <a
               href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/LINUX-INSTALL.md#fedora--dnf"
               >Fedora / DNF</a
-            >. These are RC4.2 package instructions, not RC5.6 installation or
+            >. These are RC4.2 package instructions, not RC5.7 installation or
             upgrade instructions. Authenticate a download before its first
             execution.
           </p>
@@ -136,8 +136,8 @@ kitrove --version</code></pre>
             preview. Original source files stay in place.
           </li>
           <li>
-            Choose <strong>Apply selected items</strong>, pick destinations,
-            then review and confirm the separate application plan.
+            Select <strong>Choose skills to add to your AI tools</strong>, pick
+            destinations, then review and confirm the separate application plan.
           </li>
         </ol>
         <p class="note">
@@ -149,7 +149,7 @@ kitrove --version</code></pre>
         <p>
           See the
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.6/docs/SETUP-QUICK-ADOPTION.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.7/docs/SETUP-QUICK-ADOPTION.md"
             >quick collection guide</a
           >
           for omitted items, ambiguous names and exact confirmation semantics.
@@ -168,14 +168,34 @@ kitrove --version</code></pre>
         </p>
         <pre><code>kitrove configure --environment /absolute/path/to/collection</code></pre>
         <p>
+          Already have an existing setup? <code>kitrove init</code> now checks
+          it before offering to continue. It does not delete or recreate your
+          collection or local state. Incomplete, unsafe or in-use state stops
+          for inspection rather than automatic repair.
+        </p>
+        <p>
+          Choose <strong>Add skills from this computer</strong> to collect,
+          <strong>Choose skills to add to your AI tools</strong> to preview
+          local application,
+          <strong>Share this collection with another computer</strong> to sync,
+          or <strong>Copy selected items from another collection</strong>
+          for a one-time import. <strong>Finish for now</strong> leaves setup.
+        </p>
+        <p>
+          Questions and the input marker are cyan in recognized interactive
+          terminals. Results and no-write previews have separate labels and
+          indentation. Set <code>NO_COLOR</code> for plain text; unrecognized
+          terminals also stay plain. Labels and confirmations are the same.
+        </p>
+        <p>
           Nothing starts syncing in the background. You choose a backend for
           each operation, review the plan, and confirm it.
         </p>
         <h2 id="second-computer">Bring your collection to a second computer</h2>
         <p>
           On the first computer, open Configure and choose
-          <strong>Connect / sync the whole collection</strong>. Use an existing
-          filesystem/shared directory, HTTPS Git remote, or SSH Git remote with
+          <strong>Share this collection with another computer</strong>. Use an
+          existing filesystem/shared directory, HTTPS Git remote, or SSH Git remote with
           an explicit known-hosts file. Create and authorize a remote repository
           separately.
         </p>
@@ -215,7 +235,7 @@ kitrove --version</code></pre>
         </p>
         <p>
           Conflicting content under the same identity stops the operation for
-          review. RC5.6 does not choose an automatic winner or create a
+          review. RC5.7 does not choose an automatic winner or create a
           keep-both rewrite.
         </p>
         <h2 id="scan">Inspect skills and choose by name</h2>
@@ -255,30 +275,30 @@ kitrove adopt humanizer --harness claude --scope user</code></pre>
             overwriting existing files.
           </li>
           <li>
-            Keep RC5.6 collections separate from older previews. RC4.2 cannot
+            Keep RC5.7 collections separate from older previews. RC4.2 cannot
             read authored packs. Do not downgrade a collection or treat binary
             rollback as data recovery.
           </li>
         </ul>
         <p>
-          RC5.6 remains a prerelease. Its published artifacts passed independent
+          RC5.7 remains a prerelease. Its published artifacts passed independent
           inventory, provenance, notice-byte and native Mac image verification;
           those checks did not install or execute the downloaded products. Prior
           bounded source-built Mac/Linux tests covered skill and authored-pack
           transfer, updates, conflict refusal and unmanaged-file protection.
-          They are not RC5.6 production-artifact fresh-install acceptance,
+          They are not RC5.7 production-artifact fresh-install acceptance,
           clean-Mac online/offline first launch, all capability types, live
           agent-tool execution, Git-provider acceptance or concurrent sync.
         </p>
         <p>
-          RC5.6 includes exact agent plan/approval workflows, locally authored
+          RC5.7 includes exact agent plan/approval workflows, locally authored
           packs and explicit partial-fidelity warnings for native-only skill
           fields. These features are not in the older RC4.2 package channels.
           Cloud-provider sync is roadmap work, not an available feature.
         </p>
         <h2 id="existing-installations">Existing installations</h2>
         <p>
-          These instructions assume a fresh install. RC5.6 is not a supported
+          These instructions assume a fresh install. RC5.7 is not a supported
           in-place upgrade from RC4.2; no rollback-compatible predecessor is
           declared. Binary rollback does not roll back collection data.
         </p>
@@ -299,11 +319,11 @@ kitrove adopt humanizer --harness claude --scope user</code></pre>
             >full setup guide</a
           >,
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.6/docs/INSTALLER.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.7/docs/INSTALLER.md"
             >release verification instructions</a
           >, and
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.6/docs/RELEASE-ACCEPTANCE.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.7/docs/RELEASE-ACCEPTANCE.md"
             >acceptance checklist</a
           >.
         </p>
