@@ -149,3 +149,26 @@ API, portable schema, trust grant, receipt, synchronization, or Apply authority
 is introduced. Original source files/native variants and local-only boundaries
 remain unchanged. The UX is unreleased until a separately authorized binary
 release includes it; current RC5.5 documentation must not claim it is installed.
+
+### Explicit source selection and empty-preview amendment (2026-11-05)
+
+Repeated names can arise from overlapping discovery policies or distinct local
+copies. Neither name nor portable-content equality proves interchangeable native
+identity. Do not deduplicate, merge native variants, privilege a harness, infer
+ownership, update an occupied name or invent a new name automatically.
+
+Guided collection accepts `from TOOL` to explicitly restrict this scan's selected
+observations to one displayed tool. Optional exclusions, such as
+`from codex,-3,-8`, retain the original inventory numbering. This is a one-time
+selection, not a canonical-source preference or saved authority. Remaining
+same-name ambiguity within that tool still refuses bulk adoption. Every ready
+plan retains its source, full target fidelity/loss report, exact digest and fresh
+commit checks. Excluded sources remain unchanged and are not claimed equivalent.
+
+Omission/exclusion output defaults to a bounded sample plus counts/reasons;
+`d` displays all skipped-item details before any approval. Ready plans are never
+truncated. An empty preview offers choose-again, individual review, details, skip
+or stop, never adoption approval or an "Adopted 0" success. Choose-again reuses
+the same observed inventory; later mutations still require normal fresh planning.
+No schema, identity, preservation, fidelity, receipt, trust, Apply or sync behavior
+changes. These setup improvements remain unreleased until separately published.

@@ -1,4 +1,5 @@
 //! Setup-only selection and presentation; existing exact adoption commits own writes.
+use super::collection_selection::{self, Skipped};
 use super::*;
 use kitrove_core::{AdoptionPlan, AdoptionPlanOutcome, ScanEntry, ScanReport, plan_adoption};
 use kitrove_model::EnvironmentManifest;
@@ -55,43 +56,65 @@ pub(super) fn collect<R: BufRead, W: Write>(
         dialog
             .say("Showing the first 20; v shows the full inventory and numbered selection list.")?;
     }
-    let selected = loop {
-        let response = dialog.ask("Choose skills: Enter = recommended set; 1,4,7 = only these; all,-3,-8 or -3,-8 = all except; v = full inventory; n = skip; q = stop:")?;
-        if response == "v" {
-            dialog.say(&crate::scan_display::render(&report))?;
-            for (index, entry) in candidates.iter().enumerate() {
-                dialog.say(&format!("  {}. {}", index + 1, label(entry)))?;
-            }
-            continue;
-        }
-        if response.is_empty() {
-            break (0..candidates.len()).collect::<Vec<_>>();
-        }
-        match selection(&response, candidates.len()) {
-            Some(indices) => break indices,
-            None => dialog.say("Use shown numbers, all,-3,-8 or -3,-8. Do not mix positive and negative numbers. Nothing has changed.")?,
-        }
-    };
-    if selected.is_empty() {
-        dialog.say("Collection skipped.")?;
-        return Ok(());
-    }
-    let items = preview(dialog, root, &report, &candidates, &selected)?;
-    loop {
-        match dialog.ask("y/yes = adopt the previewed set; r = review selected skills individually; n = skip; q = stop (Enter does not approve bulk writes):")?.to_ascii_lowercase().as_str() {
-            "y" | "yes" => {
-                for (completed, item) in items.iter().enumerate() {
-                    if let Err(error) = commit(root, candidates[item.index], item, registry) {
-                        dialog.warning(&format!("Stopped after {completed} completed adoptions; later items did not run. Use status before continuing."))?;
-                        return Err(error);
-                    }
-                    dialog.success(&format!("Adopted {}.", item.id.as_str()))?;
+    collection_selection::show_sources(dialog, &candidates)?;
+    'selection: loop {
+        let selected = loop {
+            let response = dialog.ask("Choose skills: Enter = preview eligible recommendations; from TOOL = that tool only; 1,4,7 = only these; all,-3,-8 or -3,-8 = all except; v = full inventory; n = skip; q = stop:")?;
+            if response == "v" {
+                dialog.say(&crate::scan_display::render(&report))?;
+                for (index, entry) in candidates.iter().enumerate() {
+                    dialog.say(&format!("  {}. {}", index + 1, label(entry)))?;
                 }
-                return dialog.success(&format!("Adopted {} skills. Apply and sync remain separate choices.", items.len()));
+                continue;
             }
-            "r" => return individually(dialog, root, &report, &candidates, &selected, registry),
-            "n" | "no" => return dialog.say("Collection skipped."),
-            _ => dialog.say("Choose y to adopt, r to review, or n to skip. Nothing has changed.")?,
+            if response.is_empty() {
+                break (0..candidates.len()).collect::<Vec<_>>();
+            }
+            match collection_selection::select(&response, &candidates) {
+                Some(indices) => break indices,
+                None => {
+                    dialog.say("Use a displayed tool (from codex), shown numbers, all,-3,-8 or -3,-8. Do not mix positive and negative numbers. Nothing has changed.")?;
+                }
+            }
+        };
+        if selected.is_empty() {
+            dialog.say("Collection skipped.")?;
+            return Ok(());
+        }
+        let (items, skipped) = preview(dialog, root, &report, &candidates, &selected)?;
+        if items.is_empty() {
+            dialog.say("No skills ready to collect. Nothing has changed.")?;
+            dialog.hint("Choose again with from TOOL or specific numbers, or review individually to rename an occupied or ambiguous item. Existing collection items are not overwritten.")?;
+        }
+        loop {
+            let prompt = if items.is_empty() {
+                "Enter/s = choose again; r = review selected skills individually; d = all skipped-item details; n = skip; q = stop:"
+            } else {
+                "y/yes = adopt the previewed set; s = choose again; r = review selected skills individually; d = all skipped-item details; n = skip; q = stop (Enter does not approve bulk writes):"
+            };
+            match dialog.ask(prompt)?.to_ascii_lowercase().as_str() {
+                "y" | "yes" if !items.is_empty() => {
+                    for (completed, item) in items.iter().enumerate() {
+                        if let Err(error) = commit(root, candidates[item.index], item, registry) {
+                            dialog.warning(&format!("Stopped after {completed} completed adoptions; later items did not run. Use status before continuing."))?;
+                            return Err(error);
+                        }
+                        dialog.success(&format!("Adopted {}.", item.id.as_str()))?;
+                    }
+                    return dialog.success(&format!(
+                        "Adopted {} skills. Apply and sync remain separate choices.",
+                        items.len()
+                    ));
+                }
+                "r" => {
+                    return individually(dialog, root, &report, &candidates, &selected, registry);
+                }
+                "s" => continue 'selection,
+                "" if items.is_empty() => continue 'selection,
+                "d" => skipped.all(dialog)?,
+                "n" | "no" => return dialog.say("Collection skipped."),
+                _ => dialog.say("Choose one of the displayed options. Nothing has changed.")?,
+            }
         }
     }
 }
@@ -170,14 +193,18 @@ fn preview<R: BufRead, W: Write>(
     report: &ScanReport,
     candidates: &[&ScanEntry],
     selected: &[usize],
-) -> Result<Vec<PreviewedItem>, CliError> {
+) -> Result<(Vec<PreviewedItem>, Skipped), CliError> {
     let mut manifest = load_manifest(root)?;
     let mut items = Vec::new();
+    let mut skipped = Skipped::default();
     dialog.heading("Adoption preview (no writes)")?;
     dialog.hint("Names and four-tool fidelity follow. Each item is a separate transaction; on failure completed items remain and later items stop.")?;
     for (index, entry) in candidates.iter().enumerate() {
         if !selected.contains(&index) {
-            dialog.detail(&format!("Excluded: {}. {}", index + 1, label(entry)))?;
+            skipped.push(
+                "excluded by selection",
+                format!("Excluded: {}. {}", index + 1, label(entry)),
+            );
             continue;
         }
         let reason = if selected
@@ -197,11 +224,10 @@ fn preview<R: BufRead, W: Write>(
             Ok(_) => None,
         });
         if let Some(reason) = reason {
-            dialog.detail(&format!(
-                "Omitted: {}. {}: {reason}",
-                index + 1,
-                label(entry)
-            ))?;
+            skipped.push(
+                reason,
+                format!("Omitted: {}. {}: {reason}", index + 1, label(entry)),
+            );
             continue;
         }
         let id = id.map_err(|_| io_error())?;
@@ -215,21 +241,25 @@ fn preview<R: BufRead, W: Write>(
                 });
                 manifest = plan.proposed_manifest().clone();
             }
-            AdoptionPlanOutcome::Blocked(blocked) => dialog.detail(&format!(
-                "Omitted: {}. {}: {:?}. No trust is granted.",
-                index + 1,
-                label(entry),
-                blocked.reason()
-            ))?,
+            AdoptionPlanOutcome::Blocked(blocked) => skipped.push(
+                "blocked plan; no trust granted",
+                format!(
+                    "Omitted: {}. {}: {:?}. No trust is granted.",
+                    index + 1,
+                    label(entry),
+                    blocked.reason()
+                ),
+            ),
         }
     }
+    skipped.summary(dialog)?;
     dialog.detail(&format!(
         "{} ready; {} selected but omitted; {} excluded by selection.",
         items.len(),
         selected.len() - items.len(),
         candidates.len() - selected.len()
     ))?;
-    Ok(items)
+    Ok((items, skipped))
 }
 
 fn commit(

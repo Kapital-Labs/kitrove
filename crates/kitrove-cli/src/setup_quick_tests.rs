@@ -240,7 +240,9 @@ fn bulk_preview_retains_partial_reasons_and_omits_executable_content() {
         "#!/bin/sh\nexit 0\n",
     )
     .unwrap();
-    let output = script(&a, "\n1\nall\ny\n5\n", true, "");
+    let output = script(&a, "\n1\nall\ny\nn\n5\n", true, "");
+    assert!(output.contains("No skills ready to collect"));
+    assert!(!output.contains("adopt the previewed set"));
     assert!(output.contains("ExecutableTrustRequired"));
     assert!(!output.contains("kitrove-synthetic-secret-canary-12345"));
     assert!(
@@ -312,7 +314,13 @@ fn compact_inventory_and_exclusions_use_the_same_numbering_after_view() {
 
 #[test]
 fn real_bulk_loop_refuses_stale_sources_and_stops_after_partial_progress() {
-    for mode in ["before", "after-first", "manifest", "journal"] {
+    for mode in [
+        "before",
+        "after-first",
+        "manifest",
+        "journal",
+        "source-filter",
+    ] {
         let tmp = kitrove_testkit::trusted_tempdir(".setup-race-");
         let root = std::fs::canonicalize(tmp.path()).unwrap();
         let a = machine(&root, "a");
@@ -413,7 +421,11 @@ fn race_child() {
     let state_path = collection.parent().unwrap().join("state/state.json");
     let state = std::fs::read(&state_path).unwrap();
     let mut dialog = Dialog {
-        input: io::Cursor::new("\ny\n"),
+        input: io::Cursor::new(if mode == "source-filter" {
+            "from pi\ny\n"
+        } else {
+            "\ny\n"
+        }),
         color: false,
         output: RaceWriter {
             output: Vec::new(),
