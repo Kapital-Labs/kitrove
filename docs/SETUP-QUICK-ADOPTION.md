@@ -1,6 +1,6 @@
-# Quick skill collection (RC5.7)
+# Quick skill collection (RC5.8)
 
-These instructions assume RC5.7. Quick collection was introduced in RC5.6;
+These instructions assume RC5.8. Quick collection was introduced in RC5.6;
 RC5.5 has the older per-item prompts. Check
 `kitrove --version` before following these shortcuts. This guide does not itself
 establish publication or update an installed binary. Use the current download
@@ -19,6 +19,8 @@ At the selection prompt:
 | `all` | Consider every numbered observation |
 | `all,-3,-8` | Everything except observations 3 and 8 |
 | `-3,-8` | The same exclusion shorthand |
+| `from codex` | Choose only that displayed tool's observations |
+| `from codex,-13,-20` | Choose that tool except those original inventory numbers |
 | `n` | Skip collection |
 | `q` | Stop setup |
 
@@ -37,6 +39,10 @@ or use individual review to rename it explicitly.
 After preview:
 
 - `y` or `yes` approves just the displayed ready set. Enter does not approve it.
+- `s` chooses again using the same scan. An empty preview offers no adoption approval
+  or zero-item success; Enter chooses again instead.
+- `d` shows complete skipped-item details; reason counts and at most 20 examples
+  are shown by default. Ready plans always retain full source/fidelity/loss details.
 - `r` walks through the original selection. Enter or `y` accepts the current
   single plan, `n` skips it, and `r` changes its collection name before a new
   preview. Invalid or occupied names must be renamed or skipped.
@@ -54,11 +60,11 @@ Apply and sync still show separate plans and require separate confirmations.
 Those confirmations accept `y`/`yes`, while Enter still skips them. Credentials,
 machine identity, trust and deployment receipts remain local.
 
-## Next-preview improvement (not included in RC5.7)
+## Choose one tool's copies when names repeat
 
 Repeated names can be copies in different tools or one location discovered by
-several tools. A matching name does not prove identical content. In the upcoming
-setup flow, use `from codex`, `from claude`, `from pi` or `from opencode` to select
+several tools. A matching name does not prove identical content. Use
+`from codex`, `from claude`, `from pi` or `from opencode` to select
 one displayed tool's observations. For example, `from codex,-13,-20` excludes
 observations 13 and 20 from that source selection, using the original inventory
 numbers. This does not make that tool the permanent source of truth or merge
@@ -70,4 +76,5 @@ all skipped-item details; ready plans still show full source/fidelity/loss detai
 An empty preview does not ask for adoption approval or report success. Enter or
 `s` chooses again using the same scan, `r` reviews individually, and `n` skips.
 For a nonempty preview, `s` also chooses again; Enter still does not approve writes.
-These improvements require a future release; upgrading to RC5.7 does not add them.
+These source-selection and choose-again improvements were introduced in RC5.8.
+RC5.7 and earlier binaries do not include them.
