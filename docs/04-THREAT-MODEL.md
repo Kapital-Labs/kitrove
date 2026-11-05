@@ -84,6 +84,12 @@ stop later items. Names, loss reasons and omissions remain visible. No blanket
 future approval, implicit overwrite, trust, Apply or sync follows from collection.
 See ADR-0047. Enter selects recommendations but never approves bulk writes.
 
+An explicit setup `from TOOL` filter chooses only observations from that tool in
+the displayed scan; it does not merge same-name native sources or infer ownership.
+Original-number exclusions, full ready-plan fidelity/loss output and fresh exact
+commit checks remain mandatory. Skipped-item details may be summarized with full
+details on request; an empty ready set grants no adoption authority or success.
+
 ### Path traversal and symlink escape
 
 Normalize paths, reject absolute and parent-traversal entries, inspect symlinks, stage in isolated directories, and test cross-platform edge cases.

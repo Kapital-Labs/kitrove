@@ -53,3 +53,21 @@ it does not install into another tool, execute a skill, grant trust, or sync.
 Apply and sync still show separate plans and require separate confirmations.
 Those confirmations accept `y`/`yes`, while Enter still skips them. Credentials,
 machine identity, trust and deployment receipts remain local.
+
+## Next-preview improvement (not included in RC5.7)
+
+Repeated names can be copies in different tools or one location discovered by
+several tools. A matching name does not prove identical content. In the upcoming
+setup flow, use `from codex`, `from claude`, `from pi` or `from opencode` to select
+one displayed tool's observations. For example, `from codex,-13,-20` excludes
+observations 13 and 20 from that source selection, using the original inventory
+numbers. This does not make that tool the permanent source of truth or merge
+other copies. Same-name ambiguity within the chosen tool still needs a specific
+numbered choice or individual review. Existing collection names are not overwritten.
+
+Skipped items show counts/reasons and at most 20 examples by default. `d` shows
+all skipped-item details; ready plans still show full source/fidelity/loss details.
+An empty preview does not ask for adoption approval or report success. Enter or
+`s` chooses again using the same scan, `r` reviews individually, and `n` skips.
+For a nonempty preview, `s` also chooses again; Enter still does not approve writes.
+These improvements require a future release; upgrading to RC5.7 does not add them.

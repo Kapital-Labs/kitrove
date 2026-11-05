@@ -20,6 +20,7 @@ use crate::scan::{resolve_required_environment_root, resolve_required_state_root
 use crate::scan_display::{name, safe, selectable};
 
 mod collection;
+mod collection_selection;
 mod initialization;
 mod presentation;
 
@@ -722,6 +723,10 @@ mod existing_tests;
 #[cfg(test)]
 #[path = "setup_presentation_tests.rs"]
 mod presentation_tests;
+
+#[cfg(test)]
+#[path = "setup_duplicate_tests.rs"]
+mod duplicate_tests;
 
 #[cfg(test)]
 mod tests {
