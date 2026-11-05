@@ -4,6 +4,24 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.5.8
+
+Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows. RC5.7 and
+all earlier assets stay immutable. No migration, supported in-place upgrade,
+rollback predecessor, stable-support or APT/RPM/WinGet update is included.
+Homebrew and website follow-up requires independently verified publication.
+
+### Fixed
+
+- Empty guided collection previews no longer request adoption approval or report
+  "Adopted 0" as success. Choose again without restarting or rescanning setup.
+- Repeated names can be selected by one explicit source tool with `from codex`
+  (or another displayed tool), optionally excluding original inventory numbers.
+  No tool wins silently; native copies are not merged and occupied names remain
+  protected. All ready plans retain full fidelity/loss details and fresh checks.
+- Skipped collection items show reason counts and at most 20 examples by default;
+  `d` shows complete details. Collection still grants no trust, Apply or sync.
+
 ## 0.1.0-rc.5.7
 
 Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows. Existing
