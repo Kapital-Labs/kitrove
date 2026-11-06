@@ -450,8 +450,9 @@ fn git_remote<R: BufRead, W: Write>(
         if matches!(url.as_str(), "" | "n") {
             return Ok(None);
         }
-        if std::path::Path::new(&url).is_absolute()
-            || ["./", "../", "~/", "\\"]
+        // Recognize path spellings here, not whether this host can open them.
+        if url.starts_with(['/', '\\'])
+            || ["./", "../", "~/"]
                 .into_iter()
                 .any(|prefix| url.starts_with(prefix))
             || (url.as_bytes().get(1) == Some(&b':') && url.as_bytes()[0].is_ascii_alphabetic())

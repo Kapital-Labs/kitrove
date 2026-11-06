@@ -279,6 +279,26 @@ fn git_checkout_and_scp_inputs_get_specific_guidance_without_a_protocol_guess() 
             "Paste a remote repository URL, not a local checkout path.",
         ),
         (
+            r"\some\local\checkout",
+            "Paste a remote repository URL, not a local checkout path.",
+        ),
+        (
+            r"C:\some\local\checkout",
+            "Paste a remote repository URL, not a local checkout path.",
+        ),
+        (
+            r"C:some\local\checkout",
+            "Paste a remote repository URL, not a local checkout path.",
+        ),
+        (
+            r"\\fixture-server\fixture-share\checkout",
+            "Paste a remote repository URL, not a local checkout path.",
+        ),
+        (
+            "./some/local/checkout",
+            "Paste a remote repository URL, not a local checkout path.",
+        ),
+        (
             "git@example.test:team/collection.git",
             "Use the ssh:// URL form, not the colon-separated Git address.",
         ),
@@ -291,7 +311,10 @@ fn git_checkout_and_scp_inputs_get_specific_guidance_without_a_protocol_guess() 
         };
         assert!(remote(&mut dialog).unwrap().is_none());
         let output = String::from_utf8(dialog.output).unwrap();
-        assert!(output.contains(guidance));
+        assert!(
+            output.contains(guidance),
+            "missing guidance for fixture {location}"
+        );
         assert!(!output.contains("How should Kitrove connect?"));
         assert!(!output.contains(location));
     }

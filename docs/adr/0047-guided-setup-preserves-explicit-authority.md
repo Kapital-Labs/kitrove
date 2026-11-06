@@ -51,7 +51,10 @@ plainly that the repository must already exist (it may be empty); setup does not
 create repositories or interpret a local checkout as a Kitrove backend. Infer
 HTTPS/SSH only from the supplied URL, using the existing canonical core parsers.
 If the scheme is omitted, ask for the transport before constructing and validating
-the URL. Never guess from the current project, read ambient Git/SSH configuration,
+the URL. Non-URL guidance recognizes slash-rooted, drive and UNC spellings on all
+platforms rather than using host-specific absolute-path semantics. This does not
+admit those spellings as URLs or alter the actual known-hosts path check.
+Never guess from the current project, read ambient Git/SSH configuration,
 run a helper, follow redirects, or choose credentials from the transport choice.
 SSH still requires an explicitly selected absolute known-hosts path, with existing
 read-only host verification and agent-only authentication unchanged. Selection
