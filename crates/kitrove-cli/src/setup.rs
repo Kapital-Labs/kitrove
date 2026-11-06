@@ -6,8 +6,8 @@ use std::path::PathBuf;
 use kitrove_adapter_api::ScopeSelection;
 use kitrove_agent_skills::CaptureLimits;
 use kitrove_core::{
-    FilesystemSyncBackend, PolicyRegistry, SshGitSyncBackend, SyncBackend, SyncBackendRead,
-    commit_collection_import, plan_collection_import,
+    FilesystemSyncBackend, GitRemoteUrl, PolicyRegistry, SshGitRemoteUrl, SshGitSyncBackend,
+    SyncBackend, SyncBackendRead, commit_collection_import, plan_collection_import,
 };
 use kitrove_model::{AssetId, ContentHash, HarnessId, HarnessScope, MachineId, SyncLimits};
 
@@ -430,15 +430,77 @@ fn collect<R: BufRead, W: Write>(
 fn remote<R: BufRead, W: Write>(
     dialog: &mut Dialog<R, W>,
 ) -> Result<Option<SyncRemoteArgs>, CliError> {
-    dialog.hint("Use a shared folder reserved for Kitrove, or an existing Kitrove Git remote - not an unrelated repository.\nGit credentials stay with the existing provider, never in your collection.")?;
+    dialog.hint("Use a folder or Git repository reserved for Kitrove. The repository must already exist (it can be empty).\nKitrove does not create repositories or use your current project's Git settings. Credentials stay on this computer.")?;
     loop {
-        match dialog.ask("Where is the shared collection stored?\n1. Shared folder or drive\n2. Git repository using HTTPS (advanced)\n3. Git repository using SSH (advanced)\nn. Not now\nChoose 1-3 [n]:")?.as_str() {
+        match dialog.decision("Where is the shared collection stored?\n1. Shared folder or drive\n2. Git repository\nn. Not now\nChoose 1-2 [n]:", b"12n", true)?.as_str() {
             "" | "n" => return Ok(None),
             "1" => return Ok(Some(SyncRemoteArgs::Filesystem(PathBuf::from(dialog.ask("Shared Kitrove folder path:")?)))),
-            "2" => return Ok(Some(SyncRemoteArgs::Git { url: dialog.ask("HTTPS URL without embedded credentials:")?, credentials: GitCredentialSource::Terminal })),
-            "3" => return Ok(Some(SyncRemoteArgs::Ssh { url: dialog.ask("SSH URL:")?, known_hosts: PathBuf::from(dialog.ask("Known-hosts file path:")?) })),
-            _ => dialog.warning("Choose 1, 2, 3 or n. Nothing has changed.")?,
+            "2" => return git_remote(dialog),
+            _ => dialog.warning("Choose 1, 2 or n. Nothing has changed.")?,
         }
+    }
+}
+
+fn git_remote<R: BufRead, W: Write>(
+    dialog: &mut Dialog<R, W>,
+) -> Result<Option<SyncRemoteArgs>, CliError> {
+    dialog.hint("Paste the existing repository URL, without a password or token.\nUse https://host/owner/repository.git or ssh://git@host/owner/repository.git.\nA local checkout path is not a remote URL. Enter/n skips; q stops.")?;
+    loop {
+        let mut url = dialog.ask("Git repository URL:")?;
+        if matches!(url.as_str(), "" | "n") {
+            return Ok(None);
+        }
+        if std::path::Path::new(&url).is_absolute()
+            || ["./", "../", "~/", "\\"]
+                .into_iter()
+                .any(|prefix| url.starts_with(prefix))
+            || (url.as_bytes().get(1) == Some(&b':') && url.as_bytes()[0].is_ascii_alphabetic())
+        {
+            dialog.warning(
+                "Paste a remote repository URL, not a local checkout path. Nothing has changed.",
+            )?;
+            continue;
+        }
+        if !url.contains("://") {
+            if url
+                .split_once(':')
+                .is_some_and(|(authority, _)| authority.contains('@') && !authority.contains('/'))
+            {
+                dialog.warning("Use the ssh:// URL form, not the colon-separated Git address. For example: ssh://git@host/owner/repository.git. Nothing has changed.")?;
+                continue;
+            }
+            let scheme = loop {
+                match dialog.decision("How should Kitrove connect?\n1. HTTPS\n2. SSH\nn. Not now\nChoose 1-2 [n]:", b"12n", true)?.as_str() {
+                    "" | "n" => return Ok(None),
+                    "1" => break "https",
+                    "2" => break "ssh",
+                    _ => dialog.warning("Choose 1, 2 or n. Nothing has changed.")?,
+                }
+            };
+            url = format!("{scheme}://{url}");
+        }
+        if GitRemoteUrl::parse(&url).is_ok() {
+            dialog.hint("HTTPS selected. Connection and any credential prompt happen only in the next operation; no repository has been created.")?;
+            return Ok(Some(SyncRemoteArgs::Git {
+                url,
+                credentials: GitCredentialSource::Terminal,
+            }));
+        }
+        if SshGitRemoteUrl::parse(&url).is_ok() {
+            dialog.hint("SSH selected. Use an existing known-hosts file with this server's verified key. Kitrove will not add host keys or start an SSH agent.")?;
+            loop {
+                let path = dialog.ask("Known-hosts file path (Enter/n skips):")?;
+                if matches!(path.as_str(), "" | "n") {
+                    return Ok(None);
+                }
+                let known_hosts = PathBuf::from(path);
+                if known_hosts.is_absolute() {
+                    return Ok(Some(SyncRemoteArgs::Ssh { url, known_hosts }));
+                }
+                dialog.warning("Use an absolute path to an existing known-hosts file, or n to skip. Nothing has changed.")?;
+            }
+        }
+        dialog.warning("That URL is not supported. Use an HTTPS or ssh:// repository URL without passwords, tokens, query strings or fragments. Nothing has changed.")?;
     }
 }
 

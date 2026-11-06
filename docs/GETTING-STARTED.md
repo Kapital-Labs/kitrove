@@ -113,10 +113,15 @@ locations are requested per operation rather than saved with credentials.
 ## Prepare a collection for another computer
 
 In Configure, choose **Share this collection with another computer**. Select an
-existing filesystem/shared directory, HTTPS Git remote, or SSH Git remote with an explicit
-known-hosts file. This must be a Kitrove snapshot backend, not merely a checkout
+existing filesystem/shared directory or **Git repository**. In the upcoming setup
+UX, paste the repository URL: `https://...` selects HTTPS and `ssh://...` selects
+SSH. A URL without its scheme asks which connection to use. SSH also asks for an
+absolute path to an existing known-hosts file; it does not learn host keys or start
+an agent. RC5.8 still shows HTTPS and SSH as separate storage choices.
+This must be a Kitrove snapshot backend, not merely a checkout
 containing skill files. An empty existing backend can receive the first approved
-publication. Create and authorize any remote repository separately.
+publication. Create and authorize any remote repository separately: setup does not
+create one, inspect the current project's remotes or import Git/SSH configuration.
 
 Review what will change locally and remotely before confirming. Full sync is
 bidirectional: it may publish local additions, not just download. Credentials use

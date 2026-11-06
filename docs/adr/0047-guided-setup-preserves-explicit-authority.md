@@ -44,6 +44,23 @@ tool is absent.
 
 ## Boundaries and validation
 
+### Git storage choice amendment (2026-11-06)
+
+Storage selection offers a shared folder or one Git repository choice. State
+plainly that the repository must already exist (it may be empty); setup does not
+create repositories or interpret a local checkout as a Kitrove backend. Infer
+HTTPS/SSH only from the supplied URL, using the existing canonical core parsers.
+If the scheme is omitted, ask for the transport before constructing and validating
+the URL. Never guess from the current project, read ambient Git/SSH configuration,
+run a helper, follow redirects, or choose credentials from the transport choice.
+SSH still requires an explicitly selected absolute known-hosts path, with existing
+read-only host verification and agent-only authentication unchanged. Selection
+performs no backend/account/network/credential access. Enter/n can leave selection;
+q/EOF stops. Publication still requires the separate exact sync-plan confirmation.
+Remote repository creation and checkout-remote discovery are not introduced.
+No portable/local schema, fidelity, provenance, receipt, trust or sync semantics
+change. This UX is unreleased until a separately authorized binary includes it.
+
 ### Existing-setup routing amendment (2026-11-04)
 
 After selecting a collection path, guided `init` checks for existing collection

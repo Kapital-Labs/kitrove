@@ -165,6 +165,177 @@ fn sharing_can_be_skipped_or_cancelled_before_any_location_is_selected() {
 }
 
 #[test]
+fn one_git_choice_detects_ssh_before_requesting_host_trust() {
+    let hosts = kitrove_testkit::trusted_tempdir(".setup-git-hosts-");
+    let known_hosts = hosts.path().canonicalize().unwrap().join("known_hosts");
+    let mut dialog = Dialog {
+        input: io::Cursor::new(format!(
+            "2\nssh://git@example.test/team/collection.git\n{}\n",
+            known_hosts.display()
+        )),
+        output: Vec::new(),
+        color: false,
+        single_key: false,
+    };
+    let selected = remote(&mut dialog).unwrap().unwrap();
+    assert!(
+        matches!(selected, SyncRemoteArgs::Ssh { url, known_hosts: path }
+        if url == "ssh://git@example.test/team/collection.git" && path == known_hosts)
+    );
+    let output = String::from_utf8(dialog.output).unwrap();
+    assert!(output.contains("2. Git repository\n"));
+    assert!(output.contains("already exist"));
+    assert!(!output.contains("3. Git repository"));
+    assert!(!output.contains("How should Kitrove connect?"));
+    assert!(
+        !known_hosts.exists(),
+        "selection must not create trust files"
+    );
+}
+
+#[test]
+fn git_url_infers_https_without_a_protocol_question() {
+    let mut dialog = Dialog {
+        input: io::Cursor::new("2\nhttps://example.test/team/collection.git\n"),
+        output: Vec::new(),
+        color: false,
+        single_key: false,
+    };
+    assert!(
+        matches!(remote(&mut dialog).unwrap().unwrap(), SyncRemoteArgs::Git { url, credentials: GitCredentialSource::Terminal }
+        if url == "https://example.test/team/collection.git")
+    );
+    let output = String::from_utf8(dialog.output).unwrap();
+    assert!(!output.contains("How should Kitrove connect?"));
+    assert!(!output.contains("Known-hosts file path:"));
+}
+
+#[test]
+fn scheme_less_git_location_requires_explicit_transport_selection() {
+    let mut dialog = Dialog {
+        input: io::Cursor::new("2\nexample.test/team/collection.git\n1\n"),
+        output: Vec::new(),
+        color: false,
+        single_key: false,
+    };
+    assert!(
+        matches!(remote(&mut dialog).unwrap().unwrap(), SyncRemoteArgs::Git { url, .. }
+        if url == "https://example.test/team/collection.git")
+    );
+    assert!(
+        String::from_utf8(dialog.output)
+            .unwrap()
+            .contains("How should Kitrove connect?")
+    );
+}
+
+#[test]
+fn scheme_less_git_location_can_explicitly_select_ssh_without_falling_back() {
+    let hosts = kitrove_testkit::trusted_tempdir(".setup-git-hosts-");
+    let known_hosts = hosts.path().canonicalize().unwrap().join("known_hosts");
+    let mut dialog = Dialog {
+        input: io::Cursor::new(format!(
+            "2\ngit@example.test/team/collection.git\n2\n{}\n",
+            known_hosts.display()
+        )),
+        output: Vec::new(),
+        color: false,
+        single_key: false,
+    };
+    assert!(
+        matches!(remote(&mut dialog).unwrap().unwrap(), SyncRemoteArgs::Ssh { url, known_hosts: path }
+        if url == "ssh://git@example.test/team/collection.git" && path == known_hosts)
+    );
+    assert!(!known_hosts.exists());
+}
+
+#[test]
+fn invalid_or_credential_bearing_git_urls_do_not_echo_or_become_backend_args() {
+    for url in [
+        "https://user:URL-CREDENTIAL-CANARY@example.test/team/collection.git",
+        "http://example.test/team/collection.git",
+        "ssh://git@example.test/team/../other.git",
+        "file:///some/repository",
+    ] {
+        let mut dialog = Dialog {
+            input: io::Cursor::new(format!("2\n{url}\nn\n")),
+            output: Vec::new(),
+            color: false,
+            single_key: false,
+        };
+        assert!(remote(&mut dialog).unwrap().is_none());
+        let output = String::from_utf8(dialog.output).unwrap();
+        assert!(!output.contains(url));
+        assert!(!output.contains("URL-CREDENTIAL-CANARY"));
+        assert!(!output.contains("Known-hosts file path:"));
+    }
+}
+
+#[test]
+fn git_checkout_and_scp_inputs_get_specific_guidance_without_a_protocol_guess() {
+    for (location, guidance) in [
+        (
+            "/some/local/checkout",
+            "Paste a remote repository URL, not a local checkout path.",
+        ),
+        (
+            "git@example.test:team/collection.git",
+            "Use the ssh:// URL form, not the colon-separated Git address.",
+        ),
+    ] {
+        let mut dialog = Dialog {
+            input: io::Cursor::new(format!("2\n{location}\nn\n")),
+            output: Vec::new(),
+            color: false,
+            single_key: false,
+        };
+        assert!(remote(&mut dialog).unwrap().is_none());
+        let output = String::from_utf8(dialog.output).unwrap();
+        assert!(output.contains(guidance));
+        assert!(!output.contains("How should Kitrove connect?"));
+        assert!(!output.contains(location));
+    }
+}
+
+#[test]
+fn git_nested_choices_skip_and_cancel_before_connecting_or_selecting_credentials() {
+    for input in [
+        "2\n\n",
+        "2\nn\n",
+        "2\nexample.test/team/collection.git\nn\n",
+        "2\nssh://git@example.test/team/collection.git\nrelative-hosts\nn\n",
+    ] {
+        let mut dialog = Dialog {
+            input: io::Cursor::new(input),
+            output: Vec::new(),
+            color: false,
+            single_key: false,
+        };
+        assert!(remote(&mut dialog).unwrap().is_none());
+        assert!(
+            !String::from_utf8(dialog.output)
+                .unwrap()
+                .contains("Git token:")
+        );
+    }
+    for input in [
+        "2\n",
+        "2\nq\n",
+        "2\nexample.test/team/collection.git\n",
+        "2\nexample.test/team/collection.git\nq\n",
+        "2\nssh://git@example.test/team/collection.git\nq\n",
+    ] {
+        let mut dialog = Dialog {
+            input: io::Cursor::new(input),
+            output: Vec::new(),
+            color: false,
+            single_key: false,
+        };
+        assert_eq!(remote(&mut dialog).unwrap_err().code, "setup.cancelled");
+    }
+}
+
+#[test]
 fn operation_results_are_not_presented_as_uncommitted_previews_or_success() {
     let mut dialog = Dialog {
         input: io::Cursor::new(""),
