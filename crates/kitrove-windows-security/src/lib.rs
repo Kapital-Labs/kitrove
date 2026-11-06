@@ -1,6 +1,8 @@
 #![cfg(windows)]
 //! Safe, narrow wrappers for Kitrove's handle-bound Windows security requirements.
 
+pub mod console_input;
+
 use std::ffi::c_void;
 use std::mem::{offset_of, size_of, size_of_val};
 use std::os::windows::ffi::{OsStrExt as _, OsStringExt as _};

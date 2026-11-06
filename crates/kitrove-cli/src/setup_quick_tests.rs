@@ -74,16 +74,16 @@ fn quick_adoption_defaults_preview_then_one_y_commits_only_included_items() {
 }
 
 #[test]
-fn quick_preview_blank_n_and_eof_never_authorize_bulk_writes() {
+fn quick_preview_n_eof_and_quit_never_authorize_bulk_writes() {
     for (index, decision, error) in [
-        (0, "\nn\n5\n", ""),
+        (0, "n\n5\n", ""),
         (1, "", "setup.cancelled"),
         (2, "q\n", "setup.cancelled"),
     ] {
         let tmp = kitrove_testkit::trusted_tempdir(".setup-no-bulk-consent-");
         let root = std::fs::canonicalize(tmp.path()).unwrap();
         let a = machine(&root, &format!("a-{index}"));
-        skill(&a, "alpha", "Keep alpha.");
+        unique_skill(&a, "alpha");
         let output = script(
             &a,
             &format!(
@@ -96,6 +96,70 @@ fn quick_preview_blank_n_and_eof_never_authorize_bulk_writes() {
         assert!(manifest(&a).assets.is_empty());
         assert!(output.contains("Adoption preview"));
     }
+}
+
+#[test]
+fn enter_adopts_only_the_displayed_nonempty_set_and_preserves_other_sources() {
+    let tmp = kitrove_testkit::trusted_tempdir(".setup-enter-preview-");
+    let root = std::fs::canonicalize(tmp.path()).unwrap();
+    let a = machine(&root, "a");
+    unique_skill(&a, "alpha");
+    unique_skill(&a, "beta");
+    let original = std::fs::read(a.join("home/.pi/agent/skills/alpha/SKILL.md")).unwrap();
+    let output = script(
+        &a,
+        &format!(
+            "1\n{}\na\ny\nfrom pi,-2\n\n5\n",
+            a.join("collection").display()
+        ),
+        false,
+        "",
+    );
+    assert_eq!(
+        manifest(&a)
+            .assets
+            .keys()
+            .map(AssetId::as_str)
+            .collect::<Vec<_>>(),
+        ["alpha"]
+    );
+    assert!(output.contains("Adoption preview"));
+    assert!(output.contains("Adopted 1 skills"));
+    assert_eq!(
+        std::fs::read(a.join("home/.pi/agent/skills/alpha/SKILL.md")).unwrap(),
+        original
+    );
+    assert!(a.join("home/.pi/agent/skills/beta/SKILL.md").is_file());
+    let local = kitrove_model::LocalState::from_json(
+        &std::fs::read_to_string(a.join("state/state.json")).unwrap(),
+    )
+    .unwrap();
+    assert!(local.trust.is_empty());
+    assert!(local.receipts.is_empty());
+}
+
+#[test]
+fn collection_questions_and_actions_are_separate_readable_prompt_lines() {
+    let tmp = kitrove_testkit::trusted_tempdir(".setup-prompt-lines-");
+    let root = std::fs::canonicalize(tmp.path()).unwrap();
+    let a = machine(&root, "a");
+    unique_skill(&a, "alpha");
+    let output = script(
+        &a,
+        &format!(
+            "1\n{}\na\ny\nfrom pi\nn\n5\n",
+            a.join("collection").display()
+        ),
+        false,
+        "",
+    );
+    assert!(output.contains("? Choose skills to collect\n"));
+    assert!(output.contains("\n  Enter         Preview eligible skills\n"));
+    assert!(output.contains("\n  from TOOL     Use only that tool's copies\n"));
+    assert!(output.contains("? Adopt these skills?\n"));
+    assert!(output.contains("\n  Enter/y       Adopt the previewed set\n"));
+    assert!(!output.contains("Enter does not approve bulk writes"));
+    assert!(manifest(&a).assets.is_empty());
 }
 
 #[test]
@@ -242,7 +306,7 @@ fn bulk_preview_retains_partial_reasons_and_omits_executable_content() {
     .unwrap();
     let output = script(&a, "\n1\nall\ny\nn\n5\n", true, "");
     assert!(output.contains("No skills ready to collect"));
-    assert!(!output.contains("adopt the previewed set"));
+    assert!(!output.contains("Adopt the previewed set"));
     assert!(output.contains("ExecutableTrustRequired"));
     assert!(!output.contains("kitrove-synthetic-secret-canary-12345"));
     assert!(
@@ -264,6 +328,7 @@ fn short_confirmations_do_not_change_other_blank_defaults() {
             input: io::Cursor::new(input),
             output: Vec::new(),
             color: false,
+            single_key: false,
         };
         assert!(dialog.confirm("change?").unwrap());
     }
@@ -272,6 +337,7 @@ fn short_confirmations_do_not_change_other_blank_defaults() {
             input: io::Cursor::new(input),
             output: Vec::new(),
             color: false,
+            single_key: false,
         };
         assert!(!dialog.confirm("change?").unwrap());
     }
@@ -279,6 +345,7 @@ fn short_confirmations_do_not_change_other_blank_defaults() {
         input: io::Cursor::new("maybe\ny\n"),
         output: Vec::new(),
         color: false,
+        single_key: false,
     };
     assert!(dialog.confirm("change?").unwrap());
     assert!(
@@ -320,6 +387,7 @@ fn real_bulk_loop_refuses_stale_sources_and_stops_after_partial_progress() {
         "manifest",
         "journal",
         "source-filter",
+        "enter-before",
     ] {
         let tmp = kitrove_testkit::trusted_tempdir(".setup-race-");
         let root = std::fs::canonicalize(tmp.path()).unwrap();
@@ -355,7 +423,7 @@ impl Write for RaceWriter {
         let trigger = if self.mode == "after-first" {
             "Adopted alpha."
         } else {
-            "y/yes = adopt the previewed set"
+            "Adopt the previewed set"
         };
         if !self.mutated && text.contains(trigger) {
             if self.mode == "journal" {
@@ -409,6 +477,7 @@ fn race_child() {
         input: io::Cursor::new(std::env::var("KITROVE_TEST_SETUP_INPUT").unwrap()),
         output: Vec::new(),
         color: false,
+        single_key: false,
     };
     run(
         &mut init,
@@ -421,12 +490,15 @@ fn race_child() {
     let state_path = collection.parent().unwrap().join("state/state.json");
     let state = std::fs::read(&state_path).unwrap();
     let mut dialog = Dialog {
-        input: io::Cursor::new(if mode == "source-filter" {
+        input: io::Cursor::new(if mode == "enter-before" {
+            "\n\n"
+        } else if mode == "source-filter" {
             "from pi\ny\n"
         } else {
             "\ny\n"
         }),
         color: false,
+        single_key: false,
         output: RaceWriter {
             output: Vec::new(),
             collection: collection.clone(),

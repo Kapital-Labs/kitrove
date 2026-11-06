@@ -126,7 +126,8 @@ green main, normal protected signing and independent artifact authentication.
 
 Maintainer-approved setup UX may preview a recommended set and accept one `y`
 for that exact displayed, ordered set of first skill adoptions. Enter selects
-recommendations but does not approve bulk writes. `all,-3,-8` (or `-3,-8`)
+recommendations at selection time; the separate approval gesture is amended on
+November6 below. `all,-3,-8` (or `-3,-8`)
 excludes numbered observations; `1,4,7` selects only those observations. Numbers
 are bound to the displayed scan, never a later scan's ordering. Invalid or
 mixed inclusion/exclusion input reprompts without mutation. Full inventory is
@@ -136,7 +137,7 @@ Recommendations omit invalid/occupied names, every same-name ambiguity, and
 blocked plans. Do not privilege a harness, collapse distinct native sources,
 invent names or overwrite existing assets. Show omissions and per-target fidelity
 with loss reasons. Users can switch to individual review and explicitly rename
-an item; Enter approves only that currently displayed single adoption plan.
+an item; Enter approves that currently displayed single adoption plan.
 `n` skips and `q`/EOF stops. Other write confirmations retain skip-on-Enter;
 `y` and `yes` are explicit equivalents, never session-wide approval.
 
@@ -172,3 +173,39 @@ or stop, never adoption approval or an "Adopted 0" success. Choose-again reuses
 the same observed inventory; later mutations still require normal fresh planning.
 No schema, identity, preservation, fidelity, receipt, trust, Apply or sync behavior
 changes. These setup improvements remain unreleased until separately published.
+
+### Immediate navigation and explicit adoption decisions (2026-11-06)
+
+Maintainer-approved initial and subsequent five-option menus accept a single
+`1` through `5` without Enter. Enter retains the subsequent-menu finish default;
+the initial menu has no default. `q`, Escape, Ctrl-C, Ctrl-D and EOF stop without
+authorizing an action. Unsupported keys do not select an option.
+
+Following the complete displayed nonempty adoption preview, Enter or a single
+`y` explicitly confirms only that exact ordered set. This supersedes the earlier
+bulk skip-on-Enter UI, not its fresh per-item digest, source, state or recovery
+checks. `n`, `s`, `r`, `d` and `q` act immediately to skip, choose again, review
+individually, inspect skipped details or quit. The individual adoption preview
+likewise accepts Enter/y, n, r or q immediately for its already established
+single-plan decisions. EOF, invalid input and cancellation never mean Enter.
+An empty preview still uses Enter/s to choose again and offers no adoption.
+
+Display a short question with aligned choice lines and a distinct input marker,
+not a semicolon-delimited help paragraph. Source filters, multi-item selection,
+names and paths retain bounded line input. Initialization, trust, Apply, sync
+and other confirmations retain their original defaults and approval boundaries.
+
+Each real terminal decision requires a fresh response: discard already queued
+terminal input before showing the next question and drain read-ahead after an
+accepted key or text line. A reflex Enter after r/y or pasted later responses
+must not become approval for a different or not-yet-displayed preview. This
+type-ahead barrier does not authorize script automation; non-TTY setup still
+refuses, and scripted test dialogs retain their explicit line protocol.
+
+Temporarily change only input-terminal mode, retaining the same input buffer and
+restoring its prior mode before any next prompt or operation, including errors
+and cancellation. Restoration failure stops setup. The retained Windows handle
+and Unix termios snapshot change no trust, filesystem permissions or portable
+state. Scripted test dialogs keep line input; production still refuses non-TTY
+setup. No new registry package, release or version is authorized by this UI
+change. It remains unreleased until separately published.

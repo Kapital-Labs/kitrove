@@ -1716,6 +1716,7 @@ dependencies = [
  "kitrove-version-probe",
  "kitrove-windows-security",
  "rpassword",
+ "rustix",
  "serde_json",
  "tempfile",
 ]

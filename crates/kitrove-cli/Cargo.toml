@@ -56,6 +56,12 @@ serde_json.workspace = true
 kitrove-testkit.workspace = true
 tempfile.workspace = true
 
+[target.'cfg(unix)'.dependencies]
+rustix = { workspace = true, features = ["termios"] }
+
+[target.'cfg(windows)'.dependencies]
+kitrove-windows-security.workspace = true
+
 [target.'cfg(windows)'.dev-dependencies]
 kitrove-windows-security = { workspace = true, features = ["test-support"] }
 

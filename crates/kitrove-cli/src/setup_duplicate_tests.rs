@@ -23,7 +23,7 @@ fn all_ambiguous_preview_has_no_empty_write_approval_or_success() {
     let output = start(&a, "\nn\n5\n");
     assert!(manifest(&a).assets.is_empty());
     assert!(output.contains("No skills ready to collect. Nothing has changed."));
-    assert!(!output.contains("y/yes = adopt the previewed set"));
+    assert!(!output.contains("Adopt the previewed set"));
     assert!(!output.contains("Adopted 0 skills"));
 }
 
@@ -130,9 +130,9 @@ fn omission_output_is_bounded_but_details_retain_all_original_entries() {
             assert!(output.contains("Omitted: 60. shared-29"));
         } else {
             assert!(output.matches("Omitted:").count() <= 20);
-            assert!(output.contains("d = all skipped-item details"));
+            assert!(output.contains("Show all skipped-item details"));
         }
-        assert!(!output.contains("adopt the previewed set"));
+        assert!(!output.contains("Adopt the previewed set"));
     }
 }
 
@@ -150,7 +150,7 @@ fn occupied_names_remain_unchanged_and_never_count_as_successful_adoptions() {
         before
     );
     assert!(output.contains("collection name already in use"));
-    assert!(!output.contains("adopt the previewed set"));
+    assert!(!output.contains("Adopt the previewed set"));
     assert!(!output.contains("Adopted 0 skills"));
 }
 
@@ -173,7 +173,7 @@ fn empty_preview_rejects_yes_and_eof_stops_without_writes() {
         );
         assert!(manifest(&a).assets.is_empty());
         assert!(!output.contains("Adopted 0 skills"));
-        assert!(!output.contains("adopt the previewed set"));
+        assert!(!output.contains("Adopt the previewed set"));
     }
 }
 
