@@ -505,13 +505,20 @@ fn verify_generation_tree(
     limits: SyncLimits,
 ) -> Result<(), SyncBaseStoreError> {
     let expected = expected_tree(record, snapshot, objects)?;
-    let actual = store
-        .capture_directory(root, generation_capture_limits(limits))
-        .map_err(map_store)?;
-    if actual != expected {
-        return Err(invalid());
-    }
-    Ok(())
+    // The existing envelope writer creates payload/ even for metadata-only objects.
+    // Empty directory presence is not part of the version-1 object identity.
+    let empty_directories = objects
+        .iter()
+        .map(|object| joined(object.descriptor().root(), "payload"))
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    store
+        .verify_directory_inventory(
+            root,
+            generation_capture_limits(limits),
+            &expected,
+            &empty_directories,
+        )
+        .map_err(map_store)
 }
 
 fn expected_tree(
@@ -719,7 +726,14 @@ mod tests {
     }
 
     fn populated_snapshot() -> (PortableSnapshotV1, Vec<VerifiedObjectEnvelope>) {
-        let (adoption, _, _) = crate::adoption::tests::ready_plan();
+        populated_snapshot_with_directories(0)
+    }
+
+    fn populated_snapshot_with_directories(
+        directory_count: usize,
+    ) -> (PortableSnapshotV1, Vec<VerifiedObjectEnvelope>) {
+        let (adoption, _, _) =
+            crate::adoption::tests::ready_plan_with_support_directories(directory_count);
         let asset = adoption.asset();
         let portable = asset.portable.as_ref().unwrap();
         let native = asset
@@ -762,6 +776,136 @@ mod tests {
         let temporary = tempfile::tempdir().unwrap();
         let root = temporary.path().canonicalize().unwrap().join("state");
         (temporary, root)
+    }
+
+    #[test]
+    fn collection_base_exceeding_one_skill_directory_limit_commits_and_reopens() {
+        let (_temporary, root) = absent_private_root();
+        let store = SyncBaseStore::open_or_create(&root).unwrap();
+        let limits = SyncLimits::default();
+        // Each admitted object has 261 directories; their aggregate exceeds 512.
+        let (snapshot, objects) = populated_snapshot_with_directories(260);
+        let retained = store
+            .commit(
+                &remote(),
+                None,
+                &snapshot,
+                &RemoteRevision::parse("revision-1").unwrap(),
+                &objects,
+                &plan('e'),
+                limits,
+            )
+            .expect("a collection must not inherit the directory limit of one skill");
+        let reopened = SyncBaseStore::open(&root)
+            .unwrap()
+            .inspect(&remote(), limits)
+            .unwrap()
+            .unwrap();
+        assert_eq!(retained, reopened);
+        assert_eq!(reopened.input().snapshot(), &snapshot);
+        assert_eq!(reopened.objects(), objects);
+    }
+
+    #[test]
+    fn large_collection_base_rejects_unknown_entries_and_changed_payload() {
+        for change in [
+            "empty-directory",
+            "extra-file",
+            "changed-payload",
+            "missing-payload",
+        ] {
+            let (_temporary, root) = absent_private_root();
+            let store = SyncBaseStore::open_or_create(&root).unwrap();
+            let limits = SyncLimits::default();
+            let (snapshot, objects) = populated_snapshot_with_directories(260);
+            let retained = store
+                .commit(
+                    &remote(),
+                    None,
+                    &snapshot,
+                    &RemoteRevision::parse("revision-1").unwrap(),
+                    &objects,
+                    &plan('e'),
+                    limits,
+                )
+                .unwrap();
+            let generation = root.join(
+                generation_path(&remote(), retained.generation())
+                    .unwrap()
+                    .as_str(),
+            );
+            let payload = generation
+                .join(objects[0].descriptor().root().as_str())
+                .join("payload/references/topic-0/notes.md");
+            let pointer_before =
+                std::fs::read(root.join(pointer_path(&remote()).unwrap().as_str())).unwrap();
+            match change {
+                "empty-directory" => std::fs::create_dir(generation.join("unexpected")).unwrap(),
+                "extra-file" => std::fs::write(generation.join("unexpected"), b"canary").unwrap(),
+                "changed-payload" => std::fs::write(&payload, b"Changed notes.\n").unwrap(),
+                "missing-payload" => std::fs::remove_file(&payload).unwrap(),
+                _ => unreachable!(),
+            }
+            assert_eq!(
+                store.inspect(&remote(), limits).unwrap_err().code(),
+                "sync.base_invalid",
+                "{change}"
+            );
+            assert_eq!(
+                std::fs::read(root.join(pointer_path(&remote()).unwrap().as_str())).unwrap(),
+                pointer_before
+            );
+            assert!(generation.exists());
+        }
+    }
+
+    #[test]
+    fn document_collection_base_preserves_empty_envelope_payload_directories() {
+        let adoption = crate::instruction_adoption::tests::ready_plan();
+        let asset = adoption.asset();
+        let objects = vec![
+            VerifiedObjectEnvelope::document(
+                asset.portable.as_ref().unwrap().root.clone(),
+                VerifiedDocumentObject::PortableInstruction(adoption.portable_object().clone()),
+            )
+            .unwrap(),
+            VerifiedObjectEnvelope::document(
+                asset.native_variants.values().next().unwrap().root.clone(),
+                VerifiedDocumentObject::NativeInstruction(adoption.native_object().clone()),
+            )
+            .unwrap(),
+        ];
+        let limits = SyncLimits::default();
+        let snapshot = PortableSnapshotV1::new(
+            adoption.proposed_manifest().clone(),
+            objects
+                .iter()
+                .map(|object| object.descriptor().clone())
+                .collect(),
+            limits,
+        )
+        .unwrap();
+        let (_temporary, root) = absent_private_root();
+        let store = SyncBaseStore::open_or_create(&root).unwrap();
+        let retained = store
+            .commit(
+                &remote(),
+                None,
+                &snapshot,
+                &RemoteRevision::parse("revision-1").unwrap(),
+                &objects,
+                &plan('e'),
+                limits,
+            )
+            .unwrap();
+        assert_eq!(
+            SyncBaseStore::open(&root)
+                .unwrap()
+                .inspect(&remote(), limits)
+                .unwrap()
+                .unwrap(),
+            retained
+        );
     }
 
     #[test]

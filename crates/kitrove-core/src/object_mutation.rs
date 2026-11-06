@@ -11,10 +11,13 @@ use cap_fs_ext::{DirExt as _, FollowSymlinks, OpenOptionsFollowExt as _};
 use cap_std::ambient_authority;
 use cap_std::fs::{Dir, Metadata, OpenOptions};
 #[cfg(windows)]
+use kitrove_agent_skills::verify_tree_from_dir_with_inventory_and_validator;
+#[cfg(windows)]
 use kitrove_agent_skills::{CaptureHandleValidator, capture_tree_from_dir_with_validator};
 use kitrove_agent_skills::{
     CaptureLimits, CapturedTree, FileMode, NativeSkillObject, SkillSourceLayout, StoredSkillTree,
     capture_standalone_tree_from_dir, capture_tree_from_dir, hash_skill_source,
+    verify_tree_from_dir_with_inventory,
 };
 use kitrove_agents::{StoredAgent, StoredNativeAgent};
 use kitrove_instructions::{NativeInstructionRegion, StoredInstruction};
@@ -910,6 +913,50 @@ impl ObjectStore {
             .map_err(|_| invalid_object())?;
         self.require_ambient_root_identity()?;
         Ok(captured)
+    }
+
+    /// Verifies one admitted aggregate without applying single-skill traversal limits.
+    pub(crate) fn verify_directory_inventory(
+        &self,
+        root: &PortablePath,
+        limits: CaptureLimits,
+        expected: &CapturedTree,
+        empty_directories: &BTreeSet<PortablePath>,
+    ) -> Result<(), ObjectMutationError> {
+        self.require_ambient_root_identity()?;
+        let (parent, name) = self.open_existing_parent(root)?;
+        let directory = open_child_directory(&parent, &name)?;
+        let display_path = self.root_path.join(root.as_str());
+        #[cfg(windows)]
+        let result = if self.security == StoreSecurity::PrivateState {
+            verify_tree_from_dir_with_inventory_and_validator(
+                directory,
+                &display_path,
+                limits,
+                expected,
+                empty_directories,
+                &mut PrivateCaptureHandleValidator,
+            )
+        } else {
+            verify_tree_from_dir_with_inventory(
+                directory,
+                &display_path,
+                limits,
+                expected,
+                empty_directories,
+            )
+        };
+        #[cfg(not(windows))]
+        let result = verify_tree_from_dir_with_inventory(
+            directory,
+            &display_path,
+            limits,
+            expected,
+            empty_directories,
+        );
+        result.map_err(|_| invalid_object())?;
+        self.require_ambient_root_identity()?;
+        Ok(())
     }
 
     fn require_ambient_root_identity(&self) -> Result<(), ObjectMutationError> {

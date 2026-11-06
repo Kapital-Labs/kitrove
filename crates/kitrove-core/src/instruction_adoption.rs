@@ -612,7 +612,7 @@ const fn instruction_error(code: &'static str, message: &'static str) -> Instruc
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::fs;
 
     use kitrove_adapter_api::{InstructionTargetAnchor, InstructionTargetPolicy, PolicyLine};
@@ -676,6 +676,20 @@ mod tests {
         let observed =
             observe_instruction_document(&anchor, &policy(), InstructionLimits::default()).unwrap();
         (directory, observed)
+    }
+
+    pub(crate) fn ready_plan() -> Box<InstructionAdoptionPlan> {
+        let (_directory, observation) = observed_document("Review carefully.");
+        let InstructionAdoptionOutcome::Ready(plan) = plan_instruction_adoption(
+            &observation,
+            &AssetId::parse("review").unwrap(),
+            &empty_manifest(),
+            &capabilities(),
+        )
+        .unwrap() else {
+            panic!("instruction fixture must be ready");
+        };
+        plan
     }
 
     #[test]

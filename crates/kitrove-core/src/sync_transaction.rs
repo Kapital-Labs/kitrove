@@ -1622,7 +1622,14 @@ mod tests {
     }
 
     fn populated_snapshot() -> (PortableSnapshotV1, Vec<VerifiedObjectEnvelope>) {
-        let (adoption, _, _) = crate::adoption::tests::ready_plan();
+        populated_snapshot_with_directories(0)
+    }
+
+    fn populated_snapshot_with_directories(
+        directory_count: usize,
+    ) -> (PortableSnapshotV1, Vec<VerifiedObjectEnvelope>) {
+        let (adoption, _, _) =
+            crate::adoption::tests::ready_plan_with_support_directories(directory_count);
         let asset = adoption.asset();
         let portable = asset.portable.as_ref().unwrap();
         let native = asset
@@ -1975,7 +1982,7 @@ mod tests {
     fn confirmed_publish_transports_and_retains_every_exact_object() {
         let limits = SyncLimits::default();
         let empty = snapshot(None);
-        let (local, objects) = populated_snapshot();
+        let (local, objects) = populated_snapshot_with_directories(260);
         let (_environment_temporary, environment_root) = environment(&empty);
         crate::commit_sync_portable_snapshot(
             &environment_root,
@@ -2063,6 +2070,159 @@ mod tests {
                 .input()
                 .snapshot(),
             &local
+        );
+    }
+
+    #[test]
+    fn large_collection_base_committing_recovery_reuses_staging_without_republication() {
+        let limits = SyncLimits::default();
+        let empty = snapshot(None);
+        let (local, objects) = populated_snapshot_with_directories(260);
+        let (_environment_temporary, environment_root) = environment(&empty);
+        crate::commit_sync_portable_snapshot(
+            &environment_root,
+            &empty,
+            &local,
+            &objects,
+            &ContentHash::digest(b"fixture-initial-authority"),
+            limits,
+        )
+        .unwrap();
+        let (_state_temporary, state_root) = empty_root();
+        let (_remote_temporary, remote_root) = empty_root();
+        let backend = FilesystemSyncBackend::open(&remote_root).unwrap();
+        let publish = plan_with_objects(local.clone(), backend.inspect(limits).unwrap(), &objects);
+        let error = commit_sync_transaction_inner(
+            &environment_root,
+            &state_root,
+            &backend,
+            backend.remote_key(),
+            &publish,
+            &objects,
+            Some(publication()),
+            limits,
+            Some(SyncJournalPhase::BaseCommitting),
+            false,
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), "sync.test_interrupted");
+        let selected_before = backend.inspect(limits).unwrap();
+        let state = ObjectStore::open_private_state_for_mutation(&state_root).unwrap();
+        let journal = SyncJournal::from_json(
+            &state
+                .read_text(&journal_file(&backend), control_limit(limits).unwrap())
+                .unwrap()
+                .unwrap(),
+            limits,
+        )
+        .unwrap();
+        assert_eq!(journal.phase(), SyncJournalPhase::BaseCommitting);
+        let record = kitrove_model::SyncBaseRecord::new(
+            backend.remote_key().clone(),
+            local.snapshot_digest().clone(),
+            local.manifest_revision().clone(),
+            journal.proposed_remote_revision().clone(),
+            local.objects().clone(),
+            limits,
+        )
+        .unwrap()
+        .to_json(limits)
+        .unwrap();
+        assert_eq!(
+            &kitrove_model::SyncBaseRecord::generation_id_for_json(&record),
+            journal.proposed_base_generation()
+        );
+        // Reproduce the original failure's complete, uninstalled base staging.
+        for envelope in &objects {
+            let path = portable_path(&format!(
+                "{}/{}",
+                journal.staging_base().as_str(),
+                envelope.descriptor().root().as_str()
+            ))
+            .unwrap();
+            match envelope {
+                VerifiedObjectEnvelope::Portable { object, .. } => {
+                    state
+                        .stage_portable(&path, object, capture_limits(limits))
+                        .unwrap();
+                }
+                VerifiedObjectEnvelope::Native { object, .. } => {
+                    state
+                        .stage_native(&path, object, capture_limits(limits))
+                        .unwrap();
+                }
+                _ => unreachable!("fixture contains only skill envelopes"),
+            }
+        }
+        for (suffix, text) in [
+            ("base.json", record.as_str()),
+            ("base-manifest.toml", local.manifest_toml()),
+        ] {
+            state
+                .stage_text(
+                    &portable_path(&format!("{}/{suffix}", journal.staging_base().as_str()))
+                        .unwrap(),
+                    text,
+                    manifest_limit(limits).unwrap(),
+                )
+                .unwrap();
+        }
+        let canaries = [
+            ("state.json", "MACHINE-CANARY"),
+            ("receipts.json", "RECEIPT-CANARY"),
+            ("trust.json", "TRUST-CANARY"),
+            ("bindings.json", "BINDING-CANARY"),
+        ];
+        for (path, value) in canaries {
+            state
+                .stage_text(&portable_path(path).unwrap(), value, 1024)
+                .unwrap();
+        }
+        drop(state);
+        assert_eq!(
+            recover_sync_transaction(
+                &environment_root,
+                &state_root,
+                &backend,
+                backend.remote_key(),
+                limits
+            )
+            .unwrap(),
+            SyncRecoveryOutcome::Completed
+        );
+        assert_eq!(
+            backend.inspect(limits).unwrap().revision(),
+            selected_before.revision()
+        );
+        assert_eq!(backend.inspect(limits).unwrap().snapshot(), Some(&local));
+        let retained = SyncBaseStore::open(&state_root)
+            .unwrap()
+            .inspect(backend.remote_key(), limits)
+            .unwrap()
+            .unwrap();
+        assert_eq!(retained.input().snapshot(), &local);
+        assert_eq!(retained.objects(), objects);
+        for (path, value) in canaries {
+            assert_eq!(
+                std::fs::read(state_root.join(path)).unwrap(),
+                value.as_bytes()
+            );
+        }
+        assert!(!state_root.join(journal_file(&backend).as_str()).exists());
+        assert_eq!(
+            recover_sync_transaction(
+                &environment_root,
+                &state_root,
+                &backend,
+                backend.remote_key(),
+                limits
+            )
+            .unwrap(),
+            SyncRecoveryOutcome::NoJournal
+        );
+        assert_eq!(
+            backend.inspect(limits).unwrap().revision(),
+            selected_before.revision()
         );
     }
 
