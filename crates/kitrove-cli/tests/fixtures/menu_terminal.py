@@ -11,6 +11,8 @@ import termios
 import time
 
 BINARY = str(Path(sys.argv[1]).resolve(strict=True))
+# The Rust fixture owner supplies the existing repository's trusted temp root.
+FIXTURE_BASE = Path(sys.argv[2]).resolve(strict=True)
 
 
 class Session:
@@ -79,7 +81,7 @@ class Session:
 
 
 def initial_menu():
-    with tempfile.TemporaryDirectory(prefix="kitrove-menu-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="kitrove-menu-", dir=FIXTURE_BASE) as tmp:
         root = Path(tmp).resolve()
         session = Session(root, ["init"])
         try:
@@ -97,7 +99,7 @@ def initial_menu():
 
 
 def quit_menu(key):
-    with tempfile.TemporaryDirectory(prefix="kitrove-menu-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="kitrove-menu-", dir=FIXTURE_BASE) as tmp:
         root = Path(tmp).resolve()
         session = Session(root, ["init"])
         try:
@@ -111,7 +113,7 @@ def quit_menu(key):
 
 
 def configuration_menu(key):
-    with tempfile.TemporaryDirectory(prefix="kitrove-menu-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="kitrove-menu-", dir=FIXTURE_BASE) as tmp:
         root = Path(tmp).resolve()
         (root / "home").mkdir()
         env = os.environ.copy()
@@ -138,7 +140,7 @@ def configuration_menu(key):
 
 
 def adoption_decision(key, adopt, source_answer=b"from pi\n"):
-    with tempfile.TemporaryDirectory(prefix="kitrove-adoption-menu-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="kitrove-adoption-menu-", dir=FIXTURE_BASE) as tmp:
         root = Path(tmp).resolve()
         skill = root / "home/.pi/agent/skills/alpha/SKILL.md"
         skill.parent.mkdir(parents=True)

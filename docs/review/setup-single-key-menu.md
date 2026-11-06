@@ -59,3 +59,11 @@ syntax/fixture-initializer failures are retained, not counted as product success
 Full stable/Rust1.88, licenses/notices/audit and complete manual source review are
 required before commit; exact public checks and green latest main precede merge.
 No native Windows execution or complete release acceptance is claimed here.
+
+Initial hosted Linux validation caught a test-fixture precondition, not a failed
+menu assertion: Python's default temporary directory placed local authority under
+shared /tmp, which the existing ancestry guard correctly refuses. The same
+initialization refusal was reproduced locally with TMPDIR=/private/tmp. The PTY
+test now receives an owned trusted_tempdir from the existing testkit, matching
+other CLI authority fixtures; Python creates every child beneath that root.
+Production path/ancestry checks and all terminal assertions/deadlines are unchanged.
