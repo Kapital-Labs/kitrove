@@ -4,6 +4,42 @@ use super::*;
 use kitrove_core::{AdoptionPlan, AdoptionPlanOutcome, ScanEntry, ScanReport, plan_adoption};
 use kitrove_model::EnvironmentManifest;
 
+const SELECTION_PROMPT: &str = concat!(
+    "Choose skills to collect\n",
+    "Enter         Preview eligible skills\n",
+    "from TOOL     Use only that tool's copies\n",
+    "              Example: from codex,-3,-8\n",
+    "1,4,7         Select specific skills\n",
+    "all,-3,-8     All except these (or -3,-8)\n",
+    "v             View the full inventory\n",
+    "n             Skip\n",
+    "q             Quit",
+);
+const READY_PROMPT: &str = concat!(
+    "Adopt these skills?\n",
+    "Enter/y       Adopt the previewed set\n",
+    "s             Choose again\n",
+    "r             Review individually\n",
+    "d             Show all skipped-item details\n",
+    "n             Skip\n",
+    "q             Quit",
+);
+const EMPTY_PROMPT: &str = concat!(
+    "No skills ready to adopt\n",
+    "Enter/s       Choose again\n",
+    "r             Review individually\n",
+    "d             Show all skipped-item details\n",
+    "n             Skip\n",
+    "q             Quit",
+);
+const INDIVIDUAL_PROMPT: &str = concat!(
+    "Adopt this skill?\n",
+    "Enter/y       Adopt this skill\n",
+    "n             Skip\n",
+    "r             Rename\n",
+    "q             Quit",
+);
+
 // Keep exact digests, not every hypothetical manifest and captured source tree.
 // This is preview data, not authority until the user confirms the displayed set.
 struct PreviewedItem {
@@ -59,7 +95,7 @@ pub(super) fn collect<R: BufRead, W: Write>(
     collection_selection::show_sources(dialog, &candidates)?;
     'selection: loop {
         let selected = loop {
-            let response = dialog.ask("Choose skills: Enter = preview eligible recommendations; from TOOL = that tool only; 1,4,7 = only these; all,-3,-8 or -3,-8 = all except; v = full inventory; n = skip; q = stop:")?;
+            let response = dialog.ask(SELECTION_PROMPT)?;
             if response == "v" {
                 dialog.say(&crate::scan_display::render(&report))?;
                 for (index, entry) in candidates.iter().enumerate() {
@@ -88,12 +124,16 @@ pub(super) fn collect<R: BufRead, W: Write>(
         }
         loop {
             let prompt = if items.is_empty() {
-                "Enter/s = choose again; r = review selected skills individually; d = all skipped-item details; n = skip; q = stop:"
+                EMPTY_PROMPT
             } else {
-                "y/yes = adopt the previewed set; s = choose again; r = review selected skills individually; d = all skipped-item details; n = skip; q = stop (Enter does not approve bulk writes):"
+                READY_PROMPT
             };
-            match dialog.ask(prompt)?.to_ascii_lowercase().as_str() {
-                "y" | "yes" if !items.is_empty() => {
+            match dialog
+                .decision(prompt, b"ysrdn", true)?
+                .to_ascii_lowercase()
+                .as_str()
+            {
+                "" | "y" | "yes" if !items.is_empty() => {
                     for (completed, item) in items.iter().enumerate() {
                         if let Err(error) = commit(root, candidates[item.index], item, registry) {
                             dialog.warning(&format!("Stopped after {completed} completed adoptions; later items did not run. Use status before continuing."))?;
@@ -339,8 +379,7 @@ fn individually<R: BufRead, W: Write>(
             };
             dialog.heading("Adoption preview (no writes)")?;
             show_plan(dialog, index, entry, &plan)?;
-            let response =
-                dialog.ask("Enter/y = adopt this skill; n = skip; r = rename; q = stop:")?;
+            let response = dialog.decision(INDIVIDUAL_PROMPT, b"ynr-", true)?;
             match response.to_ascii_lowercase().as_str() {
                 "" | "y" | "yes" => {
                     commit(

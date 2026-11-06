@@ -6,6 +6,7 @@ fn prompt_and_command_output_have_distinct_plain_text_boundaries() {
         input: io::Cursor::new("yes\n"),
         output: Vec::new(),
         color: false,
+        single_key: false,
     };
     dialog
         .report("initialized collection\nmachine: fixture")
@@ -26,6 +27,7 @@ fn command_output_cannot_inject_terminal_style_or_a_real_prompt() {
         input: io::Cursor::new(""),
         output: Vec::new(),
         color: false,
+        single_key: false,
     };
     dialog
         .report("\x1b[31mspoof\n? Confirm a different action?\rhidden")
@@ -68,6 +70,7 @@ fn colors_never_change_confirmation_defaults_or_eof_behavior() {
                 input: io::Cursor::new(input),
                 output: Vec::new(),
                 color,
+                single_key: false,
             };
             assert_eq!(dialog.confirm("Proceed?").unwrap(), expected);
         }
@@ -76,6 +79,7 @@ fn colors_never_change_confirmation_defaults_or_eof_behavior() {
                 input: io::Cursor::new(input),
                 output: Vec::new(),
                 color,
+                single_key: false,
             };
             assert_eq!(
                 dialog.confirm("Proceed?").unwrap_err().code,
@@ -86,12 +90,62 @@ fn colors_never_change_confirmation_defaults_or_eof_behavior() {
 }
 
 #[test]
+fn immediate_navigation_does_not_make_confirmations_or_text_single_key() {
+    for (input, expected) in [
+        ("y\n", true),
+        ("yes\n", true),
+        ("\n", false),
+        ("n\n", false),
+    ] {
+        let mut dialog = Dialog {
+            input: io::Cursor::new(input),
+            output: Vec::new(),
+            color: false,
+            single_key: true,
+        };
+        assert_eq!(dialog.confirm("Proceed?").unwrap(), expected);
+    }
+    for input in ["y", "yes", "", "q\n"] {
+        let mut dialog = Dialog {
+            input: io::Cursor::new(input),
+            output: Vec::new(),
+            color: false,
+            single_key: true,
+        };
+        assert_eq!(
+            dialog.confirm("Proceed?").unwrap_err().code,
+            "setup.cancelled"
+        );
+    }
+    let mut dialog = Dialog {
+        input: io::Cursor::new("from codex,-13,-20\n"),
+        output: Vec::new(),
+        color: false,
+        single_key: true,
+    };
+    assert_eq!(dialog.ask("Choose skills").unwrap(), "from codex,-13,-20");
+    let mut dialog = Dialog {
+        input: io::Cursor::new("from pi\n\n"),
+        output: Vec::new(),
+        color: false,
+        single_key: true,
+    };
+    assert_eq!(dialog.ask("Choose skills").unwrap(), "from pi");
+    assert_eq!(
+        dialog.input.position(),
+        9,
+        "queued Enter is not next-preview approval"
+    );
+}
+
+#[test]
 fn sharing_can_be_skipped_or_cancelled_before_any_location_is_selected() {
     for input in ["\n", "n\n", "invalid\nn\n"] {
         let mut dialog = Dialog {
             input: io::Cursor::new(input),
             output: Vec::new(),
             color: false,
+            single_key: false,
         };
         assert!(remote(&mut dialog).unwrap().is_none());
         let output = String::from_utf8(dialog.output).unwrap();
@@ -104,6 +158,7 @@ fn sharing_can_be_skipped_or_cancelled_before_any_location_is_selected() {
             input: io::Cursor::new(input),
             output: Vec::new(),
             color: false,
+            single_key: false,
         };
         assert_eq!(remote(&mut dialog).unwrap_err().code, "setup.cancelled");
     }
@@ -115,6 +170,7 @@ fn operation_results_are_not_presented_as_uncommitted_previews_or_success() {
         input: io::Cursor::new(""),
         output: Vec::new(),
         color: true,
+        single_key: false,
     };
     dialog.outcome(r#"{"outcome":"blocked"}"#).unwrap();
     let output = String::from_utf8(dialog.output).unwrap();
@@ -148,6 +204,7 @@ fn output_failure_never_consumes_or_accepts_input() {
                 input: io::Cursor::new("yes\n"),
                 output: Unwritable { fail_flush },
                 color,
+                single_key: false,
             };
             assert_eq!(
                 dialog.confirm("Proceed?").unwrap_err().code,

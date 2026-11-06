@@ -22,15 +22,49 @@ use crate::scan_display::{name, safe, selectable};
 mod collection;
 mod collection_selection;
 mod initialization;
+mod menu_input;
 mod presentation;
 
 struct Dialog<R, W> {
     input: R,
     output: W,
     color: bool,
+    single_key: bool,
 }
 
 impl<R: BufRead, W: Write> Dialog<R, W> {
+    fn menu(&mut self, message: &str, default_finish: bool) -> Result<String, CliError> {
+        self.decision(
+            &format!("{message}\nPress 1-5 (no Enter needed); q stops."),
+            b"12345",
+            default_finish,
+        )
+    }
+
+    fn decision(
+        &mut self,
+        message: &str,
+        keys: &[u8],
+        accept_enter: bool,
+    ) -> Result<String, CliError> {
+        if !self.single_key {
+            return self.ask(message);
+        }
+        // A key queued before this question is not consent for its new preview.
+        menu_input::discard_pending().map_err(|_| io_error())?;
+        presentation::prompt(&mut self.output, self.color, message).map_err(|_| io_error())?;
+        self.output.flush().map_err(|_| io_error())?;
+        let mut mode = menu_input::Mode::enter().map_err(|_| io_error())?;
+        let answer = menu_input::read(&mut self.input, keys, accept_enter);
+        let discarded = menu_input::discard_pending();
+        // Restore before any next prompt, output or operation, including cancellation.
+        mode.restore().map_err(|_| io_error())?;
+        discarded.map_err(|_| io_error())?;
+        writeln!(self.output, "{}", answer.as_deref().unwrap_or_default())
+            .map_err(|_| io_error())?;
+        answer
+    }
+
     fn report(&mut self, text: &str) -> Result<(), CliError> {
         let text = text.lines().map(safe).collect::<Vec<_>>().join("\n");
         presentation::block(&mut self.output, self.color, "Command output", &text)
@@ -134,6 +168,12 @@ impl<R: BufRead, W: Write> Dialog<R, W> {
                 .iter()
                 .position(|b| *b == b'\n')
                 .map_or(available.len(), |n| n + 1);
+            let consumed = if self.single_key && available.get(count - 1) == Some(&b'\n') {
+                // Pasted later answers are not consent for an unseen preview.
+                available.len()
+            } else {
+                count
+            };
             if bytes.len() + count > 8192 {
                 return Err(CliError::new(
                     "setup.input_limit",
@@ -141,7 +181,7 @@ impl<R: BufRead, W: Write> Dialog<R, W> {
                 ));
             }
             bytes.extend_from_slice(&available[..count]);
-            self.input.consume(count);
+            self.input.consume(consumed);
             if bytes.last() == Some(&b'\n') {
                 break;
             }
@@ -240,6 +280,7 @@ pub(crate) fn entry(environment: Option<PathBuf>, configure: bool) -> u8 {
         input: io::stdin().lock(),
         output: io::stdout(),
         color: presentation::detect(io::stdout().is_terminal()),
+        single_key: true,
     };
     let result = crate::registry::try_tier_one_registry()
         .map_err(|_| io_error())
@@ -285,7 +326,7 @@ fn run<R: BufRead, W: Write>(
         String::new()
     } else {
         loop {
-            let choice = dialog.ask("How would you like to start?\n  1. Set up my first computer\n  2. Connect a second computer to the whole collection\n  3. Import specific items on a second computer\n  4. Combine this computer's skills with an existing collection\n  5. Inspect this computer without changing anything\nChoose 1-5:")?;
+            let choice = dialog.menu("How would you like to start?\n  1. Set up my first computer\n  2. Connect a second computer to the whole collection\n  3. Import specific items on a second computer\n  4. Combine this computer's skills with an existing collection\n  5. Inspect this computer without changing anything\nChoose 1-5:", false)?;
             if matches!(choice.as_str(), "1" | "2" | "3" | "4" | "5") {
                 break choice;
             }
@@ -362,7 +403,7 @@ fn run<R: BufRead, W: Write>(
         _ => {}
     }
     loop {
-        match dialog.ask("What would you like to do?\n1. Add skills from this computer\n2. Choose skills to add to your AI tools\n3. Share this collection with another computer\n4. Copy selected items from another collection\n5. Finish for now\nChoose 1-5 [5]:")?.as_str() {
+        match dialog.menu("What would you like to do?\n1. Add skills from this computer\n2. Choose skills to add to your AI tools\n3. Share this collection with another computer\n4. Copy selected items from another collection\n5. Finish for now\nChoose 1-5 [5]:", true)?.as_str() {
             "1" => collect(dialog, &root, registry)?,
             "2" => apply(dialog, &root)?,
             "3" => synchronize(dialog, &root)?,
@@ -744,6 +785,7 @@ mod tests {
             input: io::Cursor::new(input),
             output: Vec::new(),
             color: false,
+            single_key: false,
         };
         let result = run(
             &mut dialog,
@@ -1019,6 +1061,7 @@ mod tests {
                 input: io::Cursor::new(input),
                 output: Vec::new(),
                 color: false,
+                single_key: false,
             };
             assert!(dialog.confirm("change?").is_err());
         }
@@ -1026,6 +1069,7 @@ mod tests {
             input: io::Cursor::new("\n"),
             output: Vec::new(),
             color: false,
+            single_key: false,
         };
         assert!(!dialog.confirm("change?").unwrap());
     }
@@ -1050,6 +1094,7 @@ mod tests {
             input: io::Cursor::new(format!("{}\n", "x".repeat(8192))),
             output: Vec::new(),
             color: false,
+            single_key: false,
         };
         assert_eq!(dialog.ask("input").unwrap_err().code, "setup.input_limit");
     }

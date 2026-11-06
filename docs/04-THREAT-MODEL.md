@@ -82,7 +82,15 @@ plans. Numbered exclusions bind the original scan, not a fresh list. Fresh commi
 planning must match each preview digest; source/state changes or pending recovery
 stop later items. Names, loss reasons and omissions remain visible. No blanket
 future approval, implicit overwrite, trust, Apply or sync follows from collection.
-See ADR-0047. Enter selects recommendations but never approves bulk writes.
+See ADR-0047. Enter at selection only previews recommendations. Following a
+complete nonempty preview, a separate Enter or y explicitly approves only that
+displayed exact set; EOF, invalid input, cancellation and an empty set never
+grant approval. Every fresh per-item check remains mandatory. Immediate keys
+restore the prior input mode before any operation; other confirmation boundaries
+and defaults are unchanged.
+Queued trailing Enter/repeats are discarded before another terminal question;
+read-ahead cannot become consent for an unseen preview. Cancellation and input
+drain/restoration failures stop rather than granting fallback approval.
 
 An explicit setup `from TOOL` filter chooses only observations from that tool in
 the displayed scan; it does not merge same-name native sources or infer ownership.
