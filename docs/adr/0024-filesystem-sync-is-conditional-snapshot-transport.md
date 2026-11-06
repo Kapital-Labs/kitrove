@@ -81,6 +81,18 @@ sync/<remote-key>/
 
 The retained base is one immutable, complete generation: base record, exact canonical base manifest, and every descriptor-named object needed to reproduce the base merge input. Its `base-generation-id` is a domain-separated digest of the complete canonical base record, including both snapshot identity and exact opaque backend revision, so recurrence of the same snapshot at a later generation cannot alias an earlier base. `base-current.json` binds and selects that full generation identity and is the only mutable base authority; it is replaced only after the complete generation verifies. A partial, mismatched, unselected, or noncanonical base blocks planning rather than degrading to bootstrap. This refines the unreleased D1 illustrative layout so a base update has one control-file commit point on every supported platform.
 
+Whole-generation verification uses the exact file inventory reconstructed from the
+bounded, independently verified objects and canonical control documents. Its
+directory allowance is the deduplicated ancestor set of that inventory plus the
+existing envelope writer's optional empty `payload/` directories, not the
+512-directory allowance for capturing one skill. Unknown files or directories
+refuse; existing file/byte budgets, no-follow handle checks, private-state
+permissions, single-link checks, and exact bytes/modes remain required. Individual
+object capture retains its existing directory/depth limits. This distinction
+allows an admitted collection to retain its base without weakening skill intake.
+Recovery still proves the journal-bound publication and rolls forward; a failed
+base verification never authorizes another publication or discarding the journal.
+
 ### Planning and bootstrap
 
 `kitrove sync plan --filesystem <root>` is read-only. It validates the exact local manifest, generated lock, referenced objects, local base, remote pointer, remote snapshot, and fetched remote/base objects under one request-global `SyncLimits` meter. It then applies only the D1 bootstrap rules or pure semantic merge. A plan binds exact local manifest and lock bytes, local snapshot digest, base digest and backend revision, remote revision and snapshot digest, merged snapshot digest, transfer sets, conflicts, and a stable plan digest.

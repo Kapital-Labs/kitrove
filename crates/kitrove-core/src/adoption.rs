@@ -987,6 +987,14 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn make_candidate(mode: FileMode, native_id: &str) -> AcceptedObservedCandidate {
+        make_candidate_with_directories(mode, native_id, 0)
+    }
+
+    fn make_candidate_with_directories(
+        mode: FileMode,
+        native_id: &str,
+        directory_count: usize,
+    ) -> AcceptedObservedCandidate {
         let document_name = "SKILL.md".to_owned();
         let document = ObservedSkillDocument {
             frontmatter: BTreeMap::new(),
@@ -999,7 +1007,7 @@ pub(crate) mod tests {
             body: "Inspect the change.\n".to_owned(),
             native_fields: BTreeSet::new(),
         };
-        let files = BTreeMap::from([(
+        let mut files = BTreeMap::from([(
             PortablePath::parse("SKILL.md").unwrap(),
             CapturedFile {
                 mode,
@@ -1007,6 +1015,15 @@ pub(crate) mod tests {
                     .to_vec(),
             },
         )]);
+        for index in 0..directory_count {
+            files.insert(
+                PortablePath::parse(format!("references/topic-{index}/notes.md")).unwrap(),
+                CapturedFile {
+                    mode: FileMode::Regular,
+                    bytes: b"Reference notes.\n".to_vec(),
+                },
+            );
+        }
         let exact = CapturedTree {
             hash: hash_tree(&files),
             files,
@@ -1085,7 +1102,14 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn ready_plan() -> (AdoptionPlan, AcceptedObservedCandidate, EnvironmentManifest) {
-        let candidate = make_candidate(FileMode::Regular, "review");
+        ready_plan_with_support_directories(0)
+    }
+
+    pub(crate) fn ready_plan_with_support_directories(
+        directory_count: usize,
+    ) -> (AdoptionPlan, AcceptedObservedCandidate, EnvironmentManifest) {
+        let candidate =
+            make_candidate_with_directories(FileMode::Regular, "review", directory_count);
         let manifest = empty_manifest();
         let outcome = plan_adoption(&candidate, None, &manifest, &capabilities()).unwrap();
         let AdoptionPlanOutcome::Ready(plan) = outcome else {

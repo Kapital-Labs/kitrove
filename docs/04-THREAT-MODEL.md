@@ -151,6 +151,13 @@ declaration. Diagnostics retain fixed reasons, not authored values. See ADR-0061
 
 Use hashes and immutable resolutions, review executable changes, retain provenance, and add optional signing only after the core model is stable.
 
+Retained sync history is an aggregate of already bounded verified objects, not
+one skill. Verify only its reconstructed exact files and their directory
+ancestors and existing empty envelope payload directories, retaining file/byte
+budgets and same-handle no-follow/private-state checks. Unknown entries or changed bytes refuse without changing the selected
+base. Individual skill traversal limits remain unchanged; interrupted base
+commit resumes journal-bound publication evidence, never a fresh upload.
+
 ### Private history or source-boundary disclosure
 
 Never change the private staging repository's visibility or publish filtered history. Materialize a fresh tree from the copyright-holder-approved include set, require the private continuity set to be completely absent, inspect the exact file list, reject links and credential-like filenames, run a whole-tree secret scan, and create clean public commits only after separate authorization.

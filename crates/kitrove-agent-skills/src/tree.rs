@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::{OsStr, OsString};
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
@@ -21,9 +21,9 @@ use cap_fs_ext::OsMetadataExt as _;
 use crate::directory_entries::{BoundedDirectoryEntries, collect_bounded_sorted_directory_entries};
 use crate::{CaptureLimits, CaptureMeter, SkillError};
 
-/// Maximum directories visited by any captured tree.
+/// Maximum directories visited by ordinary skill capture.
 pub const MAX_CAPTURE_DIRECTORIES: usize = 512;
-/// Maximum directory nesting accepted by any captured tree.
+/// Maximum directory nesting accepted by ordinary skill capture.
 pub const MAX_CAPTURE_DEPTH: usize = 64;
 
 /// The portable mode bits that contribute to captured tree identity.
@@ -105,6 +105,76 @@ pub fn capture_tree_from_dir_with_validator(
     limits: CaptureLimits,
     validator: &mut dyn CaptureHandleValidator,
 ) -> Result<CapturedTree, SkillError> {
+    capture_tree_from_dir_with_state(root, display_path, CaptureState::new(limits), validator)
+}
+
+/// Verifies an exact, caller-admitted aggregate inventory through no-follow handles.
+///
+/// Only expected files, their ancestors and explicitly allowed empty directories may be
+/// visited. The inventory must already be bounded by its caller; byte/file limits and
+/// handle policies still apply. Empty directory presence is not part of tree identity.
+/// This does not change the directory/depth limits of ordinary skill capture.
+pub fn verify_tree_from_dir_with_inventory(
+    root: Dir,
+    display_path: &Path,
+    limits: CaptureLimits,
+    expected: &CapturedTree,
+    empty_directories: &BTreeSet<PortablePath>,
+) -> Result<(), SkillError> {
+    verify_tree_from_dir_with_inventory_and_validator(
+        root,
+        display_path,
+        limits,
+        expected,
+        empty_directories,
+        &mut NoopHandleValidator,
+    )
+}
+
+/// Applies the same-handle policy to every file and directory of an exact inventory.
+pub fn verify_tree_from_dir_with_inventory_and_validator(
+    root: Dir,
+    display_path: &Path,
+    limits: CaptureLimits,
+    expected: &CapturedTree,
+    empty_directories: &BTreeSet<PortablePath>,
+    validator: &mut dyn CaptureHandleValidator,
+) -> Result<(), SkillError> {
+    let mut state = CaptureState::new(limits);
+    let mut directories = BTreeSet::new();
+    for path in expected.files.keys() {
+        for (index, _) in path.as_str().match_indices('/') {
+            directories.insert(path.as_str()[..index].to_owned());
+        }
+    }
+    for path in empty_directories {
+        directories.insert(path.as_str().to_owned());
+        for (index, _) in path.as_str().match_indices('/') {
+            directories.insert(path.as_str()[..index].to_owned());
+        }
+    }
+    state.max_entries = expected.files.len().saturating_add(directories.len());
+    state.inventory = Some(CaptureInventory {
+        files: expected
+            .files
+            .keys()
+            .map(|path| path.as_str().to_owned())
+            .collect(),
+        directories,
+    });
+    let actual = capture_tree_from_dir_with_state(root, display_path, state, validator)?;
+    if actual != *expected {
+        return Err(inventory_mismatch(display_path));
+    }
+    Ok(())
+}
+
+fn capture_tree_from_dir_with_state(
+    root: Dir,
+    display_path: &Path,
+    mut state: CaptureState,
+    validator: &mut dyn CaptureHandleValidator,
+) -> Result<CapturedTree, SkillError> {
     let metadata = root
         .dir_metadata()
         .map_err(|error| io_error(display_path, "inspect capture root", &error))?;
@@ -113,7 +183,6 @@ pub fn capture_tree_from_dir_with_validator(
         return Err(special_file_error(display_path));
     }
     validate_directory_handle(validator, &root, display_path)?;
-    let mut state = CaptureState::new(limits);
     capture_directories(
         root,
         display_path,
@@ -529,6 +598,12 @@ struct CaptureState {
     visited_directories: usize,
     visited_entries: usize,
     max_entries: usize,
+    inventory: Option<CaptureInventory>,
+}
+
+struct CaptureInventory {
+    files: BTreeSet<String>,
+    directories: BTreeSet<String>,
 }
 
 impl CaptureState {
@@ -541,6 +616,7 @@ impl CaptureState {
             total_bytes: 0,
             visited_directories: 0,
             visited_entries: 0,
+            inventory: None,
         }
     }
 
@@ -626,7 +702,12 @@ fn capture_directories(
         reject_link_like(&entry_metadata, &display_path)?;
         if entry_metadata.is_dir() {
             let depth = parent_depth.saturating_add(1);
-            if depth > MAX_CAPTURE_DEPTH {
+            if let Some(inventory) = &state.inventory
+                && !inventory.directories.contains(portable.as_str())
+            {
+                return Err(inventory_mismatch(&display_path));
+            }
+            if state.inventory.is_none() && depth > MAX_CAPTURE_DEPTH {
                 return Err(SkillError::new(
                     "capture.depth_limit",
                     &display_path,
@@ -634,7 +715,7 @@ fn capture_directories(
                 ));
             }
             state.visited_directories = state.visited_directories.saturating_add(1);
-            if state.visited_directories > MAX_CAPTURE_DIRECTORIES {
+            if state.inventory.is_none() && state.visited_directories > MAX_CAPTURE_DIRECTORIES {
                 return Err(SkillError::new(
                     "capture.traversal_limit",
                     &display_path,
@@ -678,6 +759,11 @@ fn capture_directories(
                 &mut pending,
             )?;
         } else if entry_metadata.is_file() {
+            if let Some(inventory) = &state.inventory
+                && !inventory.files.contains(portable.as_str())
+            {
+                return Err(inventory_mismatch(&display_path));
+            }
             capture_file(
                 &parent,
                 &file_name,
@@ -1320,6 +1406,14 @@ fn total_size_error(path: &Path, limit: u64) -> SkillError {
     )
 }
 
+fn inventory_mismatch(path: &Path) -> SkillError {
+    SkillError::new(
+        "capture.inventory_mismatch",
+        path,
+        "tree differs from the admitted inventory",
+    )
+}
+
 fn io_error(path: &Path, action: &str, error: &std::io::Error) -> SkillError {
     SkillError::new("capture.io", path, format!("failed to {action}: {error}"))
 }
@@ -1385,6 +1479,151 @@ mod tests {
             self.files += 1;
             self.accept_files
         }
+    }
+
+    #[test]
+    fn exact_inventory_verifies_aggregate_but_default_skill_capture_stays_bounded() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().canonicalize().unwrap();
+        let mut files = std::collections::BTreeMap::new();
+        for index in 0..513 {
+            let path = format!("part-{index}/notes.md");
+            std::fs::create_dir(root.path().join(format!("part-{index}"))).unwrap();
+            std::fs::write(root.path().join(&path), b"notes").unwrap();
+            files.insert(
+                PortablePath::parse(path).unwrap(),
+                super::CapturedFile {
+                    mode: super::FileMode::Regular,
+                    bytes: b"notes".to_vec(),
+                },
+            );
+        }
+        let expected = super::CapturedTree {
+            hash: super::hash_tree(&files),
+            files,
+        };
+        let limits = CaptureLimits {
+            max_files: 513,
+            ..CaptureLimits::default()
+        };
+        assert_eq!(
+            super::capture_tree(&path, limits).unwrap_err().code(),
+            "capture.traversal_limit"
+        );
+        let mut validator = CountingValidator {
+            accept_files: true,
+            ..CountingValidator::default()
+        };
+        super::verify_tree_from_dir_with_inventory_and_validator(
+            Dir::open_ambient_dir(root.path(), ambient_authority()).unwrap(),
+            root.path(),
+            limits,
+            &expected,
+            &std::collections::BTreeSet::new(),
+            &mut validator,
+        )
+        .unwrap();
+        assert_eq!(validator.directories, 514);
+        assert_eq!(validator.files, 1026);
+        std::fs::create_dir(root.path().join("unadmitted-empty-directory")).unwrap();
+        assert!(
+            super::verify_tree_from_dir_with_inventory(
+                Dir::open_ambient_dir(root.path(), ambient_authority()).unwrap(),
+                root.path(),
+                limits,
+                &expected,
+                &std::collections::BTreeSet::new(),
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn exact_inventory_keeps_file_byte_and_handle_refusals() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("one"), b"notes").unwrap();
+        std::fs::write(root.path().join("two"), b"notes").unwrap();
+        let expected = super::capture_tree(
+            &root.path().canonicalize().unwrap(),
+            CaptureLimits::default(),
+        )
+        .unwrap();
+        for limits in [
+            CaptureLimits {
+                max_files: 1,
+                ..CaptureLimits::default()
+            },
+            CaptureLimits {
+                max_file_bytes: 4,
+                ..CaptureLimits::default()
+            },
+            CaptureLimits {
+                max_total_bytes: 9,
+                ..CaptureLimits::default()
+            },
+        ] {
+            assert!(
+                super::verify_tree_from_dir_with_inventory(
+                    Dir::open_ambient_dir(root.path(), ambient_authority()).unwrap(),
+                    root.path(),
+                    limits,
+                    &expected,
+                    &std::collections::BTreeSet::new(),
+                )
+                .is_err()
+            );
+        }
+        let mut validator = CountingValidator::default();
+        assert_eq!(
+            super::verify_tree_from_dir_with_inventory_and_validator(
+                Dir::open_ambient_dir(root.path(), ambient_authority()).unwrap(),
+                root.path(),
+                CaptureLimits::default(),
+                &expected,
+                &std::collections::BTreeSet::new(),
+                &mut validator,
+            )
+            .unwrap_err()
+            .code(),
+            "capture.handle_policy"
+        );
+        assert_eq!(validator.files, 1);
+        std::fs::write(root.path().join("one"), b"other").unwrap();
+        assert_eq!(
+            super::verify_tree_from_dir_with_inventory(
+                Dir::open_ambient_dir(root.path(), ambient_authority()).unwrap(),
+                root.path(),
+                CaptureLimits::default(),
+                &expected,
+                &std::collections::BTreeSet::new(),
+            )
+            .unwrap_err()
+            .code(),
+            "capture.inventory_mismatch"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn exact_inventory_refuses_a_known_file_replaced_by_a_symlink() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().canonicalize().unwrap();
+        std::fs::write(path.join("one"), b"notes").unwrap();
+        let expected = super::capture_tree(&path, CaptureLimits::default()).unwrap();
+        std::fs::remove_file(path.join("one")).unwrap();
+        std::os::unix::fs::symlink("never-follow-this", path.join("one")).unwrap();
+        assert_eq!(
+            super::verify_tree_from_dir_with_inventory(
+                Dir::open_ambient_dir(&path, ambient_authority()).unwrap(),
+                &path,
+                CaptureLimits::default(),
+                &expected,
+                &std::collections::BTreeSet::new(),
+            )
+            .unwrap_err()
+            .code(),
+            "capture.symlink"
+        );
     }
 
     #[test]

@@ -40,7 +40,8 @@ pub use tree::{
     DirectoryWalkReport, FileMode, MAX_CAPTURE_DEPTH, MAX_CAPTURE_DIRECTORIES,
     capture_standalone_tree, capture_standalone_tree_from_dir, capture_standalone_tree_metered,
     capture_tree, capture_tree_from_dir, capture_tree_from_dir_with_validator,
-    capture_tree_metered, hash_tree, walk_directories_nofollow,
+    capture_tree_metered, hash_tree, verify_tree_from_dir_with_inventory,
+    verify_tree_from_dir_with_inventory_and_validator, walk_directories_nofollow,
 };
 
 /// Returns whether a source-relative candidate is one direct child of its root.
