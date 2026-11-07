@@ -6,7 +6,7 @@ capabilities elsewhere. It does not install those tools or copy their accounts.
 ## Install the latest preview
 
 These instructions start with a fresh installation of the latest reviewed
-preview, currently **RC5.8**. On an Apple Silicon Mac with
+preview, currently **RC5.9**. On an Apple Silicon Mac with
 [Homebrew](https://brew.sh/) already installed:
 
 ```sh
@@ -15,7 +15,7 @@ kitrove --version
 ```
 
 The package is named `kitrove`; the installed version still identifies itself as
-`0.1.0-rc.5.8`. This is an evaluation preview, not stable support. Use a new isolated
+`0.1.0-rc.5.9`. This is an evaluation preview, not stable support. Use a new isolated
 collection and empty destinations with synthetic or disposable capabilities.
 Homebrew checks the pinned archive checksum; you trust Homebrew and the reviewed
 [tap](https://github.com/Kapital-Labs/homebrew-tap) to select the package. It does
@@ -23,7 +23,7 @@ not initialize Kitrove, scan skills, or grant execution trust during installatio
 Leave quarantine and Gatekeeper enabled.
 
 For Linux x86-64 and Windows x86-64, use the exact
-[RC5.8 downloads](https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.8)
+[RC5.9 downloads](https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.9)
 and follow the [verification guide](INSTALLER.md) with an independently trusted
 or reviewed-source-built verifier **before execution**. A checksum alone is not
 provenance. Intel Macs are unsupported in this preview.
@@ -61,8 +61,8 @@ Ready plans still show complete source, fidelity and loss details. An empty
 preview offers no adoption approval or zero-item success. Enter or `s` chooses
 again using the same scan; `s` also works after a nonempty preview.
 
-Review the preview's fidelity and loss warnings. `y` or `yes` approves only the
-displayed ready set; Enter does not approve bulk writes. Use `r` for individual
+Review the preview's fidelity and loss warnings. Enter or `y` approves only the
+displayed ready set after a nonempty preview. Use `r` for individual
 review: Enter/y accepts the current shown plan, n skips, and r renames before a
 new preview. `n` at selection skips collection. Original source files stay in place.
 
@@ -78,8 +78,11 @@ path of an independently trusted local binary for the existing bounded version
 probe. Executable capabilities still require separate local trust; setup does
 not grant trust or install prerequisites.
 
-`q` stops at any prompt. Other write confirmations still skip on Enter; individual
-adoption review is the explicit exception described above. Previously confirmed steps
+Closed menus accept a single displayed key without Enter. Selection expressions,
+paths, names and URLs remain text prompts: type the value and press Enter.
+An Enter left over from an earlier prompt cannot approve a later preview.
+Apply and sync keep separate confirmations; Enter skips those writes.
+`q` stops at any prompt. Previously confirmed steps
 remain completed if you stop later. Setup is not a single transaction covering
 all earlier choices, and nothing starts running in the background.
 
@@ -113,15 +116,15 @@ locations are requested per operation rather than saved with credentials.
 ## Prepare a collection for another computer
 
 In Configure, choose **Share this collection with another computer**. Select an
-existing filesystem/shared directory or **Git repository**. In the upcoming setup
-UX, paste the repository URL: `https://...` selects HTTPS and `ssh://...` selects
+existing filesystem/shared directory or **Git repository**. Paste the repository
+URL: `https://...` selects HTTPS and `ssh://...` selects
 SSH. A URL without its scheme asks which connection to use. SSH also asks for an
 absolute path to an existing known-hosts file; it does not learn host keys or start
-an agent. RC5.8 still shows HTTPS and SSH as separate storage choices.
+an agent.
 This must be a Kitrove snapshot backend, not merely a checkout
 containing skill files. An empty existing backend can receive the first approved
-publication. Create and authorize any remote repository separately: setup does not
-create one, inspect the current project's remotes or import Git/SSH configuration.
+publication. Create and authorize any remote repository separately: setup does not create
+one, inspect the current project's remotes or import Git/SSH configuration.
 
 Review what will change locally and remotely before confirming. Full sync is
 bidirectional: it may publish local additions, not just download. Credentials use
@@ -216,7 +219,7 @@ is not recognized. Its second menu choice is “Choose skills to add to your AI
 tools”; sharing and one-time copying have their own choices. RC5.6 still has the
 older menu labels/numbers. Do not use RC5.7 menu numbers with that binary.
 
-The fresh-install instructions do not migrate an older collection. RC5.8 has no
+The fresh-install instructions do not migrate an older collection. RC5.9 has no
 rollback-compatible predecessor; RC4.2 cannot read authored-pack collections.
 Keep older collections and local state separate. Binary rollback is not data
 rollback.
@@ -229,5 +232,5 @@ state, or use `--zap` to bypass a conflict. Never point `kitrove-installer` at a
 Homebrew-managed binary. Normal cask removal preserves Kitrove collections and
 local state; use the token that actually owns your installed binary.
 
-The older APT/DNF package channels remain RC4.2, not an RC5.8 install or upgrade
+The older APT/DNF package channels remain RC4.2, not an RC5.9 install or upgrade
 path. See the [Linux package guide](LINUX-INSTALL.md) for their exact scope.
