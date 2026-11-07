@@ -37,7 +37,7 @@
         ><a href="#help">More documentation</a>
       </nav>
       <main id="main" class="docs-content">
-        <p class="eyebrow">Getting started · RC5.8</p>
+        <p class="eyebrow">Getting started · RC5.9</p>
         <h1>Your first collection.</h1>
         <p>
           Kitrove collects skills from your agent tools and helps you apply
@@ -46,8 +46,8 @@
         </p>
         <h2 id="install">Install the preview</h2>
         <p>
-          RC5.8 is a fresh-install evaluation preview for Apple Silicon macOS,
-          x86-64 Linux and x86-64 Windows. Intel Macs are unsupported in RC5.8.
+          RC5.9 is a fresh-install evaluation preview for Apple Silicon macOS,
+          x86-64 Linux and x86-64 Windows. Intel Macs are unsupported in RC5.9.
           Use a new isolated collection and empty destination with synthetic or
           disposable capabilities.
         </p>
@@ -58,7 +58,7 @@
         <pre><code>brew install --cask kapital-labs/tap/kitrove
 kitrove --version</code></pre>
         <p>
-          This installs the latest reviewed preview, currently RC5.8. The
+          This installs the latest reviewed preview, currently RC5.9. The
           shorter package name does not make it a stable release. Homebrew
           checks the pinned archive checksum; you trust Homebrew and the
           <a href="https://github.com/Kapital-Labs/homebrew-tap"
@@ -69,17 +69,17 @@ kitrove --version</code></pre>
         </p>
         <p>
           <a
-            href="https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.8"
-            >Download RC5.8</a
+            href="https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.9"
+            >Download RC5.9</a
           >
           and read its
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.8/release/notes/v0.1.0-rc.5.8.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.9/release/notes/v0.1.0-rc.5.9.md"
             >versioned release notes</a
           >. Verify before running a manual download on macOS, Linux or Windows:
           follow the
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.8/docs/INSTALLER.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.9/docs/INSTALLER.md"
             >versioned verification and staging guide</a
           >
           with an independently trusted or reviewed-source-built verifier. Match
@@ -91,9 +91,9 @@ kitrove --version</code></pre>
         <details>
           <summary>Older Linux package channels · RC4.2 only</summary>
           <p>
-            APT/DNF still distribute RC4.2 and do not install RC5.8. The RC4.2
-            WinGet submission is not an RC5.8 install path. No Chocolatey
-            package is published. These channels were not updated by RC5.8.
+            APT/DNF still distribute RC4.2 and do not install RC5.9. The RC4.2
+            WinGet submission is not an RC5.9 install path. No Chocolatey
+            package is published. These channels were not updated by RC5.9.
           </p>
           <p>
             Linux x86-64 users can choose
@@ -105,7 +105,7 @@ kitrove --version</code></pre>
             <a
               href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/LINUX-INSTALL.md#fedora--dnf"
               >Fedora / DNF</a
-            >. These are RC4.2 package instructions, not RC5.8 installation or
+            >. These are RC4.2 package instructions, not RC5.9 installation or
             upgrade instructions. Authenticate a download before its first
             execution.
           </p>
@@ -129,9 +129,9 @@ kitrove --version</code></pre>
             multiple tools.
           </li>
           <li>
-            Review fidelity and loss warnings, then type <code>y</code> or
-            <code>yes</code> to approve only the displayed ready set. Enter does
-            not approve bulk writes. Use <code>r</code> for individual review:
+            Review fidelity and loss warnings. Enter or <code>y</code> approves
+            only the displayed ready set after a nonempty preview.
+            Use <code>r</code> for individual review:
             Enter/y accepts the shown plan, n skips, and r renames before a new
             preview. Original source files stay in place.
           </li>
@@ -157,7 +157,11 @@ kitrove --version</code></pre>
           the same scan; <code>s</code> also works after a nonempty preview.
         </p>
         <p class="note">
-          Other write confirmations still skip on Enter. Type <code>q</code> to
+          Closed menus accept a single displayed key without Enter. Selection
+          expressions, paths, names and URLs remain text prompts: type the value
+          and press Enter. An Enter left over from an earlier prompt cannot
+          approve a later preview. Apply and sync keep separate confirmations;
+          Enter skips those writes. Type <code>q</code> to
           stop. Bulk adoption is sequential: a stale source, changed collection,
           pending recovery or failed commit stops later items. Completed items
           remain and are reported; setup is not one all-or-nothing transaction.
@@ -211,9 +215,13 @@ kitrove --version</code></pre>
         <p>
           On the first computer, open Configure and choose
           <strong>Share this collection with another computer</strong>. Use an
-          existing filesystem/shared directory, HTTPS Git remote, or SSH Git remote with
-          an explicit known-hosts file. Create and authorize a remote repository
-          separately.
+          existing filesystem/shared directory or <strong>Git repository</strong>.
+          Paste the repository URL: <code>https://...</code> selects HTTPS and
+          <code>ssh://...</code> selects SSH. A URL without its scheme asks which
+          connection to use. SSH also asks for an absolute path to an existing
+          known-hosts file; it does not learn host keys or start an agent.
+          Setup does not create a remote repository, inspect the current project's remotes
+          or import Git/SSH configuration. Create and authorize a repository separately.
         </p>
         <p>
           This must be a Kitrove snapshot backend, not a regular checkout of
@@ -251,7 +259,7 @@ kitrove --version</code></pre>
         </p>
         <p>
           Conflicting content under the same identity stops the operation for
-          review. RC5.8 does not choose an automatic winner or create a
+          review. RC5.9 does not choose an automatic winner or create a
           keep-both rewrite.
         </p>
         <h2 id="scan">Inspect skills and choose by name</h2>
@@ -291,30 +299,30 @@ kitrove adopt humanizer --harness claude --scope user</code></pre>
             overwriting existing files.
           </li>
           <li>
-            Keep RC5.8 collections separate from older previews. RC4.2 cannot
+            Keep RC5.9 collections separate from older previews. RC4.2 cannot
             read authored packs. Do not downgrade a collection or treat binary
             rollback as data recovery.
           </li>
         </ul>
         <p>
-          RC5.8 remains a prerelease. Its published artifacts passed independent
+          RC5.9 remains a prerelease. Its published artifacts passed independent
           inventory, provenance, notice-byte and native Mac image verification;
           those checks did not install or execute the downloaded products. Prior
           bounded source-built Mac/Linux tests covered skill and authored-pack
           transfer, updates, conflict refusal and unmanaged-file protection.
-          They are not RC5.8 production-artifact fresh-install acceptance,
+          They are not RC5.9 production-artifact fresh-install acceptance,
           clean-Mac online/offline first launch, all capability types, live
           agent-tool execution, Git-provider acceptance or concurrent sync.
         </p>
         <p>
-          RC5.8 includes exact agent plan/approval workflows, locally authored
+          RC5.9 includes exact agent plan/approval workflows, locally authored
           packs and explicit partial-fidelity warnings for native-only skill
           fields. These features are not in the older RC4.2 package channels.
           Cloud-provider sync is roadmap work, not an available feature.
         </p>
         <h2 id="existing-installations">Existing installations</h2>
         <p>
-          These instructions assume a fresh install. RC5.8 is not a supported
+          These instructions assume a fresh install. RC5.9 is not a supported
           in-place upgrade from RC4.2; no rollback-compatible predecessor is
           declared. Binary rollback does not roll back collection data.
         </p>
@@ -335,11 +343,11 @@ kitrove adopt humanizer --harness claude --scope user</code></pre>
             >full setup guide</a
           >,
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.8/docs/INSTALLER.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.9/docs/INSTALLER.md"
             >release verification instructions</a
           >, and
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.8/docs/RELEASE-ACCEPTANCE.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.9/docs/RELEASE-ACCEPTANCE.md"
             >acceptance checklist</a
           >.
         </p>

@@ -1,6 +1,6 @@
-# Quick skill collection (RC5.8)
+# Quick skill collection (RC5.9)
 
-These instructions assume RC5.8. Quick collection was introduced in RC5.6;
+These instructions assume RC5.9. Quick collection was introduced in RC5.6;
 RC5.5 has the older per-item prompts. Check
 `kitrove --version` before following these shortcuts. This guide does not itself
 establish publication or update an installed binary. Use the current download
@@ -38,7 +38,7 @@ or use individual review to rename it explicitly.
 
 After preview:
 
-- `y` or `yes` approves just the displayed ready set. Enter does not approve it.
+- Enter or `y` approves just the displayed ready set after a nonempty preview.
 - `s` chooses again using the same scan. An empty preview offers no adoption approval
   or zero-item success; Enter chooses again instead.
 - `d` shows complete skipped-item details; reason counts and at most 20 examples
@@ -47,6 +47,10 @@ After preview:
   single plan, `n` skips it, and `r` changes its collection name before a new
   preview. Invalid or occupied names must be renamed or skipped.
 - `n` skips collection; `q` or end of input stops setup.
+
+Closed menus accept a single displayed key without Enter. Selection expressions,
+paths, names and URLs remain text prompts: type the value and press Enter.
+An Enter left over from an earlier prompt cannot approve a later preview.
 
 Bulk approval is not an all-or-nothing transaction. Each item uses the existing
 exact-plan approval and fresh source/state checks. A stale source, changed
@@ -75,6 +79,6 @@ Skipped items show counts/reasons and at most 20 examples by default. `d` shows
 all skipped-item details; ready plans still show full source/fidelity/loss details.
 An empty preview does not ask for adoption approval or report success. Enter or
 `s` chooses again using the same scan, `r` reviews individually, and `n` skips.
-For a nonempty preview, `s` also chooses again; Enter still does not approve writes.
+For a nonempty preview, `s` also chooses again; Enter approves only its displayed ready set.
 These source-selection and choose-again improvements were introduced in RC5.8.
 RC5.7 and earlier binaries do not include them.
