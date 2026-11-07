@@ -4,6 +4,36 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.5.9
+
+Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows. RC5.8 and
+all earlier assets remain immutable. No migration, supported in-place upgrade,
+rollback predecessor, stable-support or APT/RPM/WinGet update is included.
+Homebrew and website follow-up requires independently verified publication.
+
+### Changed
+
+- Numbered setup menus accept a valid key immediately on an interactive terminal.
+  Collection selection uses short questions and separate choice lines. Enter or
+  `y` accepts an already displayed, nonempty adoption preview; skipped-item details,
+  individual review and choose-again remain available. Text entry stays line-based.
+  Queued input cannot approve a later, unseen prompt. Other confirmation defaults,
+  exact per-item authority and separate trust, Apply and sync approvals stay intact.
+- Guided sharing offers one Git repository choice. Explicit HTTPS/SSH URLs select
+  the transport; a missing scheme prompts for it. Setup explains that the remote
+  repository must already exist and does not inspect ambient project configuration
+  or create repositories. SSH keeps explicit host verification and agent-only auth.
+
+### Fixed
+
+- Large collections no longer reuse a single skill's directory ceiling when
+  verifying a retained synchronization base. Exact expected files/directories and
+  existing byte/file/no-follow checks remain enforced; unexpected entries refuse.
+  Disposable interrupted-base recovery tests finish from retained staging without
+  publishing twice. This is not recovery of a real user's interrupted transaction.
+- Local checkout spellings receive the intended Git URL guidance on Windows as
+  well as Unix, without relaxing canonical URL or actual known-hosts path checks.
+
 ## 0.1.0-rc.5.8
 
 Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows. RC5.7 and
