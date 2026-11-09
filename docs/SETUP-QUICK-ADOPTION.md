@@ -83,9 +83,9 @@ For a nonempty preview, `s` also chooses again; Enter approves only its displaye
 These source-selection and choose-again improvements were introduced in RC5.8.
 RC5.7 and earlier binaries do not include them.
 
-## Upcoming: guided duplicate-source choice
+## Guided duplicate-source choice (RC5.10)
 
-The next setup change is not included in RC5.9. When no selected copies can be
+This behavior requires RC5.10 or later. When no selected copies can be
 collected and the same names appear across tools, setup offers a numbered tool
 menu instead of requiring `from TOOL` syntax. Pick a displayed tool to see a new
 preview of only its selected copies. This does not collect anything, make that

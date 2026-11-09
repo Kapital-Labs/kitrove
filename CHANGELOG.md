@@ -4,6 +4,20 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.5.10
+
+Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows. Earlier
+tags and assets remain unchanged. No migration, supported in-place upgrade,
+rollback predecessor, stable support or APT/RPM/WinGet update is included.
+
+### Fixed
+
+- When duplicate names across tools leave nothing ready to collect, setup offers
+  numbered source choices. Selecting a source preserves exclusions and opens a
+  new preview; collection still needs separate confirmation.
+- Skipped items are summarized by reason. Press `d` for full details. Names
+  already in use are reported separately, without assuming matching content.
+
 ## 0.1.0-rc.5.9
 
 Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows. RC5.8 and
