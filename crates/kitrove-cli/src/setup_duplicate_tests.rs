@@ -88,7 +88,7 @@ fn source_choice_exclusions_bind_original_inventory_numbers() {
     let a = machine(&root, "a");
     skill(&a, "alpha", "Alpha.");
     skill(&a, "beta", "Beta.");
-    let output = start(&a, "v\nfrom claude,-2\ny\n5\n");
+    let output = start(&a, "v\nfrom claude,-2\nd\ny\n5\n");
     assert_eq!(
         manifest(&a)
             .assets
@@ -129,7 +129,7 @@ fn omission_output_is_bounded_but_details_retain_all_original_entries() {
         if details {
             assert!(output.contains("Omitted: 60. shared-29"));
         } else {
-            assert!(output.matches("Omitted:").count() <= 20);
+            assert_eq!(output.matches("Omitted:").count(), 0);
             assert!(output.contains("Show all skipped-item details"));
         }
         assert!(!output.contains("Adopt the previewed set"));
@@ -144,12 +144,14 @@ fn occupied_names_remain_unchanged_and_never_count_as_successful_adoptions() {
     skill(&a, "shared", "Keep original.");
     start(&a, "1\ny\n5\n");
     let before = std::fs::read(a.join("collection/kitrove.toml")).unwrap();
-    let output = script(&a, "\n1\nfrom claude\nn\n5\n", true, "");
+    let output = script(&a, "\n1\nall\nn\n5\n", true, "");
     assert_eq!(
         std::fs::read(a.join("collection/kitrove.toml")).unwrap(),
         before
     );
     assert!(output.contains("collection name already in use"));
+    assert!(!output.contains("Choose a tool's copies to preview"));
+    assert!(!output.contains("copies have the same name in multiple selected sources"));
     assert!(!output.contains("Adopt the previewed set"));
     assert!(!output.contains("Adopted 0 skills"));
 }
@@ -189,4 +191,133 @@ fn invalid_source_selectors_reprompt_without_changing_the_collection() {
     );
     assert!(manifest(&a).assets.is_empty());
     assert_eq!(output.matches("Use a displayed tool").count(), 6);
+}
+
+#[test]
+fn empty_duplicate_preview_offers_numbered_sources_and_requires_a_new_approval() {
+    for approve in [false, true] {
+        let tmp = kitrove_testkit::trusted_tempdir(".setup-guided-source-");
+        let root = std::fs::canonicalize(tmp.path()).unwrap();
+        let a = machine(&root, "a");
+        skill(&a, "shared", "Claude original.");
+        let codex = a.join("home/.agents/skills/shared/SKILL.md");
+        std::fs::create_dir_all(codex.parent().unwrap()).unwrap();
+        let original =
+            b"---\nname: shared\ndescription: Codex copy.\n---\nDifferent native bytes.\n";
+        std::fs::write(&codex, original).unwrap();
+        let output = start(
+            &a,
+            if approve {
+                "all\n2\ny\n5\n"
+            } else {
+                "all\n2\nn\n5\n"
+            },
+        );
+        assert!(output.contains("Choose a tool's copies to preview"));
+        assert!(output.contains("1. claude (1 selected copy)"));
+        assert!(output.contains("2. codex (1 selected copy)"));
+        assert!(output.contains("Choosing a tool only previews; nothing is collected yet."));
+        assert!(!output.contains("Omitted:"), "details should be opt-in");
+        assert_eq!(output.matches("Collection scan (read-only)").count(), 1);
+        let adopted = manifest(&a);
+        assert_eq!(adopted.assets.len(), usize::from(approve));
+        if approve {
+            let id = AssetId::parse("shared".to_owned()).unwrap();
+            assert_eq!(adopted.assets[&id].native_variants.len(), 1);
+            let native = kitrove_core::load_native_skill_object(
+                &adopted,
+                &id,
+                &HarnessId::Codex,
+                &a.join("collection"),
+                CaptureLimits::default(),
+            )
+            .unwrap();
+            assert_eq!(
+                native.tree().files
+                    [&kitrove_model::PortablePath::parse("SKILL.md".to_owned()).unwrap()]
+                    .bytes,
+                original
+            );
+        }
+        assert_eq!(std::fs::read(codex).unwrap(), original);
+        let local = kitrove_model::LocalState::from_json(
+            &std::fs::read_to_string(a.join("state/state.json")).unwrap(),
+        )
+        .unwrap();
+        assert!(local.receipts.is_empty());
+        assert!(local.trust.is_empty());
+    }
+}
+
+#[test]
+fn guided_source_choice_preserves_original_number_exclusions() {
+    let tmp = kitrove_testkit::trusted_tempdir(".setup-guided-exclude-");
+    let root = std::fs::canonicalize(tmp.path()).unwrap();
+    let a = machine(&root, "a");
+    skill(&a, "alpha", "Alpha original.");
+    skill(&a, "beta", "Beta original.");
+    for id in ["alpha", "beta"] {
+        let path = a.join(format!("home/.agents/skills/{id}/SKILL.md"));
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(
+            path,
+            format!("---\nname: {id}\ndescription: Codex copy.\n---\nDifferent bytes.\n"),
+        )
+        .unwrap();
+    }
+    // Original index 2 is Claude beta, still excluded after choosing Claude.
+    let output = start(&a, "all,-2\n1\ny\n5\n");
+    assert!(output.contains("Choose a tool's copies to preview"));
+    assert_eq!(
+        manifest(&a)
+            .assets
+            .keys()
+            .map(AssetId::as_str)
+            .collect::<Vec<_>>(),
+        ["alpha"]
+    );
+    assert!(a.join("home/.claude/skills/beta/SKILL.md").is_file());
+}
+
+#[test]
+fn guided_source_choice_rejects_unlisted_numbers_and_yes_without_adoption() {
+    let tmp = kitrove_testkit::trusted_tempdir(".setup-guided-invalid-");
+    let root = std::fs::canonicalize(tmp.path()).unwrap();
+    let a = machine(&root, "a");
+    skill(&a, "shared", "Claude original.");
+    let output = start(&a, "all\n0\n9\ny\nn\n5\n");
+    assert_eq!(
+        output.matches("Choose a tool's copies to preview").count(),
+        4
+    );
+    assert!(output.contains("No skills ready to collect"));
+    assert!(!output.contains("Adopt the previewed set"), "{output}");
+    assert!(manifest(&a).assets.is_empty());
+}
+
+#[test]
+fn guided_duplicate_choice_can_show_details_or_cancel_without_adoption() {
+    for (input, error) in [
+        ("all\nd\nn\n5\n", ""),
+        ("all\nq\n", "setup.cancelled"),
+        ("all\n", "setup.cancelled"),
+    ] {
+        let tmp = kitrove_testkit::trusted_tempdir(".setup-guided-cancel-");
+        let root = std::fs::canonicalize(tmp.path()).unwrap();
+        let a = machine(&root, "a");
+        skill(&a, "shared", "Original source.");
+        let output = script(
+            &a,
+            &format!("1\n{}\na\nyes\n{input}", a.join("collection").display()),
+            false,
+            error,
+        );
+        assert!(output.contains("Choose a tool's copies to preview"));
+        assert!(manifest(&a).assets.is_empty());
+        assert!(!output.contains("Adopt the previewed set"));
+        if input.contains("\nd\n") {
+            assert!(output.contains("Omitted: 1. shared"));
+            assert!(output.contains("Omitted: 2. shared"));
+        }
+    }
 }

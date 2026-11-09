@@ -200,6 +200,58 @@ def adoption_decision(key, adopt, source_answer=b"from pi\n"):
             session.close()
 
 
+def duplicate_source_decision(key, adopt):
+    with tempfile.TemporaryDirectory(prefix="kitrove-source-menu-", dir=FIXTURE_BASE) as tmp:
+        root = Path(tmp).resolve()
+        skill = root / "home/.claude/skills/shared/SKILL.md"
+        skill.parent.mkdir(parents=True)
+        original = b"---\nname: shared\ndescription: Synthetic source choice.\n---\nKeep native bytes.\n"
+        skill.write_bytes(original)
+        env = os.environ.copy()
+        for name in ("KITROVE_ENV", "XDG_DATA_HOME"):
+            env.pop(name, None)
+        env.update(HOME=str(root / "home"), USERPROFILE=str(root / "home"),
+                   KITROVE_STATE_HOME=str(root / "state"))
+        subprocess.run([BINARY, "init", "--environment", str(root / "collection"),
+                        "--machine-id", "source-test"], cwd=root, env=env,
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+        before = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+        session = Session(root, ["configure", "--environment", str(root / "collection")])
+        try:
+            session.prompt(b"Existing collection path")
+            session.send(b"\n")
+            session.prompt(b"Choose 1-5 [5]:")
+            session.menu_ready()
+            session.send(b"1")
+            session.prompt(b"? Choose skills")
+            session.send(b"all\n")
+            session.prompt(b"Choose a tool's copies to preview")
+            session.menu_ready()
+            assert b"1. claude (1 selected copy)" in session.output
+            assert b"Omitted:" not in session.output
+            session.output = b""
+            session.send(key)
+            session.prompt(b"Adopt these skills?")
+            session.menu_ready()
+            # Choosing a source (even with a trailing Enter) cannot approve it.
+            assert before == {str(p.relative_to(root)): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+            session.output = b""
+            session.send(b"y" if adopt else b"n")
+            session.prompt(b"Choose 1-5 [5]:")
+            session.menu_ready()
+            session.send(b"5")
+            session.finish(0)
+            after = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+            if adopt:
+                assert "shared" in (root / "collection/kitrove.toml").read_text()
+                assert not (root / "home/.agents/skills/shared").exists()
+            else:
+                assert before == after
+            assert skill.read_bytes() == original
+        finally:
+            session.close()
+
+
 initial_menu()
 print("PASS: 1 advances immediately; path stays line based; cancellation restores terminal")
 for key in (b"q", b"\x03", b"\x04", b"\x1b"):
@@ -216,3 +268,6 @@ for key in (b"n", b"s", b"d", b"r", b"r\r"):
 print("PASS: n/s/d/r act immediately without adoption; native fixture bytes unchanged")
 adoption_decision(b"n", False, source_answer=b"from pi\n\n")
 print("PASS: a pasted trailing Enter cannot confirm a not-yet-displayed preview")
+for key, adopt in ((b"1", False), (b"1", True), (b"1\r", False)):
+    duplicate_source_decision(key, adopt)
+print("PASS: duplicate-source keys preview immediately; only separate approval adopts; read-ahead cannot approve")

@@ -37,7 +37,7 @@ fn quick_adoption_defaults_preview_then_one_y_commits_only_included_items() {
     let output = script(
         &a,
         &format!(
-            "1\n{}\na\ny\nall,-2\ny\n5\n",
+            "1\n{}\na\ny\nall,-2\nd\ny\n5\n",
             a.join("collection").display()
         ),
         false,
@@ -304,7 +304,7 @@ fn bulk_preview_retains_partial_reasons_and_omits_executable_content() {
         "#!/bin/sh\nexit 0\n",
     )
     .unwrap();
-    let output = script(&a, "\n1\nall\ny\nn\n5\n", true, "");
+    let output = script(&a, "\n1\nall\nd\ny\nn\n5\n", true, "");
     assert!(output.contains("No skills ready to collect"));
     assert!(!output.contains("Adopt the previewed set"));
     assert!(output.contains("ExecutableTrustRequired"));
@@ -366,7 +366,7 @@ fn compact_inventory_and_exclusions_use_the_same_numbering_after_view() {
     let output = script(
         &a,
         &format!(
-            "1\n{}\na\nyes\nv\n-1,-21\nn\n5\n",
+            "1\n{}\na\nyes\nv\n-1,-21\nd\nn\n5\n",
             a.join("collection").display()
         ),
         false,

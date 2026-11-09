@@ -82,3 +82,19 @@ An empty preview does not ask for adoption approval or report success. Enter or
 For a nonempty preview, `s` also chooses again; Enter approves only its displayed ready set.
 These source-selection and choose-again improvements were introduced in RC5.8.
 RC5.7 and earlier binaries do not include them.
+
+## Upcoming: guided duplicate-source choice
+
+The next setup change is not included in RC5.9. When no selected copies can be
+collected and the same names appear across tools, setup offers a numbered tool
+menu instead of requiring `from TOOL` syntax. Pick a displayed tool to see a new
+preview of only its selected copies. This does not collect anything, make that
+tool canonical, or bring back excluded inventory numbers. Enter/s chooses
+different skills; it never chooses a default tool. Remaining ambiguity within a
+tool still needs a specific inventory number or individual review.
+
+The updated preview shows counts instead of repeated skipped-item examples;
+press d for all details. Names already used in the collection are reported
+separately. A matching name is not proof that the source is already collected or
+unchanged. Ready plans still show every source, fidelity result and loss reason,
+and adoption still needs a separate confirmation of that exact new preview.

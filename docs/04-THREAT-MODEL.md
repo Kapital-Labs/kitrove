@@ -98,6 +98,13 @@ Original-number exclusions, full ready-plan fidelity/loss output and fresh exact
 commit checks remain mandatory. Skipped-item details may be summarized with full
 details on request; an empty ready set grants no adoption authority or success.
 
+The setup-only numbered source choice after an empty duplicate preview narrows
+the current original inventory indices, never restoring exclusions or granting
+adoption. No tool wins by default or becomes canonical. A fresh complete preview
+and separate approval remain required; read-ahead barriers still prevent a
+trailing Enter from becoming consent. Occupied names are not evidence of matching
+content or prior adoption. See the November9 ADR-0047 amendment.
+
 ### Path traversal and symlink escape
 
 Normalize paths, reject absolute and parent-traversal entries, inspect symlinks, stage in isolated directories, and test cross-platform edge cases.
