@@ -194,6 +194,26 @@ the same observed inventory; later mutations still require normal fresh planning
 No schema, identity, preservation, fidelity, receipt, trust, Apply or sync behavior
 changes. These setup improvements remain unreleased until separately published.
 
+### Guided empty-preview source choice (2026-11-09)
+
+When an empty collection preview includes same-name observations across tools,
+offer numbered choices for the tools in that selection. Each choice narrows only
+the current selected original inventory indices and produces a new complete
+preview; it never restores excluded observations, rescans, adopts, or saves a
+preferred/canonical tool. Enter/s chooses different skills, not a default tool.
+Individual review, full skipped details, skip and cancellation remain available.
+Invalid keys and EOF cannot select a source or approve adoption.
+
+Show omission/exclusion reason counts by default, with every skipped item still
+available through d. Report occupied collection names separately from ambiguous
+source copies, without claiming that an occupied name proves prior adoption or
+equal content. Full ready-item source/fidelity/loss output is unchanged. Remaining
+ambiguity within one tool still needs an exact numbered observation or individual
+review; no native sources are merged and no occupied asset is overwritten.
+The existing exact per-item approval, fresh capture, trust, recovery, Apply and
+sync boundaries are unchanged. This presentation-only improvement is not in an
+installed binary until a separately authorized release includes it.
+
 ### Immediate navigation and explicit adoption decisions (2026-11-06)
 
 Maintainer-approved initial and subsequent five-option menus accept a single

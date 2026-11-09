@@ -25,7 +25,7 @@ const READY_PROMPT: &str = concat!(
     "q             Quit",
 );
 const EMPTY_PROMPT: &str = concat!(
-    "No skills ready to adopt\n",
+    "No skills ready to collect\n",
     "Enter/s       Choose again\n",
     "r             Review individually\n",
     "d             Show all skipped-item details\n",
@@ -93,23 +93,28 @@ pub(super) fn collect<R: BufRead, W: Write>(
             .say("Showing the first 20; v shows the full inventory and numbered selection list.")?;
     }
     collection_selection::show_sources(dialog, &candidates)?;
+    let mut next_selection = None;
     'selection: loop {
-        let selected = loop {
-            let response = dialog.ask(SELECTION_PROMPT)?;
-            if response == "v" {
-                dialog.say(&crate::scan_display::render(&report))?;
-                for (index, entry) in candidates.iter().enumerate() {
-                    dialog.say(&format!("  {}. {}", index + 1, label(entry)))?;
+        let selected = if let Some(indices) = next_selection.take() {
+            indices
+        } else {
+            loop {
+                let response = dialog.ask(SELECTION_PROMPT)?;
+                if response == "v" {
+                    dialog.say(&crate::scan_display::render(&report))?;
+                    for (index, entry) in candidates.iter().enumerate() {
+                        dialog.say(&format!("  {}. {}", index + 1, label(entry)))?;
+                    }
+                    continue;
                 }
-                continue;
-            }
-            if response.is_empty() {
-                break (0..candidates.len()).collect::<Vec<_>>();
-            }
-            match collection_selection::select(&response, &candidates) {
-                Some(indices) => break indices,
-                None => {
-                    dialog.say("Use a displayed tool (from codex), shown numbers, all,-3,-8 or -3,-8. Do not mix positive and negative numbers. Nothing has changed.")?;
+                if response.is_empty() {
+                    break (0..candidates.len()).collect::<Vec<_>>();
+                }
+                match collection_selection::select(&response, &candidates) {
+                    Some(indices) => break indices,
+                    None => {
+                        dialog.say("Use a displayed tool (from codex), shown numbers, all,-3,-8 or -3,-8. Do not mix positive and negative numbers. Nothing has changed.")?;
+                    }
                 }
             }
         };
@@ -118,21 +123,42 @@ pub(super) fn collect<R: BufRead, W: Write>(
             return Ok(());
         }
         let (items, skipped) = preview(dialog, root, &report, &candidates, &selected)?;
+        let sources = if items.is_empty() && skipped.has_ambiguity() {
+            collection_selection::source_choices(&candidates, &selected)
+        } else {
+            Vec::new()
+        };
+        let source_prompt = collection_selection::source_prompt(&sources);
         if items.is_empty() {
             dialog.say("No skills ready to collect. Nothing has changed.")?;
-            dialog.hint("Choose again with from TOOL or specific numbers, or review individually to rename an occupied or ambiguous item. Existing collection items are not overwritten.")?;
+            if sources.is_empty() {
+                dialog.hint("Review individually to choose or rename a copy, or choose different skills. A name already in the collection does not prove its content matches.")?;
+            } else {
+                dialog.say("The same skill names were found in more than one tool.")?;
+                dialog.hint("Choosing a tool only previews; nothing is collected yet.")?;
+            }
         }
         loop {
-            let prompt = if items.is_empty() {
+            let prompt = if !sources.is_empty() {
+                &source_prompt
+            } else if items.is_empty() {
                 EMPTY_PROMPT
             } else {
                 READY_PROMPT
             };
-            match dialog
-                .decision(prompt, b"ysrdn", true)?
-                .to_ascii_lowercase()
-                .as_str()
+            let mut keys = b"ysrdn".to_vec();
+            keys.extend_from_slice(&b"1234"[..sources.len()]);
+            let response = dialog.decision(prompt, &keys, true)?.to_ascii_lowercase();
+            if let Some((_, indices)) = response
+                .parse::<usize>()
+                .ok()
+                .filter(|number| response.len() == 1 && *number > 0)
+                .and_then(|number| sources.get(number - 1))
             {
+                next_selection = Some(indices.clone());
+                continue 'selection;
+            }
+            match response.as_str() {
                 "" | "y" | "yes" if !items.is_empty() => {
                     for (completed, item) in items.iter().enumerate() {
                         if let Err(error) = commit(root, candidates[item.index], item, registry) {
@@ -247,21 +273,21 @@ fn preview<R: BufRead, W: Write>(
             );
             continue;
         }
-        let reason = if selected
-            .iter()
-            .any(|other| *other != index && name(candidates[*other]) == name(entry))
-        {
-            Some("same name in multiple selected sources; review individually to choose or rename")
-        } else {
-            None
-        };
         let id = AssetId::parse(name(entry).to_owned());
-        let reason = reason.or_else(|| match &id {
+        let reason = match &id {
             Err(_) => Some("name needs an explicit rename; review individually"),
-            Ok(id) if occupied(&manifest, id) => {
-                Some("collection name already in use; review individually to rename")
-            }
+            Ok(id) if occupied(&manifest, id) => Some(collection_selection::OCCUPIED),
             Ok(_) => None,
+        };
+        let reason = reason.or_else(|| {
+            if selected
+                .iter()
+                .any(|other| *other != index && name(candidates[*other]) == name(entry))
+            {
+                Some(collection_selection::AMBIGUOUS)
+            } else {
+                None
+            }
         });
         if let Some(reason) = reason {
             skipped.push(
