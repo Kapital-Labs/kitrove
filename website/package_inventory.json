@@ -3,17 +3,17 @@
   "files": [
     {
       "path": "packages/apt/dists/preview/InRelease",
-      "sha256": "da7d94e7eac4dffe5e497c0bbed091a48a13861b85c258274b604eff8fe2b0a8",
+      "sha256": "0f9621088901208544c20f8539de28dd8ee18e3397504685c42bc724bc14b33d",
       "size": 2042
     },
     {
       "path": "packages/apt/dists/preview/Release",
-      "sha256": "c973a4f7393cd8f4f7279ccf54f3155f95cb4f8b14af46118346b6708bb02a34",
+      "sha256": "9bc8f71496c0620b10d1667ba8508f3cdf0cd00d618e0845e97c762ae1efbe73",
       "size": 1123
     },
     {
       "path": "packages/apt/dists/preview/Release.gpg",
-      "sha256": "a89ac1aa940e62aa3085a9c50ef55091e98bfdeddf32c5f31c5481af380889c9",
+      "sha256": "38c7b1ed88e222b31f7e40d01776c8dd39440e2a6d07756e4349f293a9a242bb",
       "size": 870
     },
     {
@@ -58,12 +58,12 @@
     },
     {
       "path": "packages/rpm/repodata/repomd.xml",
-      "sha256": "2bdff258747c6594148e8c5e32cd97278871baef1946475a770252092c352752",
+      "sha256": "1d858f7162ab381b448b2eb0ee3b4c7a89d76dd11116486aa885d08c014c9299",
       "size": 1549
     },
     {
       "path": "packages/rpm/repodata/repomd.xml.asc",
-      "sha256": "6dda2891d8fa65b8b4a2ebeca56a0ee8b45c6e34d723862ec863e69a2a8ca4f1",
+      "sha256": "bae501397d2f3aacb49b26da0eb8159b5843a2c3bf8a22eda4e6fb478f415535",
       "size": 870
     }
   ]
