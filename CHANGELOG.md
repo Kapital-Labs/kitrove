@@ -4,6 +4,20 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.5.12
+
+Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.
+
+### Fixed
+
+- Guided Git setup advances from the HTTPS username prompt to the hidden
+  access-token prompt.
+
+### Changed
+
+- Git sharing offers instructions to create an empty private repository on
+  the Git host, then returns to the clone URL prompt.
+
 ## 0.1.0-rc.5.11
 
 Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.
