@@ -89,12 +89,12 @@ class SiteTests(unittest.TestCase):
         home = (ROOT / "index.html").read_text()
         visible = " ".join(" ".join(Page(ROOT / "index.html").text).split())
         self.assertIn("brew install --cask kapital-labs/tap/kitrove</code>", home)
-        self.assertIn("v0.1.0-rc.5.9", home)
+        self.assertIn("v0.1.0-rc.5.10", home)
         self.assertNotIn("v0.1.0-rc.4.1", home)
         self.assertIn("Apple Silicon Macs only", home)
         for command in ("winget install", "choco install", "apt install", "dnf install"):
             self.assertNotIn(command, home)
-        self.assertIn("RC4.2 WinGet submission is not an RC5.9 install path", visible)
+        self.assertIn("RC4.2 WinGet submission is not an RC5.10 install path", visible)
         self.assertIn("No Chocolatey package is published", visible)
         self.assertIn("RC4.2 signed APT or DNF repository", visible)
         self.assertIn("docs/LINUX-INSTALL.md", home)
@@ -104,9 +104,9 @@ class SiteTests(unittest.TestCase):
             page = ROOT / relative
             source = page.read_text()
             visible = " ".join(" ".join(Page(page).text).split())
-            self.assertIn("RC5.9", visible)
+            self.assertIn("RC5.10", visible)
             self.assertIn("RC4.2", visible)
-            self.assertIn("RC4.2 WinGet submission is not an RC5.9 install path", visible)
+            self.assertIn("RC4.2 WinGet submission is not an RC5.10 install path", visible)
             self.assertIn("#ubuntu--apt", source)
             self.assertIn("#fedora--dnf", source)
             self.assertIn("fresh-install evaluation", visible)
@@ -122,17 +122,17 @@ class SiteTests(unittest.TestCase):
         self.assertIn("Cloud-provider sync is roadmap work", docs)
 
     def test_exact_preview_links_and_verification_before_execution(self):
-        release = "https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.9"
-        versioned = "https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.9/"
+        release = "https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.10"
+        versioned = "https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.10/"
         for relative in ("index.html", "docs/index.html"):
             page = Page(ROOT / relative)
             self.assertIn(release, page.refs)
             self.assertIn(versioned + "docs/INSTALLER.md", page.refs)
-            self.assertIn(versioned + "release/notes/v0.1.0-rc.5.9.md", page.refs)
+            self.assertIn(versioned + "release/notes/v0.1.0-rc.5.10.md", page.refs)
             visible = " ".join(" ".join(page.text).split())
             self.assertIn("Verify before running", visible)
             self.assertIn("Homebrew", visible)
-            self.assertIn("do not install RC5.9", visible)
+            self.assertIn("do not install RC5.10", visible)
             self.assertNotIn("Intel Mac and Windows", visible)
             self.assertNotIn("curl |", visible)
             self.assertNotIn("iex", visible)
@@ -155,6 +155,14 @@ class SiteTests(unittest.TestCase):
         self.assertLess(guide.index("brew install"), guide.index("kitrove init"))
         self.assertIn("## Existing installations", guide)
 
+    def test_homebrew_upgrade_refreshes_the_tap_before_upgrading_current_cask(self):
+        guide = (ROOT.parent / "docs/GETTING-STARTED.md").read_text()
+        docs = (ROOT / "docs/index.html").read_text()
+        commands = "brew update\nbrew upgrade --cask kapital-labs/tap/kitrove\nkitrove --version"
+        self.assertIn(commands, guide)
+        self.assertIn(commands, docs)
+        self.assertIn("./docs/#upgrade-with-homebrew", Page(ROOT / "index.html").refs)
+
     def test_current_setup_explains_selection_and_exact_bulk_confirmation(self):
         guide = (ROOT.parent / "docs/GETTING-STARTED.md").read_text()
         docs = " ".join(" ".join(Page(ROOT / "docs/index.html").text).split())
@@ -168,10 +176,10 @@ class SiteTests(unittest.TestCase):
         self.assertNotIn("Enter does not approve bulk", docs)
         self.assertIn("individual", docs)
 
-    def test_current_preview_links_select_rc59(self):
+    def test_current_preview_links_select_rc510(self):
         for relative in ("index.html", "docs/index.html"):
             page = Page(ROOT / relative)
-            self.assertIn("https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.9", page.refs)
+            self.assertIn("https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.10", page.refs)
             self.assertNotIn("https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.6", page.refs)
 
     def test_setup_docs_use_current_goal_labels_and_optional_prompt_color(self):
@@ -193,8 +201,12 @@ class SiteTests(unittest.TestCase):
         for text in (guide, quick, docs):
             with self.subTest(document=text[:40]):
                 for guidance in ("from codex", "from codex,-13,-20", "same scan",
-                                 "20 examples", "no adoption approval"):
+                                 "no adoption approval"):
                     self.assertIn(guidance, text)
+        for text in (" ".join(guide.split()), docs):
+            self.assertIn("numbered source tool", text)
+            self.assertIn("skipped-item counts by reason", text)
+        self.assertIn("20 examples", quick)
         self.assertIn("Quick skill collection (RC5.9)", quick)
         self.assertNotIn("Next-preview improvement", quick)
         self.assertNotIn("These improvements require a future release", quick)

@@ -6,7 +6,7 @@ capabilities elsewhere. It does not install those tools or copy their accounts.
 ## Install the latest preview
 
 These instructions start with a fresh installation of the latest reviewed
-preview, currently **RC5.9**. On an Apple Silicon Mac with
+preview, currently **RC5.10**. On an Apple Silicon Mac with
 [Homebrew](https://brew.sh/) already installed:
 
 ```sh
@@ -15,7 +15,7 @@ kitrove --version
 ```
 
 The package is named `kitrove`; the installed version still identifies itself as
-`0.1.0-rc.5.9`. This is an evaluation preview, not stable support. Use a new isolated
+`0.1.0-rc.5.10`. This is an evaluation preview, not stable support. Use a new isolated
 collection and empty destinations with synthetic or disposable capabilities.
 Homebrew checks the pinned archive checksum; you trust Homebrew and the reviewed
 [tap](https://github.com/Kapital-Labs/homebrew-tap) to select the package. It does
@@ -23,10 +23,27 @@ not initialize Kitrove, scan skills, or grant execution trust during installatio
 Leave quarantine and Gatekeeper enabled.
 
 For Linux x86-64 and Windows x86-64, use the exact
-[RC5.9 downloads](https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.9)
+[RC5.10 downloads](https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.10)
 and follow the [verification guide](INSTALLER.md) with an independently trusted
 or reviewed-source-built verifier **before execution**. A checksum alone is not
 provenance. Intel Macs are unsupported in this preview.
+
+## Upgrade with Homebrew
+
+If you already installed the `kitrove` cask from the Kapital Labs tap, update
+the tap before upgrading the executable:
+
+```sh
+brew update
+brew upgrade --cask kapital-labs/tap/kitrove
+kitrove --version
+```
+
+`brew update` refreshes package information. Without it, Homebrew can report
+that the latest version is installed while its local copy of the tap is behind.
+The Kitrove upgrade replaces the Homebrew-managed executable and preserves your
+collection and local state. For the older
+`kitrove-rc` or `kitrove-rc@5.5` casks, see [Existing installations](#existing-installations).
 
 ## Start on your first computer
 
@@ -49,14 +66,14 @@ the full inventory, `1,4,7` to choose only those entries, or `all,-3,-8` (also
 The same directory can appear through multiple tools; review source tools and
 scopes, not just names. Ambiguous names do not silently pick a source.
 
-Repeated names? Use `from codex`, `from claude`, `from pi` or `from opencode` to
-choose one displayed tool's observations. For example, `from codex,-13,-20`
-excludes those original inventory numbers. This applies to the current scan only,
-not a permanent source-of-truth preference or merge. Existing collection names
-are not overwritten; ambiguity within one tool still needs a specific numbered
-choice or individual review/rename.
+If repeated names leave nothing ready to collect, choose a numbered source tool
+to preview its copies with your exclusions still applied. You can also type
+`from codex`, `from claude`, `from pi` or `from opencode`. For example,
+`from codex,-13,-20` excludes those original inventory numbers. This choice
+applies to the current scan. Existing collection names and duplicates within one
+tool still need an explicit choice or individual review.
 
-Skipped items show reason counts and at most 20 examples; `d` shows all details.
+The preview shows skipped-item counts by reason. Press `d` for all details.
 Ready plans still show complete source, fidelity and loss details. An empty
 preview offers no adoption approval or zero-item success. Enter or `s` chooses
 again using the same scan; `s` also works after a nonempty preview.
@@ -219,7 +236,7 @@ is not recognized. Its second menu choice is “Choose skills to add to your AI
 tools”; sharing and one-time copying have their own choices. RC5.6 still has the
 older menu labels/numbers. Do not use RC5.7 menu numbers with that binary.
 
-The fresh-install instructions do not migrate an older collection. RC5.9 has no
+The fresh-install instructions do not migrate an older collection. RC5.10 has no
 rollback-compatible predecessor; RC4.2 cannot read authored-pack collections.
 Keep older collections and local state separate. Binary rollback is not data
 rollback.
@@ -232,5 +249,5 @@ state, or use `--zap` to bypass a conflict. Never point `kitrove-installer` at a
 Homebrew-managed binary. Normal cask removal preserves Kitrove collections and
 local state; use the token that actually owns your installed binary.
 
-The older APT/DNF package channels remain RC4.2, not an RC5.9 install or upgrade
+The older APT/DNF package channels remain RC4.2, not an RC5.10 install or upgrade
 path. See the [Linux package guide](LINUX-INSTALL.md) for their exact scope.
