@@ -5,7 +5,7 @@ use super::{cancelled, io_error};
 use crate::args::CliError;
 
 pub(super) fn read(
-    input: &mut impl BufRead,
+    input: &mut dyn BufRead,
     keys: &[u8],
     accept_enter: bool,
 ) -> Result<String, CliError> {

@@ -4,19 +4,14 @@ use std::io;
 
 use kitrove_core::{ScanClassification, ScanEntry, ScanReport};
 
-use super::{Dialog, cancelled, presentation};
+use super::{Dialog, PromptInput, cancelled};
 use crate::args::CliError;
 use crate::scan_display::{diagnostics, selectable, write_entry};
 
 const PAGE_SIZE: usize = 12;
 
 pub(crate) fn browse_scan(report: &ScanReport) -> Result<(), CliError> {
-    let mut dialog = Dialog {
-        input: io::stdin().lock(),
-        output: io::stdout(),
-        color: presentation::detect(true),
-        single_key: true,
-    };
+    let mut dialog = Dialog::terminal();
     match browse(&mut dialog, report) {
         Ok(()) => {}
         Err(error) if error.code == cancelled().code => {}
@@ -37,7 +32,7 @@ fn terminal_error() -> CliError {
 }
 
 fn browse(
-    dialog: &mut Dialog<impl io::BufRead, impl io::Write>,
+    dialog: &mut Dialog<impl PromptInput, impl io::Write>,
     report: &ScanReport,
 ) -> Result<(), CliError> {
     let mut available = Vec::new();
@@ -101,7 +96,7 @@ fn browse(
 }
 
 fn browse_group(
-    dialog: &mut Dialog<impl io::BufRead, impl io::Write>,
+    dialog: &mut Dialog<impl PromptInput, impl io::Write>,
     label: &str,
     entries: &[&ScanEntry],
     show_status: bool,

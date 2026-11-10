@@ -28,6 +28,25 @@ mod presentation;
 
 pub(crate) use inventory::browse_scan;
 
+trait PromptInput {
+    fn with_reader<T>(&mut self, read: impl FnOnce(&mut dyn BufRead) -> T) -> T;
+}
+
+impl<R: BufRead> PromptInput for R {
+    fn with_reader<T>(&mut self, read: impl FnOnce(&mut dyn BufRead) -> T) -> T {
+        read(self)
+    }
+}
+
+struct TerminalInput(io::Stdin);
+
+impl PromptInput for TerminalInput {
+    fn with_reader<T>(&mut self, read: impl FnOnce(&mut dyn BufRead) -> T) -> T {
+        // An operation can prompt for Git credentials after this setup prompt.
+        read(&mut self.0.lock())
+    }
+}
+
 struct Dialog<R, W> {
     input: R,
     output: W,
@@ -35,7 +54,18 @@ struct Dialog<R, W> {
     single_key: bool,
 }
 
-impl<R: BufRead, W: Write> Dialog<R, W> {
+impl Dialog<TerminalInput, io::Stdout> {
+    fn terminal() -> Self {
+        Self {
+            input: TerminalInput(io::stdin()),
+            output: io::stdout(),
+            color: presentation::detect(io::stdout().is_terminal()),
+            single_key: true,
+        }
+    }
+}
+
+impl<R: PromptInput, W: Write> Dialog<R, W> {
     fn menu(&mut self, message: &str, default_finish: bool) -> Result<String, CliError> {
         self.decision(
             &format!("{message}\nPress 1-5 (no Enter needed); q stops."),
@@ -58,7 +88,9 @@ impl<R: BufRead, W: Write> Dialog<R, W> {
         presentation::prompt(&mut self.output, self.color, message).map_err(|_| io_error())?;
         self.output.flush().map_err(|_| io_error())?;
         let mut mode = menu_input::Mode::enter().map_err(|_| io_error())?;
-        let answer = menu_input::read(&mut self.input, keys, accept_enter);
+        let answer = self
+            .input
+            .with_reader(|reader| menu_input::read(reader, keys, accept_enter));
         let discarded = menu_input::discard_pending();
         // Restore before any next prompt, output or operation, including cancellation.
         mode.restore().map_err(|_| io_error())?;
@@ -160,35 +192,39 @@ impl<R: BufRead, W: Write> Dialog<R, W> {
     fn ask(&mut self, message: &str) -> Result<String, CliError> {
         presentation::prompt(&mut self.output, self.color, message).map_err(|_| io_error())?;
         self.output.flush().map_err(|_| io_error())?;
-        let mut bytes = Vec::new();
-        // Bound input without reading an unlimited line, and never accept EOF as consent.
-        loop {
-            let available = self.input.fill_buf().map_err(|_| io_error())?;
-            if available.is_empty() {
-                return Err(cancelled());
+        let single_key = self.single_key;
+        let bytes = self.input.with_reader(|input| {
+            let mut bytes = Vec::new();
+            // Bound input without reading an unlimited line, and never accept EOF as consent.
+            loop {
+                let available = input.fill_buf().map_err(|_| io_error())?;
+                if available.is_empty() {
+                    return Err(cancelled());
+                }
+                let count = available
+                    .iter()
+                    .position(|b| *b == b'\n')
+                    .map_or(available.len(), |n| n + 1);
+                let consumed = if single_key && available.get(count - 1) == Some(&b'\n') {
+                    // Pasted later answers are not consent for an unseen preview.
+                    available.len()
+                } else {
+                    count
+                };
+                if bytes.len() + count > 8192 {
+                    return Err(CliError::new(
+                        "setup.input_limit",
+                        "input line is too long; completed steps are retained",
+                    ));
+                }
+                bytes.extend_from_slice(&available[..count]);
+                input.consume(consumed);
+                if bytes.last() == Some(&b'\n') {
+                    break;
+                }
             }
-            let count = available
-                .iter()
-                .position(|b| *b == b'\n')
-                .map_or(available.len(), |n| n + 1);
-            let consumed = if self.single_key && available.get(count - 1) == Some(&b'\n') {
-                // Pasted later answers are not consent for an unseen preview.
-                available.len()
-            } else {
-                count
-            };
-            if bytes.len() + count > 8192 {
-                return Err(CliError::new(
-                    "setup.input_limit",
-                    "input line is too long; completed steps are retained",
-                ));
-            }
-            bytes.extend_from_slice(&available[..count]);
-            self.input.consume(consumed);
-            if bytes.last() == Some(&b'\n') {
-                break;
-            }
-        }
+            Ok(bytes)
+        })?;
         let value = String::from_utf8(bytes).map_err(|_| io_error())?;
         let value = value.trim();
         if value == "q" {
@@ -279,12 +315,7 @@ pub(crate) fn entry(environment: Option<PathBuf>, configure: bool) -> u8 {
         );
         return 2;
     }
-    let mut dialog = Dialog {
-        input: io::stdin().lock(),
-        output: io::stdout(),
-        color: presentation::detect(io::stdout().is_terminal()),
-        single_key: true,
-    };
+    let mut dialog = Dialog::terminal();
     let result = crate::registry::try_tier_one_registry()
         .map_err(|_| io_error())
         .and_then(|registry| run(&mut dialog, environment, configure, &registry));
@@ -317,7 +348,7 @@ fn default_collection() -> Result<PathBuf, CliError> {
     Ok(home.join("Kitrove"))
 }
 
-fn run<R: BufRead, W: Write>(
+fn run<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
     environment: Option<PathBuf>,
     configure: bool,
@@ -392,11 +423,11 @@ fn run<R: BufRead, W: Write>(
     }
     match start.as_str() {
         "1" => collect(dialog, &root, registry)?,
-        "2" => synchronize(dialog, &root)?,
+        "2" => synchronize(dialog, &root, false)?,
         "3" => import(dialog, &root)?,
         "4" => {
             dialog.say("First connect this empty collection to the existing one. Then select local skills to add, and review publishing those additions. Existing agent files remain untouched.")?;
-            if let Some(backend) = remote(dialog)?
+            if let Some(backend) = remote(dialog, false)?
                 && synchronize_with(dialog, &root, backend.clone())?
             {
                 collect(dialog, &root, registry)?;
@@ -409,7 +440,7 @@ fn run<R: BufRead, W: Write>(
         match dialog.menu("What would you like to do?\n1. Add skills from this computer\n2. Choose skills to add to your AI tools\n3. Share this collection with another computer\n4. Copy selected items from another collection\n5. Finish for now\nChoose 1-5 [5]:", true)?.as_str() {
             "1" => collect(dialog, &root, registry)?,
             "2" => apply(dialog, &root)?,
-            "3" => synchronize(dialog, &root)?,
+            "3" => synchronize(dialog, &root, true)?,
             "4" => import(dialog, &root)?,
             "" | "5" => break,
             _ => dialog.say("Choose a number from 1 to 5.")?,
@@ -422,7 +453,7 @@ fn run<R: BufRead, W: Write>(
     dialog.hint("Nothing runs in the background. Revisit with kitrove configure --environment PATH.\nNo credentials, trust decisions or harness installations are cloned.")
 }
 
-fn collect<R: BufRead, W: Write>(
+fn collect<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
     root: &std::path::Path,
     registry: &PolicyRegistry,
@@ -430,28 +461,42 @@ fn collect<R: BufRead, W: Write>(
     collection::collect(dialog, root, registry)
 }
 
-fn remote<R: BufRead, W: Write>(
+fn remote<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
+    offer_new_repository: bool,
 ) -> Result<Option<SyncRemoteArgs>, CliError> {
-    dialog.hint("Use a folder or Git repository reserved for Kitrove. The repository must already exist (it can be empty).\nKitrove does not create repositories or use your current project's Git settings. Credentials stay on this computer.")?;
+    dialog.hint(
+        "Use a folder or Git repository reserved for Kitrove. Credentials stay on this computer.",
+    )?;
     loop {
         match dialog.decision("Where is the shared collection stored?\n1. Shared folder or drive\n2. Git repository\nn. Not now\nChoose 1-2 [n]:", b"12n", true)?.as_str() {
             "" | "n" => return Ok(None),
             "1" => return Ok(Some(SyncRemoteArgs::Filesystem(PathBuf::from(dialog.ask("Shared Kitrove folder path:")?)))),
-            "2" => return git_remote(dialog),
+            "2" => return git_remote(dialog, offer_new_repository),
             _ => dialog.warning("Choose 1, 2 or n. Nothing has changed.")?,
         }
     }
 }
 
-fn git_remote<R: BufRead, W: Write>(
+fn git_remote<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
+    offer_new_repository: bool,
 ) -> Result<Option<SyncRemoteArgs>, CliError> {
-    dialog.hint("Paste the existing repository URL, without a password or token.\nUse https://host/owner/repository.git or ssh://git@host/owner/repository.git.\nA local checkout path is not a remote URL. Enter/n skips; q stops.")?;
+    dialog.hint("Paste an HTTPS or ssh:// clone URL without a password or token.")?;
+    let prompt = if offer_new_repository {
+        "Git repository URL:\n  c   Create a private repository\n  n   Not now (or Enter)\n  q   Quit"
+    } else {
+        dialog.hint("The repository must already exist for this operation.")?;
+        "Git repository URL:\n  n   Not now (or Enter)\n  q   Quit"
+    };
     loop {
-        let mut url = dialog.ask("Git repository URL:")?;
+        let mut url = dialog.ask(prompt)?;
         if matches!(url.as_str(), "" | "n") {
             return Ok(None);
+        }
+        if url == "c" && offer_new_repository {
+            dialog.say("Create an empty private repository on your Git host:\n  1. Open your host's new repository page. For GitHub, use https://github.com/new?visibility=private.\n  2. Select Private. Leave the template, README, .gitignore and license unset.\n  3. Copy the HTTPS or ssh:// clone URL and paste it below.")?;
+            continue;
         }
         // Recognize path spellings here, not whether this host can open them.
         if url.starts_with(['/', '\\'])
@@ -484,7 +529,9 @@ fn git_remote<R: BufRead, W: Write>(
             url = format!("{scheme}://{url}");
         }
         if GitRemoteUrl::parse(&url).is_ok() {
-            dialog.hint("HTTPS selected. Connection and any credential prompt happen only in the next operation; no repository has been created.")?;
+            dialog.hint(
+                "HTTPS selected. The connection may ask for your Git username and access token.",
+            )?;
             return Ok(Some(SyncRemoteArgs::Git {
                 url,
                 credentials: GitCredentialSource::Terminal,
@@ -508,17 +555,18 @@ fn git_remote<R: BufRead, W: Write>(
     }
 }
 
-fn synchronize<R: BufRead, W: Write>(
+fn synchronize<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
     root: &std::path::Path,
+    offer_new_repository: bool,
 ) -> Result<(), CliError> {
-    match remote(dialog)? {
+    match remote(dialog, offer_new_repository)? {
         Some(remote) => synchronize_with(dialog, root, remote).map(|_| ()),
         None => Ok(()),
     }
 }
 
-fn synchronize_with<R: BufRead, W: Write>(
+fn synchronize_with<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
     root: &std::path::Path,
     remote: SyncRemoteArgs,
@@ -555,12 +603,12 @@ fn synchronize_with<R: BufRead, W: Write>(
     Ok(result.status == 0)
 }
 
-fn import<R: BufRead, W: Write>(
+fn import<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
     root: &std::path::Path,
 ) -> Result<(), CliError> {
     dialog.say("Selective import is a one-time copy, not ongoing selective sync. The remote is not modified. Differing local identities refuse the import.")?;
-    match remote(dialog)? {
+    match remote(dialog, false)? {
         None => Ok(()),
         Some(SyncRemoteArgs::Filesystem(path)) => import_backend(
             dialog,
@@ -580,7 +628,7 @@ fn import<R: BufRead, W: Write>(
     }
 }
 
-fn import_backend<R: BufRead, W: Write, B: SyncBackend>(
+fn import_backend<R: PromptInput, W: Write, B: SyncBackend>(
     dialog: &mut Dialog<R, W>,
     root: &std::path::Path,
     backend: B,
@@ -682,7 +730,7 @@ fn import_backend<R: BufRead, W: Write, B: SyncBackend>(
     )
 }
 
-fn apply<R: BufRead, W: Write>(
+fn apply<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
     root: &std::path::Path,
 ) -> Result<(), CliError> {

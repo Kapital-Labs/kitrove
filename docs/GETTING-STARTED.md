@@ -143,6 +143,12 @@ containing skill files. An empty existing backend can receive the first approved
 publication. Create and authorize any remote repository separately: setup does not create
 one, inspect the current project's remotes or import Git/SSH configuration.
 
+When the Git prompt offers **Create a private repository**, type `c` for
+instructions, create the empty private repository on your Git host, and paste
+its clone URL. Leave the template, README, license and `.gitignore` unset. If
+HTTPS asks for credentials, enter your Git username and a repository access
+token. Token input is hidden, and an empty answer cancels authentication.
+
 Review what will change locally and remotely before confirming. Full sync is
 bidirectional: it may publish local additions, not just download. Credentials use
 the existing operation-local provider and do not enter your collection. Do not

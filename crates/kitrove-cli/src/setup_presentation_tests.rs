@@ -147,7 +147,7 @@ fn sharing_can_be_skipped_or_cancelled_before_any_location_is_selected() {
             color: false,
             single_key: false,
         };
-        assert!(remote(&mut dialog).unwrap().is_none());
+        assert!(remote(&mut dialog, false).unwrap().is_none());
         let output = String::from_utf8(dialog.output).unwrap();
         assert!(output.contains("Not now"));
         assert!(!output.contains("Shared Kitrove folder path:"));
@@ -160,7 +160,10 @@ fn sharing_can_be_skipped_or_cancelled_before_any_location_is_selected() {
             color: false,
             single_key: false,
         };
-        assert_eq!(remote(&mut dialog).unwrap_err().code, "setup.cancelled");
+        assert_eq!(
+            remote(&mut dialog, false).unwrap_err().code,
+            "setup.cancelled"
+        );
     }
 }
 
@@ -177,7 +180,7 @@ fn one_git_choice_detects_ssh_before_requesting_host_trust() {
         color: false,
         single_key: false,
     };
-    let selected = remote(&mut dialog).unwrap().unwrap();
+    let selected = remote(&mut dialog, false).unwrap().unwrap();
     assert!(
         matches!(selected, SyncRemoteArgs::Ssh { url, known_hosts: path }
         if url == "ssh://git@example.test/team/collection.git" && path == known_hosts)
@@ -185,6 +188,7 @@ fn one_git_choice_detects_ssh_before_requesting_host_trust() {
     let output = String::from_utf8(dialog.output).unwrap();
     assert!(output.contains("2. Git repository\n"));
     assert!(output.contains("already exist"));
+    assert!(!output.contains("Create a private repository"));
     assert!(!output.contains("3. Git repository"));
     assert!(!output.contains("How should Kitrove connect?"));
     assert!(
@@ -202,12 +206,47 @@ fn git_url_infers_https_without_a_protocol_question() {
         single_key: false,
     };
     assert!(
-        matches!(remote(&mut dialog).unwrap().unwrap(), SyncRemoteArgs::Git { url, credentials: GitCredentialSource::Terminal }
+        matches!(remote(&mut dialog, false).unwrap().unwrap(), SyncRemoteArgs::Git { url, credentials: GitCredentialSource::Terminal }
         if url == "https://example.test/team/collection.git")
     );
     let output = String::from_utf8(dialog.output).unwrap();
     assert!(!output.contains("How should Kitrove connect?"));
     assert!(!output.contains("Known-hosts file path:"));
+}
+
+#[test]
+fn git_creation_guidance_returns_to_the_existing_clone_url_flow() {
+    let mut dialog = Dialog {
+        input: io::Cursor::new("2\nc\nhttps://example.test/team/new.git\n"),
+        output: Vec::new(),
+        color: false,
+        single_key: false,
+    };
+    assert!(
+        matches!(remote(&mut dialog, true).unwrap().unwrap(), SyncRemoteArgs::Git { url, credentials: GitCredentialSource::Terminal }
+        if url == "https://example.test/team/new.git")
+    );
+    let output = String::from_utf8(dialog.output).unwrap();
+    assert_eq!(output.matches("Git repository URL:").count(), 2);
+    assert!(output.contains("https://github.com/new?visibility=private"));
+    assert!(output.contains("Select Private"));
+    assert!(output.contains("README, .gitignore and license unset"));
+    assert!(!output.contains("Git token:"));
+}
+
+#[test]
+fn terminal_dialog_does_not_hold_the_lock_needed_by_git_authentication() {
+    let (acquired_while_dialog_exists, reader) = {
+        let _dialog = Dialog::terminal();
+        let (ready, wait) = std::sync::mpsc::channel();
+        let reader = std::thread::spawn(move || {
+            let _input = io::stdin().lock();
+            ready.send(()).unwrap();
+        });
+        (wait.recv_timeout(std::time::Duration::from_secs(5)), reader)
+    };
+    reader.join().unwrap();
+    acquired_while_dialog_exists.expect("credential input must be available between prompts");
 }
 
 #[test]
@@ -219,7 +258,7 @@ fn scheme_less_git_location_requires_explicit_transport_selection() {
         single_key: false,
     };
     assert!(
-        matches!(remote(&mut dialog).unwrap().unwrap(), SyncRemoteArgs::Git { url, .. }
+        matches!(remote(&mut dialog, false).unwrap().unwrap(), SyncRemoteArgs::Git { url, .. }
         if url == "https://example.test/team/collection.git")
     );
     assert!(
@@ -243,7 +282,7 @@ fn scheme_less_git_location_can_explicitly_select_ssh_without_falling_back() {
         single_key: false,
     };
     assert!(
-        matches!(remote(&mut dialog).unwrap().unwrap(), SyncRemoteArgs::Ssh { url, known_hosts: path }
+        matches!(remote(&mut dialog, false).unwrap().unwrap(), SyncRemoteArgs::Ssh { url, known_hosts: path }
         if url == "ssh://git@example.test/team/collection.git" && path == known_hosts)
     );
     assert!(!known_hosts.exists());
@@ -263,7 +302,7 @@ fn invalid_or_credential_bearing_git_urls_do_not_echo_or_become_backend_args() {
             color: false,
             single_key: false,
         };
-        assert!(remote(&mut dialog).unwrap().is_none());
+        assert!(remote(&mut dialog, false).unwrap().is_none());
         let output = String::from_utf8(dialog.output).unwrap();
         assert!(!output.contains(url));
         assert!(!output.contains("URL-CREDENTIAL-CANARY"));
@@ -309,7 +348,7 @@ fn git_checkout_and_scp_inputs_get_specific_guidance_without_a_protocol_guess() 
             color: false,
             single_key: false,
         };
-        assert!(remote(&mut dialog).unwrap().is_none());
+        assert!(remote(&mut dialog, false).unwrap().is_none());
         let output = String::from_utf8(dialog.output).unwrap();
         assert!(
             output.contains(guidance),
@@ -325,6 +364,7 @@ fn git_nested_choices_skip_and_cancel_before_connecting_or_selecting_credentials
     for input in [
         "2\n\n",
         "2\nn\n",
+        "2\nc\nn\n",
         "2\nexample.test/team/collection.git\nn\n",
         "2\nssh://git@example.test/team/collection.git\nrelative-hosts\nn\n",
     ] {
@@ -334,7 +374,7 @@ fn git_nested_choices_skip_and_cancel_before_connecting_or_selecting_credentials
             color: false,
             single_key: false,
         };
-        assert!(remote(&mut dialog).unwrap().is_none());
+        assert!(remote(&mut dialog, true).unwrap().is_none());
         assert!(
             !String::from_utf8(dialog.output)
                 .unwrap()
@@ -344,6 +384,7 @@ fn git_nested_choices_skip_and_cancel_before_connecting_or_selecting_credentials
     for input in [
         "2\n",
         "2\nq\n",
+        "2\nc\nq\n",
         "2\nexample.test/team/collection.git\n",
         "2\nexample.test/team/collection.git\nq\n",
         "2\nssh://git@example.test/team/collection.git\nq\n",
@@ -354,7 +395,10 @@ fn git_nested_choices_skip_and_cancel_before_connecting_or_selecting_credentials
             color: false,
             single_key: false,
         };
-        assert_eq!(remote(&mut dialog).unwrap_err().code, "setup.cancelled");
+        assert_eq!(
+            remote(&mut dialog, true).unwrap_err().code,
+            "setup.cancelled"
+        );
     }
 }
 
