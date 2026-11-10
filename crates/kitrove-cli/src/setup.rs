@@ -22,8 +22,11 @@ use crate::scan_display::{name, safe, selectable};
 mod collection;
 mod collection_selection;
 mod initialization;
+mod inventory;
 mod menu_input;
 mod presentation;
+
+pub(crate) use inventory::browse_scan;
 
 struct Dialog<R, W> {
     input: R,

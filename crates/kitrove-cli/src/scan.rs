@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::ffi::{OsStr, OsString};
-use std::io::{ErrorKind, Read as _};
+use std::io::{self, ErrorKind, IsTerminal as _, Read as _};
 #[cfg(windows)]
 use std::path::Prefix;
 use std::path::{Component, Path, PathBuf};
@@ -34,15 +34,7 @@ use crate::args::{CliError, ScanArgs};
 const MANIFEST_NAME: &str = "kitrove.toml";
 const STATE_NAME: &str = "state.json";
 
-pub(crate) struct CompletedScan {
-    pub output: String,
-    pub status: u8,
-}
-
-pub(crate) fn run_scan(
-    arguments: ScanArgs,
-    registry: &PolicyRegistry,
-) -> Result<CompletedScan, CliError> {
+pub(crate) fn run_scan(arguments: ScanArgs, registry: &PolicyRegistry) -> Result<u8, CliError> {
     let json = arguments.json;
     let verbose = arguments.verbose;
     let report = scan_report(arguments, registry)?;
@@ -51,6 +43,10 @@ pub(crate) fn run_scan(
     } else {
         0
     };
+    if !json && !verbose && io::stdin().is_terminal() && io::stdout().is_terminal() {
+        crate::setup::browse_scan(&report)?;
+        return Ok(status);
+    }
     let output = if json {
         render_scan_json(&report).map_err(|_| {
             CliError::new(
@@ -63,7 +59,8 @@ pub(crate) fn run_scan(
     } else {
         crate::scan_display::render(&report)
     };
-    Ok(CompletedScan { output, status })
+    print!("{output}");
+    Ok(status)
 }
 
 pub(crate) fn scan_report(

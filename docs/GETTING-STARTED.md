@@ -184,9 +184,14 @@ kitrove scan
 kitrove scan --harness claude --scope user
 ```
 
-The default report lists skills and groups repeated warnings. Linked or special
-entries skipped by current policy are not an instruction to delete existing
-links. Metadata, size and credential-related findings need local review.
+In a terminal, the inventory menu lets you browse available skills, items
+that need review, and unchanged managed skills in short pages. Press the
+displayed number to open a group, `d` for grouped diagnostics, or Enter to
+finish. Available skills still need a separate adoption plan. Redirected
+output and released versions through RC5.10 show the text report.
+
+You can leave existing links in place when the scan skips them. Review metadata,
+size and credential-related findings locally.
 
 For diagnostics or automation:
 
