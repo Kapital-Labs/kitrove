@@ -13,6 +13,7 @@ const MAX_KNOWN_HOSTS_LINE_BYTES: usize = 16 * 1024;
 const MAX_KNOWN_HOSTS_ENTRIES: usize = 4096;
 const MAX_HOSTS_PER_ENTRY: usize = 32;
 const MAX_HOST_PATTERN_BYTES: usize = 1024;
+const MAX_DNS_HOST_BYTES: usize = 253;
 const MAX_KEY_FIELD_BYTES: usize = 12 * 1024;
 
 /// Verifies one SSH server key against a bounded read-only `known_hosts` file.
@@ -38,7 +39,11 @@ pub(crate) fn verify_known_host_bytes(
     port: u16,
     server_key: &PublicKey,
 ) -> Result<(), BackendError> {
-    if bytes.len() > MAX_KNOWN_HOSTS_BYTES || !host.is_ascii() || host.is_empty() {
+    if bytes.len() > MAX_KNOWN_HOSTS_BYTES
+        || !host.is_ascii()
+        || host.is_empty()
+        || host.len() > MAX_DNS_HOST_BYTES
+    {
         return Err(known_hosts_limit());
     }
     let target = if port == 22 {
@@ -109,24 +114,74 @@ pub(crate) fn verify_known_host_bytes(
 }
 
 fn host_list_matches(hosts: &str, target: &str) -> Result<bool, BackendError> {
-    let mut count = 0usize;
-    let mut matched = false;
-    for pattern in hosts.split(',') {
-        count = count.checked_add(1).ok_or_else(known_hosts_limit)?;
-        if count > MAX_HOSTS_PER_ENTRY || pattern.is_empty() {
+    if hosts.starts_with("|1|") && !hosts.contains(',') {
+        return hashed_host_matches(hosts, target);
+    }
+    let mut pinned = false;
+    let mut unsupported_match = false;
+    let mut excluded = false;
+    for (index, token) in hosts.split(',').enumerate() {
+        let negated = token.starts_with('!');
+        let pattern = token.strip_prefix('!').unwrap_or(token);
+        if index >= MAX_HOSTS_PER_ENTRY || pattern.is_empty() {
             return Err(known_hosts_limit());
         }
-        if pattern.starts_with("|1|") {
-            matched |= hashed_host_matches(pattern, target)?;
-        } else if pattern.contains(['*', '?', '!', '\\']) {
-            if pattern == target {
-                return Err(known_hosts_unsupported());
-            }
+        // Hashed hosts are standalone pins. Treating a hash inside a list as
+        // a match could let a malformed negation exclude a revocation.
+        if pattern.starts_with('|') {
+            return Err(known_hosts_unsupported());
+        }
+        let matches = if pattern.contains(['*', '?']) {
+            wildcard_host_matches(pattern.as_bytes(), target.as_bytes())
         } else {
-            matched |= pattern == target;
+            pattern.eq_ignore_ascii_case(target)
+        };
+        if matches {
+            if negated {
+                excluded = true;
+            } else if pattern == target {
+                pinned = true;
+            } else {
+                // Recognize applicability without granting authority to a new pin form.
+                unsupported_match = true;
+            }
         }
     }
-    Ok(matched)
+    if excluded {
+        return Ok(false);
+    }
+    if unsupported_match {
+        return Err(known_hosts_unsupported());
+    }
+    Ok(pinned)
+}
+
+// Remember only the most recent '*' and extend its match by one byte on a
+// mismatch. Both inputs are already bounded, and this never recurses.
+fn wildcard_host_matches(pattern: &[u8], target: &[u8]) -> bool {
+    let (mut pattern_at, mut target_at) = (0, 0);
+    let mut after_star = None;
+    while let Some(byte) = target.get(target_at) {
+        match pattern.get(pattern_at) {
+            Some(b'*') => {
+                pattern_at += 1;
+                after_star = Some((pattern_at, target_at));
+            }
+            Some(expected) if *expected == b'?' || expected.eq_ignore_ascii_case(byte) => {
+                pattern_at += 1;
+                target_at += 1;
+            }
+            _ => {
+                let Some((resume_pattern, consumed)) = after_star else {
+                    return false;
+                };
+                pattern_at = resume_pattern;
+                target_at = consumed + 1;
+                after_star = Some((pattern_at, target_at));
+            }
+        }
+    }
+    pattern[pattern_at..].iter().all(|byte| *byte == b'*')
 }
 
 fn hashed_host_matches(pattern: &str, target: &str) -> Result<bool, BackendError> {
@@ -302,5 +357,99 @@ mod tests {
             "other.example.com ssh-ed25519 invalid-base64\nexample.com ssh-ed25519 {KEY}\n"
         );
         verify_known_host_bytes(input.as_bytes(), "example.com", 22, &key).unwrap();
+    }
+
+    #[test]
+    fn applicable_revocation_and_unsupported_patterns_cannot_be_hidden_by_an_exact_pin() {
+        let key = parse_public_key_base64(KEY).unwrap();
+        for (target, port, policy) in [
+            ("git.example.com", 22, "@revoked *"),
+            ("git.example.com", 22, "@revoked GIT.EXAMPLE.COM"),
+            ("git.example.com", 22, "@revoked g?t.**.com"),
+            ("git.example.com", 2222, "@revoked [g?t.example.com]:2222"),
+            ("git.example.com", 22, "@cert-authority *.example.com"),
+            ("git.example.com", 22, "*.example.com"),
+        ] {
+            let exact = if port == 22 {
+                target.to_owned()
+            } else {
+                format!("[{target}]:{port}")
+            };
+            let pin = format!("{exact} ssh-ed25519 {KEY}\n");
+            let denied = format!("{policy} ssh-ed25519 {KEY}\n");
+            for hosts in [format!("{pin}{denied}"), format!("{denied}{pin}")] {
+                assert_eq!(
+                    verify_known_host_bytes(hosts.as_bytes(), target, port, &key)
+                        .unwrap_err()
+                        .code(),
+                    "sync_backend.ssh_known_hosts_unsupported",
+                    "{policy}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn matching_negation_excludes_its_record_without_granting_or_overriding_other_pins() {
+        let key = parse_public_key_base64(KEY).unwrap();
+        for hosts in [
+            "git.example.com,!GIT.EXAMPLE.COM",
+            "!g?t.example.com,git.example.com",
+        ] {
+            let excluded = format!("{hosts} ssh-ed25519 {KEY}\n");
+            assert_eq!(
+                verify_known_host_bytes(excluded.as_bytes(), "git.example.com", 22, &key)
+                    .unwrap_err()
+                    .code(),
+                "sync_backend.ssh_host_unknown"
+            );
+        }
+        let input = format!(
+            "@revoked *,!git.example.com ssh-ed25519 {KEY}\n\
+             @revoked *.unrelated.test ssh-ed25519 {KEY}\n\
+             git.example.com,!other.example.com ssh-ed25519 {KEY}\n"
+        );
+        verify_known_host_bytes(input.as_bytes(), "git.example.com", 22, &key).unwrap();
+    }
+
+    #[test]
+    fn wildcard_never_grants_host_authority() {
+        let key = parse_public_key_base64(KEY).unwrap();
+        let input = format!("*.example.com ssh-ed25519 {KEY}\n");
+        assert_eq!(
+            verify_known_host_bytes(input.as_bytes(), "git.example.com", 22, &key)
+                .unwrap_err()
+                .code(),
+            "sync_backend.ssh_known_hosts_unsupported"
+        );
+    }
+
+    #[test]
+    fn hashed_hosts_cannot_negate_or_be_mixed_into_a_host_list() {
+        let key = parse_public_key_base64(KEY).unwrap();
+        let target = "git.example.com";
+        let salt = b"bounded-known-host-salt";
+        let digest = Hmac::<Sha1>::new_from_slice(salt)
+            .unwrap()
+            .chain_update(target.as_bytes())
+            .finalize()
+            .into_bytes();
+        let hash = format!("|1|{}|{}", BASE64.encode(salt), BASE64.encode(&digest));
+        let exact = format!("{target} ssh-ed25519 {KEY}\n");
+        for hosts in [
+            format!("@revoked *,!{hash}"),
+            format!("@revoked !{hash},*"),
+            format!("{hash},other.example.com"),
+            format!("other.example.com,{hash}"),
+            format!("@revoked *,!{}", hash.replacen("|1|", "|2|", 1)),
+        ] {
+            let input = format!("{exact}{hosts} ssh-ed25519 {KEY}\n");
+            assert_eq!(
+                verify_known_host_bytes(input.as_bytes(), target, 22, &key)
+                    .unwrap_err()
+                    .code(),
+                "sync_backend.ssh_known_hosts_unsupported"
+            );
+        }
     }
 }

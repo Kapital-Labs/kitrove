@@ -4,6 +4,22 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.5.11
+
+Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.
+
+### Changed
+
+- Terminal scans open with a compact inventory and single-key choices for
+  available skills, items to review, and diagnostics. Browse lists in pages.
+- Scanning stays read-only. Redirected text, verbose reports, and JSON retain
+  their existing behavior.
+
+### Fixed
+
+- SSH synchronization applies matching host-key refusal policies before
+  authentication. Exact and standalone hashed pins still establish trust.
+
 ## 0.1.0-rc.5.10
 
 Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows. Earlier
