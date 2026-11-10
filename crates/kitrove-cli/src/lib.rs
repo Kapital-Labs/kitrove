@@ -384,10 +384,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                 }
             };
             match run_scan(arguments, &registry) {
-                Ok(completed) => {
-                    print!("{}", completed.output);
-                    return completed.status;
-                }
+                Ok(status) => return status,
                 Err(error) => {
                     report_error(json_errors, error.code, &error, 1);
                     return 1;
