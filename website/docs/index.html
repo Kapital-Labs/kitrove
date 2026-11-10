@@ -37,7 +37,7 @@
         ><a href="#help">More documentation</a>
       </nav>
       <main id="main" class="docs-content">
-        <p class="eyebrow">Getting started · RC5.9</p>
+        <p class="eyebrow">Getting started · RC5.10</p>
         <h1>Your first collection.</h1>
         <p>
           Kitrove collects skills from your agent tools and helps you apply
@@ -46,8 +46,8 @@
         </p>
         <h2 id="install">Install the preview</h2>
         <p>
-          RC5.9 is a fresh-install evaluation preview for Apple Silicon macOS,
-          x86-64 Linux and x86-64 Windows. Intel Macs are unsupported in RC5.9.
+          RC5.10 is a fresh-install evaluation preview for Apple Silicon macOS,
+          x86-64 Linux and x86-64 Windows. Intel Macs are unsupported in RC5.10.
           Use a new isolated collection and empty destination with synthetic or
           disposable capabilities.
         </p>
@@ -58,7 +58,7 @@
         <pre><code>brew install --cask kapital-labs/tap/kitrove
 kitrove --version</code></pre>
         <p>
-          This installs the latest reviewed preview, currently RC5.9. The
+          This installs the latest reviewed preview, currently RC5.10. The
           shorter package name does not make it a stable release. Homebrew
           checks the pinned archive checksum; you trust Homebrew and the
           <a href="https://github.com/Kapital-Labs/homebrew-tap"
@@ -67,19 +67,31 @@ kitrove --version</code></pre>
           to select it. Installation does not initialize a collection or change
           your agent tools. Keep quarantine and Gatekeeper enabled.
         </p>
+        <h3 id="upgrade-with-homebrew">Upgrade with Homebrew</h3>
+        <p>Already using the <code>kitrove</code> cask from the Kapital Labs tap?</p>
+        <pre><code>brew update
+brew upgrade --cask kapital-labs/tap/kitrove
+kitrove --version</code></pre>
+        <p>
+          Run <code>brew update</code> first. A stale copy of the tap can make
+          Homebrew report that the latest version is already installed. The
+          Kitrove upgrade replaces the executable and preserves your collection
+          and local state. For the older cask names, see
+          <a href="#existing-installations">Existing installations</a>.
+        </p>
         <p>
           <a
-            href="https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.9"
-            >Download RC5.9</a
+            href="https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.10"
+            >Download RC5.10</a
           >
           and read its
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.9/release/notes/v0.1.0-rc.5.9.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.10/release/notes/v0.1.0-rc.5.10.md"
             >versioned release notes</a
           >. Verify before running a manual download on macOS, Linux or Windows:
           follow the
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.9/docs/INSTALLER.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.10/docs/INSTALLER.md"
             >versioned verification and staging guide</a
           >
           with an independently trusted or reviewed-source-built verifier. Match
@@ -91,9 +103,9 @@ kitrove --version</code></pre>
         <details>
           <summary>Older Linux package channels · RC4.2 only</summary>
           <p>
-            APT/DNF still distribute RC4.2 and do not install RC5.9. The RC4.2
-            WinGet submission is not an RC5.9 install path. No Chocolatey
-            package is published. These channels were not updated by RC5.9.
+            APT/DNF still distribute RC4.2 and do not install RC5.10. The RC4.2
+            WinGet submission is not an RC5.10 install path. No Chocolatey
+            package is published. These channels were not updated by RC5.10.
           </p>
           <p>
             Linux x86-64 users can choose
@@ -105,7 +117,7 @@ kitrove --version</code></pre>
             <a
               href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/LINUX-INSTALL.md#fedora--dnf"
               >Fedora / DNF</a
-            >. These are RC4.2 package instructions, not RC5.9 installation or
+            >. These are RC4.2 package instructions, not RC5.10 installation or
             upgrade instructions. Authenticate a download before its first
             execution.
           </p>
@@ -141,17 +153,17 @@ kitrove --version</code></pre>
           </li>
         </ol>
         <p>
-          Repeated names? Use <code>from codex</code>, <code>from claude</code>,
-          <code>from pi</code> or <code>from opencode</code> to choose one displayed
-          tool's copies. For example, <code>from codex,-13,-20</code> excludes
-          those original inventory numbers. This does not merge copies or make
-          that tool the permanent source of truth. Existing collection names
-          are not overwritten; ambiguity within one tool still needs a specific
-          numbered choice or individual review.
+          If repeated names leave nothing ready to collect, choose a numbered
+          source tool to preview its copies with your exclusions still applied.
+          You can also type <code>from codex</code>, <code>from claude</code>,
+          <code>from pi</code> or <code>from opencode</code>. For example,
+          <code>from codex,-13,-20</code> excludes those original inventory
+          numbers. Existing collection names and duplicates within one tool
+          still need an explicit choice or individual review.
         </p>
         <p>
-          Skipped items show reason counts and at most 20 examples; <code>d</code>
-          shows all details. Ready plans retain full source, fidelity and loss
+          The preview shows skipped-item counts by reason. Press <code>d</code>
+          for all details. Ready plans retain full source, fidelity and loss
           information. An empty preview offers no adoption approval and never
           reports zero-item success. Enter or <code>s</code> chooses again using
           the same scan; <code>s</code> also works after a nonempty preview.
@@ -259,7 +271,7 @@ kitrove --version</code></pre>
         </p>
         <p>
           Conflicting content under the same identity stops the operation for
-          review. RC5.9 does not choose an automatic winner or create a
+          review. RC5.10 does not choose an automatic winner or create a
           keep-both rewrite.
         </p>
         <h2 id="scan">Inspect skills and choose by name</h2>
@@ -299,30 +311,30 @@ kitrove adopt humanizer --harness claude --scope user</code></pre>
             overwriting existing files.
           </li>
           <li>
-            Keep RC5.9 collections separate from older previews. RC4.2 cannot
+            Keep RC5.10 collections separate from older previews. RC4.2 cannot
             read authored packs. Do not downgrade a collection or treat binary
             rollback as data recovery.
           </li>
         </ul>
         <p>
-          RC5.9 remains a prerelease. Its published artifacts passed independent
+          RC5.10 remains a prerelease. Its published artifacts passed independent
           inventory, provenance, notice-byte and native Mac image verification;
           those checks did not install or execute the downloaded products. Prior
           bounded source-built Mac/Linux tests covered skill and authored-pack
           transfer, updates, conflict refusal and unmanaged-file protection.
-          They are not RC5.9 production-artifact fresh-install acceptance,
+          They are not RC5.10 production-artifact fresh-install acceptance,
           clean-Mac online/offline first launch, all capability types, live
           agent-tool execution, Git-provider acceptance or concurrent sync.
         </p>
         <p>
-          RC5.9 includes exact agent plan/approval workflows, locally authored
+          RC5.10 includes exact agent plan/approval workflows, locally authored
           packs and explicit partial-fidelity warnings for native-only skill
           fields. These features are not in the older RC4.2 package channels.
           Cloud-provider sync is roadmap work, not an available feature.
         </p>
         <h2 id="existing-installations">Existing installations</h2>
         <p>
-          These instructions assume a fresh install. RC5.9 is not a supported
+          These instructions assume a fresh install. RC5.10 is not a supported
           in-place upgrade from RC4.2; no rollback-compatible predecessor is
           declared. Binary rollback does not roll back collection data.
         </p>
@@ -343,11 +355,11 @@ kitrove adopt humanizer --harness claude --scope user</code></pre>
             >full setup guide</a
           >,
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.9/docs/INSTALLER.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.10/docs/INSTALLER.md"
             >release verification instructions</a
           >, and
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.9/docs/RELEASE-ACCEPTANCE.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.10/docs/RELEASE-ACCEPTANCE.md"
             >acceptance checklist</a
           >.
         </p>

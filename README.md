@@ -33,16 +33,18 @@ kitrove --version
 kitrove init
 ```
 
-The Homebrew cask installs the latest reviewed preview, currently RC5.9, not a
+The Homebrew cask installs the latest reviewed preview, currently RC5.10, not a
 stable release. Start with a new isolated collection and empty destinations using
 disposable capabilities. Preview recommended skills, exclude entries by number,
 and approve the displayed ready set once or review individually. Application
 remains separately confirmed. Existing-install conflicts are not overwritten.
 
-See [Getting started](docs/GETTING-STARTED.md) for setup, existing-install
-troubleshooting, and verified downloads for Linux and Windows. Intel Macs are
-unsupported in this preview. Homebrew and the reviewed tap are your package trust
-authority; do not use the standalone installer on Homebrew-managed files.
+Already using the `kitrove` cask? Follow the
+[Homebrew upgrade steps](docs/GETTING-STARTED.md#upgrade-with-homebrew).
+[Getting started](docs/GETTING-STARTED.md) also covers setup and verified downloads
+for Linux and Windows. Intel Macs are unsupported in this preview. Homebrew and
+the reviewed tap are your package trust authority. Keep using Homebrew for the
+executable it installed.
 
 ## Build from source
 
