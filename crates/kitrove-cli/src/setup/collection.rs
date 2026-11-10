@@ -69,7 +69,7 @@ fn scan_args(root: &std::path::Path) -> ScanArgs {
     }
 }
 
-pub(super) fn collect<R: BufRead, W: Write>(
+pub(super) fn collect<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
     root: &std::path::Path,
     registry: &PolicyRegistry,
@@ -221,7 +221,7 @@ fn occupied(manifest: &EnvironmentManifest, id: &AssetId) -> bool {
     manifest.assets.contains_key(id) || manifest.packs.contains_key(id)
 }
 
-fn show_plan<R: BufRead, W: Write>(
+fn show_plan<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
     index: usize,
     entry: &ScanEntry,
@@ -253,7 +253,7 @@ fn show_plan<R: BufRead, W: Write>(
     Ok(())
 }
 
-fn preview<R: BufRead, W: Write>(
+fn preview<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
     root: &std::path::Path,
     report: &ScanReport,
@@ -366,7 +366,7 @@ fn commit(
     Ok(())
 }
 
-fn individually<R: BufRead, W: Write>(
+fn individually<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
     root: &std::path::Path,
     report: &ScanReport,

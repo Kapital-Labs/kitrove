@@ -4,7 +4,7 @@ use crate::scan::read_portable_text;
 use kitrove_model::LocalState;
 use std::path::Path;
 
-pub(super) fn select<R: BufRead, W: Write>(
+pub(super) fn select<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
     registry: &PolicyRegistry,
 ) -> Result<Option<(PathBuf, bool)>, CliError> {
@@ -77,7 +77,7 @@ fn present(path: &Path) -> Result<bool, CliError> {
     }
 }
 
-fn validate_existing<R: BufRead, W: Write>(
+fn validate_existing<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
     root: &Path,
     local: &Path,

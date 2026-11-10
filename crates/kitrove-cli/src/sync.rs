@@ -137,12 +137,17 @@ fn prompt_git_credential() -> Option<GitBasicCredential> {
     if !input.is_terminal() || !output.is_terminal() {
         return None;
     }
+    eprintln!("HTTPS authentication required. Use a Git access token. Token input is hidden.");
+    eprintln!("Press Enter on a blank prompt to cancel.");
     eprint!("Git username: ");
     output.flush().ok()?;
     let mut username = String::new();
     input.read_line(&mut username).ok()?;
     while matches!(username.as_bytes().last(), Some(b'\n' | b'\r')) {
         username.pop();
+    }
+    if username.is_empty() {
+        return None;
     }
     let token = rpassword::prompt_password("Git token: ").ok()?;
     GitBasicCredential::new(username, token).ok()

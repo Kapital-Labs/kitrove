@@ -64,6 +64,16 @@ Remote repository creation and checkout-remote discovery are not introduced.
 No portable/local schema, fidelity, provenance, receipt, trust or sync semantics
 change. This UX is unreleased until a separately authorized binary includes it.
 
+### Git creation guidance and terminal input amendment
+
+The Git URL prompt offers a guide to creating an empty private repository on
+the user's Git host. The user creates it there, then pastes its clone URL back
+into the same prompt. Kitrove does not open a browser, invoke a provider API,
+grant permissions, discover repository settings or approve a sync plan.
+Guided input holds the standard input lock only while reading a single prompt.
+An HTTPS authentication challenge can therefore read the username and hidden
+token after the Git URL prompt returns.
+
 ### Existing-setup routing amendment (2026-11-04)
 
 After selecting a collection path, guided `init` checks for existing collection

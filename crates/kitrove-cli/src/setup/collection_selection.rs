@@ -73,7 +73,7 @@ pub(super) fn select(input: &str, candidates: &[&ScanEntry]) -> Option<Vec<usize
     )
 }
 
-pub(super) fn show_sources<R: BufRead, W: Write>(
+pub(super) fn show_sources<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
     candidates: &[&ScanEntry],
 ) -> Result<(), CliError> {
@@ -108,7 +108,7 @@ impl Skipped {
         *self.reasons.entry(reason).or_default() += 1;
     }
 
-    pub(super) fn summary<R: BufRead, W: Write>(
+    pub(super) fn summary<R: PromptInput, W: Write>(
         &self,
         dialog: &mut Dialog<R, W>,
     ) -> Result<(), CliError> {
@@ -133,7 +133,7 @@ impl Skipped {
         Ok(())
     }
 
-    pub(super) fn all<R: BufRead, W: Write>(
+    pub(super) fn all<R: PromptInput, W: Write>(
         &self,
         dialog: &mut Dialog<R, W>,
     ) -> Result<(), CliError> {
