@@ -252,6 +252,69 @@ def duplicate_source_decision(key, adopt):
             session.close()
 
 
+def scan_inventory_menu():
+    with tempfile.TemporaryDirectory(prefix="kitrove-scan-menu-", dir=FIXTURE_BASE) as tmp:
+        root = Path(tmp).resolve()
+        skills = root / "home/.claude/skills"
+        for index in range(1, 15):
+            name = f"ready-{index:02}"
+            skill = skills / name / "SKILL.md"
+            skill.parent.mkdir(parents=True)
+            skill.write_text(f"---\nname: {name}\ndescription: Synthetic scan fixture.\n---\nSkill.\n")
+        broken = skills / "broken" / "SKILL.md"
+        broken.parent.mkdir()
+        broken.write_text("---\nname: [broken\ndescription: Malformed YAML fixture.\n---\nSkill.\n")
+        before = {p.relative_to(root): p.read_bytes() for p in skills.glob("*/SKILL.md")}
+        session = Session(root, ["scan", "--harness", "claude", "--scope", "user"])
+        try:
+            session.prompt(b"Explore the inventory")
+            assert b"15 skills in the inventory" in session.output
+            assert b"Available to add (14)" in session.output, session.output
+            assert b"Needs review (1)" in session.output, session.output
+            assert b"ready-01" not in session.output
+            assert b"skill metadata could not be read" not in session.output
+            session.menu_ready()
+            session.output = b""
+            session.send(b"1")
+            session.prompt(b"Browse skills")
+            assert b"ready-01" in session.output
+            assert b"ready-13" not in session.output
+            session.menu_ready()
+            session.output = b""
+            session.send(b"n")
+            session.prompt(b"Browse skills")
+            assert b"ready-13" in session.output
+            session.menu_ready()
+            session.output = b""
+            session.send(b"\r")
+            session.prompt(b"Explore the inventory")
+            session.menu_ready()
+            session.output = b""
+            session.send(b"2")
+            session.prompt(b"Browse skills")
+            assert b"broken" in session.output
+            assert b"skill metadata could not be read" in session.output
+            session.menu_ready()
+            session.output = b""
+            session.send(b"b")
+            session.prompt(b"Explore the inventory")
+            session.menu_ready()
+            session.output = b""
+            session.send(b"d")
+            session.prompt(b"Explore the inventory")
+            assert b"Findings (grouped)" in session.output
+            session.menu_ready()
+            session.send(b"q")
+            session.finish(3)
+            after = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+            assert before == after, "inventory navigation changed the fixture"
+            assert not (root / "state").exists()
+        finally:
+            session.close()
+
+
+scan_inventory_menu()
+print("PASS: scan sections and pages open without Enter; diagnostics are on demand; scan stays read-only")
 initial_menu()
 print("PASS: 1 advances immediately; path stays line based; cancellation restores terminal")
 for key in (b"q", b"\x03", b"\x04", b"\x1b"):

@@ -65,30 +65,7 @@ pub(crate) fn resolve_skill_name(report: &ScanReport, selection: &str) -> Result
 pub(crate) fn render(report: &ScanReport) -> String {
     let mut out = String::from("Kitrove inventory (read-only)\n\n");
     for entry in &report.entries {
-        let state = if entry.shadowed_by.is_some() {
-            "shadowed"
-        } else {
-            match entry.classification {
-                ScanClassification::Unmanaged if selectable(entry) => "available to add",
-                ScanClassification::Unmanaged => "needs portability review",
-                ScanClassification::ManagedUnchanged => "managed, unchanged",
-                ScanClassification::ManagedModified => "managed, locally changed",
-                ScanClassification::MissingManaged => "managed, missing",
-                ScanClassification::ConflictingDuplicate => "conflicting duplicate",
-                ScanClassification::Unknown => "needs attention",
-            }
-        };
-        writeln!(
-            out,
-            "  {}  [{} / {:?}]  {state}",
-            safe(name(entry)),
-            entry.harness.as_str(),
-            entry.scope
-        )
-        .expect("string write");
-        for finding in &entry.findings {
-            writeln!(out, "    {}", description(finding.code)).expect("string write");
-        }
+        write_entry(&mut out, entry, true);
     }
     writeln!(
         out,
@@ -97,7 +74,55 @@ pub(crate) fn render(report: &ScanReport) -> String {
         report.entries.iter().filter(|e| selectable(e)).count()
     )
     .expect("string write");
-    writeln!(out, "Other observations: {} commands, {} agents, {} extensions, {} instruction entries, {} MCP entries, {} related entries.", report.prompt_commands.len(), report.agents.len(), report.native_extensions.len(), report.instructions.len(), report.mcp_servers.len(), report.related.len()).expect("string write");
+    out.push_str(&diagnostics(report));
+    out.push_str("\nNo files changed. Use scan --verbose or scan --json for full diagnostics.\nNext: kitrove init (new collection), or kitrove configure (existing collection).\nYou can also adopt a unique skill name: kitrove adopt NAME --harness TOOL\n");
+    out
+}
+
+pub(crate) fn write_entry(out: &mut String, entry: &ScanEntry, show_status: bool) {
+    write!(
+        out,
+        "  {}  [{} / {:?}]",
+        safe(name(entry)),
+        entry.harness.as_str(),
+        entry.scope
+    )
+    .expect("string write");
+    if show_status {
+        write!(out, "  {}", entry_status(entry)).expect("string write");
+    }
+    out.push('\n');
+    for finding in &entry.findings {
+        writeln!(out, "    {}", description(finding.code)).expect("string write");
+    }
+}
+
+fn entry_status(entry: &ScanEntry) -> &'static str {
+    if entry.shadowed_by.is_some() {
+        "shadowed"
+    } else {
+        match entry.classification {
+            ScanClassification::Unmanaged if selectable(entry) => "available to add",
+            ScanClassification::Unmanaged => "needs portability review",
+            ScanClassification::ManagedUnchanged => "managed, unchanged",
+            ScanClassification::ManagedModified => "managed, locally changed",
+            ScanClassification::MissingManaged => "managed, missing",
+            ScanClassification::ConflictingDuplicate => "conflicting duplicate",
+            ScanClassification::Unknown => "needs attention",
+        }
+    }
+}
+
+pub(crate) fn diagnostics(report: &ScanReport) -> String {
+    let mut out = format!(
+        "Other observations: {} commands, {} agents, {} extensions, {} instruction entries, {} MCP entries, {} related entries.\n",
+        report.prompt_commands.len(),
+        report.agents.len(),
+        report.native_extensions.len(),
+        report.instructions.len(),
+        report.mcp_servers.len(),
+        report.related.len()
+    );
     let mut counts = BTreeMap::<&str, usize>::new();
     for finding in report
         .findings
@@ -119,7 +144,6 @@ pub(crate) fn render(report: &ScanReport) -> String {
             writeln!(out, "  {count} x {explanation}").expect("string write");
         }
     }
-    out.push_str("\nNo files changed. Use scan --verbose or scan --json for full diagnostics.\nNext: kitrove init (new collection), or kitrove configure (existing collection).\nYou can also adopt a unique skill name: kitrove adopt NAME --harness TOOL\n");
     out
 }
 
