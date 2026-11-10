@@ -76,7 +76,10 @@ Kitrove never creates, repairs, appends to, or changes permissions on the file o
 
 The parser has fixed file, line, entry, host-list, key, and aggregate-work limits. It supports exact
 canonical hosts, exact bracketed non-default ports, comma-separated exact entries, and OpenSSH hashed
-host entries. Wildcards cannot grant authority. Target-matching revoked keys, certificate-authority
+host entries. A hashed hostname must stand alone without negation. Wildcard patterns and
+case-insensitive hostname comparisons identify applicable records for refusal. Authorization
+still requires an exact canonical or hashed pin. A matching negation excludes its own host list.
+Target-matching revoked keys, certificate-authority
 entries, malformed or unsupported records, ambiguous duplicate algorithms, unknown hosts, changed
 keys, missing files, unsafe file types, symlinks, and concurrent replacement all fail closed with
 structural redacted errors. Unrelated host records are charged to the aggregate budget but do not

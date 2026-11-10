@@ -68,6 +68,10 @@
     {
       "version": "0.1.0-rc.5.10",
       "rollback_compatible_predecessors": []
+    },
+    {
+      "version": "0.1.0-rc.5.11",
+      "rollback_compatible_predecessors": []
     }
   ]
 }
