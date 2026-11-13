@@ -4,6 +4,10 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.5.13
+
+Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.
+
 ### Fixed
 
 - Commands end quietly when the reader of a pipe closes it early, such as
