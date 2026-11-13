@@ -1,18 +1,14 @@
-use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt::{self, Debug, Display, Formatter};
 
 use kitrove_mcp::{StoredMcpServer, StoredNativeMcpEntry};
 use kitrove_model::{
     Asset, AssetId, AssetKind, BindingName, ContentHash, EnvironmentManifest, Lockfile, Revision,
-    SchemaVersion,
 };
 
-use crate::adoption::content_addressed_update_root;
-use crate::whole_file_adoption::{self, UpdateDigestInput};
+use crate::whole_file_adoption::{self, UpdateFailure};
 use crate::{
-    LockStatus, McpAdoptionOutcome, McpDocumentObservation, TierOneMcpCapabilities,
-    compare_lockfile, derive_lockfile, derive_manifest_revision, plan_mcp_adoption,
+    McpAdoptionOutcome, McpDocumentObservation, TierOneMcpCapabilities, plan_mcp_adoption,
 };
 
 #[derive(Clone, Eq, PartialEq)]
@@ -104,19 +100,16 @@ impl McpUpdatePlan {
         manifest: &EnvironmentManifest,
         lock_text: Option<&str>,
     ) -> Result<(), McpUpdateError> {
-        let revision = derive_manifest_revision(manifest)
-            .map_err(|_| update_error("mcp_update.manifest_stale"))?;
-        if ContentHash::digest(manifest_text.as_bytes()) != self.base_manifest_hash
-            || revision != self.base_manifest_revision
-            || manifest
-                .assets
-                .get(&self.asset.id)
-                .map(|asset| &asset.content_hash)
-                != Some(&self.expected_prior)
-            || lock_text != Some(self.observed_lock_text.as_str())
-            || compare_lockfile(manifest, lock_text).map(|comparison| comparison.status())
-                != Ok(LockStatus::InSync)
-        {
+        if !whole_file_adoption::update_authority_is_current(
+            manifest_text,
+            manifest,
+            lock_text,
+            &self.asset.id,
+            &self.expected_prior,
+            &self.base_manifest_hash,
+            &self.base_manifest_revision,
+            &self.observed_lock_text,
+        ) {
             return Err(update_error("mcp_update.manifest_stale"));
         }
         Ok(())
@@ -183,114 +176,70 @@ pub fn plan_mcp_update(
     lock_text: Option<&str>,
     capabilities: &TierOneMcpCapabilities,
 ) -> Result<McpUpdatePlan, McpUpdateError> {
-    manifest
-        .validate()
-        .map_err(|_| update_error("mcp_update.manifest_invalid"))?;
-    if EnvironmentManifest::from_toml(manifest_text).as_ref() != Ok(manifest) {
-        return Err(update_error("mcp_update.manifest_invalid"));
-    }
-    let base_manifest_hash = ContentHash::digest(manifest_text.as_bytes());
-    let base_manifest_revision = derive_manifest_revision(manifest)
-        .map_err(|_| update_error("mcp_update.manifest_invalid"))?;
-    let observed_lock_text = lock_text
-        .filter(|text| {
-            compare_lockfile(manifest, Some(text)).map(|comparison| comparison.status())
-                == Ok(LockStatus::InSync)
-        })
-        .ok_or_else(|| update_error("mcp_update.lock_not_in_sync"))?
-        .to_owned();
-    let prior_asset = manifest
-        .assets
-        .get(asset_id)
-        .filter(|asset| asset.kind == AssetKind::Mcp)
-        .ok_or_else(|| update_error("mcp_update.asset_missing"))?;
-    if &prior_asset.content_hash != expected_prior {
-        return Err(update_error("mcp_update.expected_prior_mismatch"));
-    }
-
-    let empty = EnvironmentManifest {
-        schema_version: SchemaVersion::V1,
-        assets: BTreeMap::new(),
-        packs: BTreeMap::new(),
-        profiles: BTreeMap::new(),
-        required_bindings: BTreeSet::new(),
-    };
+    let base = whole_file_adoption::update_base(
+        AssetKind::Mcp,
+        asset_id,
+        expected_prior,
+        manifest_text,
+        manifest,
+        lock_text,
+    )
+    .map_err(planning_error)?;
     let McpAdoptionOutcome::Ready(candidate) = plan_mcp_adoption(
         observation,
         selected_entry_hash,
         asset_id,
         bearer_binding,
-        &empty,
+        &whole_file_adoption::empty_manifest(),
         capabilities,
     )
     .map_err(|_| update_error("mcp_update.derivation_failed"))?
     else {
         return Err(update_error("mcp_update.content_blocked"));
     };
-    let portable_object = candidate.portable_object().clone();
-    let native_object = candidate.native_object().clone();
-    if whole_file_adoption::same_adopted_authority(prior_asset, candidate.asset()) {
-        return Err(update_error("mcp_update.revision_unchanged"));
-    }
-    let mut asset = candidate.asset().clone();
-    let portable = asset
-        .portable
-        .as_mut()
-        .ok_or_else(|| update_error("mcp_update.derivation_failed"))?;
-    portable.root = content_addressed_update_root(asset_id, None, &portable.object_hash)
-        .map_err(|_| update_error("mcp_update.object_path_invalid"))?;
-    let native = asset
-        .native_variants
-        .get_mut(observation.harness())
-        .ok_or_else(|| update_error("mcp_update.derivation_failed"))?;
-    native.root =
-        content_addressed_update_root(asset_id, Some(observation.harness()), &native.object_hash)
-            .map_err(|_| update_error("mcp_update.object_path_invalid"))?;
-    asset.refresh_content_hash();
-
-    let mut proposed_manifest = manifest.clone();
-    proposed_manifest
-        .required_bindings
-        .extend(asset.required_bindings.iter().cloned());
-    proposed_manifest
-        .assets
-        .insert(asset_id.clone(), asset.clone());
-    proposed_manifest
-        .refresh_pack_revisions()
-        .map_err(|_| update_error("mcp_update.proposed_manifest_invalid"))?;
-    let proposed_lock = derive_lockfile(&proposed_manifest)
-        .map_err(|_| update_error("mcp_update.proposed_lock_invalid"))?;
-    let proposed_manifest_revision = derive_manifest_revision(&proposed_manifest)
-        .map_err(|_| update_error("mcp_update.proposed_manifest_invalid"))?;
-    let digest = whole_file_adoption::update_digest(UpdateDigestInput {
-        domain: b"kitrove-mcp-update-plan-v1\0",
-        observation_identity: selected_entry_hash,
+    let proposal = whole_file_adoption::propose_update(
+        b"kitrove-mcp-update-plan-v1\0",
+        selected_entry_hash,
+        observation.harness(),
         asset_id,
         expected_prior,
-        asset: &asset,
-        base_manifest_hash: &base_manifest_hash,
-        base_revision: &base_manifest_revision,
-        proposed_revision: &proposed_manifest_revision,
-        observed_lock: &observed_lock_text,
-        proposed_lock: &proposed_lock,
-    })
-    .map_err(|()| update_error("mcp_update.plan_digest_failed"))?;
+        &base,
+        candidate.asset(),
+        manifest,
+        true,
+    )
+    .map_err(planning_error)?;
 
     Ok(McpUpdatePlan {
         observation: observation.clone(),
         selected_entry_hash: selected_entry_hash.clone(),
         expected_prior: expected_prior.clone(),
-        prior_asset: prior_asset.clone(),
-        asset,
-        portable_object,
-        native_object,
-        proposed_manifest,
-        proposed_lock,
-        observed_lock_text,
-        base_manifest_hash,
-        base_manifest_revision,
-        proposed_manifest_revision,
-        digest,
+        prior_asset: base.prior_asset,
+        asset: proposal.asset,
+        portable_object: candidate.portable_object().clone(),
+        native_object: candidate.native_object().clone(),
+        proposed_manifest: proposal.manifest,
+        proposed_lock: proposal.lock,
+        observed_lock_text: base.observed_lock_text,
+        base_manifest_hash: base.manifest_hash,
+        base_manifest_revision: base.manifest_revision,
+        proposed_manifest_revision: proposal.manifest_revision,
+        digest: proposal.digest,
+    })
+}
+
+fn planning_error(failure: UpdateFailure) -> McpUpdateError {
+    update_error(match failure {
+        UpdateFailure::ManifestInvalid => "mcp_update.manifest_invalid",
+        UpdateFailure::LockNotInSync => "mcp_update.lock_not_in_sync",
+        UpdateFailure::AssetMissing => "mcp_update.asset_missing",
+        UpdateFailure::ExpectedPriorMismatch => "mcp_update.expected_prior_mismatch",
+        UpdateFailure::DerivationFailed => "mcp_update.derivation_failed",
+        UpdateFailure::RevisionUnchanged => "mcp_update.revision_unchanged",
+        UpdateFailure::ObjectPathInvalid => "mcp_update.object_path_invalid",
+        UpdateFailure::ProposedManifestInvalid => "mcp_update.proposed_manifest_invalid",
+        UpdateFailure::ProposedLockInvalid => "mcp_update.proposed_lock_invalid",
+        UpdateFailure::PlanDigestFailed => "mcp_update.plan_digest_failed",
     })
 }
 
@@ -321,6 +270,7 @@ mod tests {
     use kitrove_model::HarnessId;
 
     use super::*;
+    use crate::derive_lockfile;
     use crate::mcp_adoption::tests::{capabilities, empty_manifest, observe};
 
     fn adopted() -> (AssetId, EnvironmentManifest, String, String) {
@@ -458,5 +408,95 @@ mod tests {
             .code(),
             "mcp_update.expected_prior_mismatch"
         );
+    }
+
+    #[test]
+    fn update_failures_keep_their_exact_codes_messages_and_plan_identity() {
+        let (asset_id, manifest, manifest_text, lock_text) = adopted();
+        let expected = manifest.assets[&asset_id].content_hash.clone();
+        let changed = observe(
+            r#"{"mcpServers":{"docs":{"type":"http","url":"https://new.example.com/mcp","headers":{"Authorization":"Bearer ${NATIVE_SECRET_TOKEN}"}}}}"#,
+        );
+        let selected = changed.parsed().unwrap().entries()[0]
+            .exact_entry_hash()
+            .clone();
+        let binding = kitrove_model::BindingName::parse("company_mcp_token").unwrap();
+        let plan_with = |id: &AssetId, text: &str, lock: Option<&str>| {
+            plan_mcp_update(
+                &changed,
+                &selected,
+                id,
+                &expected,
+                Some(&binding),
+                text,
+                &manifest,
+                lock,
+                &capabilities(),
+            )
+        };
+        let failure = |id: &AssetId, text: &str, lock: Option<&str>| {
+            plan_with(id, text, lock).unwrap_err().to_string()
+        };
+        let absent = AssetId::parse("absent").unwrap();
+
+        assert_eq!(
+            failure(&asset_id, "", Some(&lock_text)),
+            "mcp_update.manifest_invalid: MCP update planning requires a valid exact manifest"
+        );
+        assert_eq!(
+            failure(&asset_id, &manifest_text, None),
+            "mcp_update.lock_not_in_sync: MCP update planning requires generated lock state in sync"
+        );
+        assert_eq!(
+            failure(&asset_id, &manifest_text, Some("{}")),
+            "mcp_update.lock_not_in_sync: MCP update planning requires generated lock state in sync"
+        );
+        assert_eq!(
+            failure(&absent, &manifest_text, Some(&lock_text)),
+            "mcp_update.asset_missing: the MCP asset does not exist"
+        );
+        // An invalid manifest is reported before a missing lock, and that before a missing asset.
+        assert!(failure(&absent, "", None).starts_with("mcp_update.manifest_invalid"));
+        assert!(failure(&absent, &manifest_text, None).starts_with("mcp_update.lock_not_in_sync"));
+
+        let plan = plan_with(&asset_id, &manifest_text, Some(&lock_text)).unwrap();
+        assert!(!manifest.required_bindings.contains(&binding));
+        assert!(
+            plan.proposed_manifest()
+                .required_bindings
+                .contains(&binding)
+        );
+        let other = observe(
+            r#"{"mcpServers":{"docs":{"type":"http","url":"https://other.example.com/mcp"}}}"#,
+        );
+        assert_eq!(
+            plan.ensure_observation_fresh(&other)
+                .unwrap_err()
+                .to_string(),
+            "mcp_update.observation_stale: the MCP observation changed after planning"
+        );
+        assert_eq!(
+            plan.ensure_portable_authority_fresh(&manifest_text, &manifest, None)
+                .unwrap_err()
+                .to_string(),
+            "mcp_update.manifest_stale: portable MCP authority changed after planning"
+        );
+        assert_eq!(
+            format!("{:?}", plan_with(&asset_id, "", None).unwrap_err()),
+            "McpUpdateError { code: \"mcp_update.manifest_invalid\" }"
+        );
+        assert_eq!(
+            plan.digest().as_str(),
+            "blake3:a2533ee026f6064dd219abcc52f8ae53a24473185cae5d68bdf4e0186da61e13"
+        );
+        assert_eq!(
+            plan.asset().content_hash.as_str(),
+            "blake3:3d4789c4abe597fa5112ec55027cd55de488865b2cdda042f92e638268f62cd2"
+        );
+        assert_eq!(
+            plan.proposed_manifest_revision().as_str(),
+            "manifest:blake3:b9480d94717d3364c9242cbaefb1e83f9642d710ebc406c185401d3ed614387e"
+        );
+        assert!(format!("{plan:?}").starts_with("McpUpdatePlan { asset_id: "));
     }
 }
