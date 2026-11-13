@@ -4,6 +4,18 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+### Security
+
+- Update the SSH transport dependency `russh` to 0.65.1 for RUSTSEC-2026-0492
+  and RUSTSEC-2026-0495. A server can no longer deliver channel messages for
+  channels the client never opened.
+
+### Changed
+
+- Source builds now require Rust 1.89 or newer.
+- SSH host certificates are refused explicitly. Plain host keys are verified
+  against `known_hosts` as before.
+
 ### Fixed
 
 - Commands end quietly when the reader of a pipe closes it early, such as

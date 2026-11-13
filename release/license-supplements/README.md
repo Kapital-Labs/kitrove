@@ -1,6 +1,6 @@
 # Reviewed license-text supplements
 
-The current 385-package locked graph includes 16 registry packages whose published
+The current 386-package locked graph includes 16 registry packages whose published
 crate archives have no named license/notice text. `index.json` maps each exact
 package/version to retained, checksum-pinned upstream text. Generation never
 downloads these files. The original downloaded bytes are preserved, including

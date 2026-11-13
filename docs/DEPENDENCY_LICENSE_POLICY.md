@@ -92,6 +92,14 @@ edge is added; licenses remain Apache-2.0 OR MIT and MIT, respectively. Rust 1.8
 remains sufficient. The exact source/checksum review is recorded in
 [`review/signing-repairs-dependency-review.md`](review/signing-repairs-dependency-review.md).
 
+The November 2026 SSH transport remediation replaces `russh` 0.62.0 with
+exact-pinned 0.65.1 (Apache-2.0; Rust 1.89) for RUSTSEC-2026-0492 and
+RUSTSEC-2026-0495, raising the project minimum to Rust 1.89.
+Default features remain disabled. The lock delta moves five elliptic-curve and
+signature packages from release candidates to final releases, replaces
+`internal-russh-num-bigint` with `num-bigint` 0.5.1, and adds `sha3` 0.12.0 and
+`sponge-cursor` 0.1.0 (both MIT OR Apache-2.0; Rust 1.85; no build script).
+
 The October 2026 security remediation replaces ZIP 6.0.0 with exact-pinned
 9.0.5 (MIT; Rust 1.88) for RUSTSEC-2026-0367/0368/0369. Default features
 remain disabled. The complete lock delta removes `arbitrary`/`derive_arbitrary`,

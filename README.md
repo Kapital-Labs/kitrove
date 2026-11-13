@@ -48,7 +48,7 @@ executable it installed.
 
 ## Build from source
 
-You need Rust 1.88 or newer. Build from a source revision you have reviewed:
+You need Rust 1.89 or newer. Build from a source revision you have reviewed:
 
 ```sh
 cargo build --locked --release -p kitrove-cli
