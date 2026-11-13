@@ -10,6 +10,7 @@ use kitrove_adapter_api::{
     RootPathAuthority, RootRankAuthority, RootTier, ScanFinding,
 };
 use kitrove_agent_skills::SkillSourceLayout;
+use kitrove_model::raw_parent_component;
 use kitrove_model::{AssetKind, HarnessId, HarnessScope};
 
 pub(crate) const CURRENT_PROFILE_EVIDENCE: &str = "opencode.docs.skills.current";
@@ -969,19 +970,6 @@ fn safe_local_directory(path: &Path) -> bool {
             && !metadata.file_type().is_symlink()
             && !metadata_is_windows_reparse(&metadata)
     })
-}
-
-#[cfg(windows)]
-fn raw_parent_component(path: &Path) -> bool {
-    path.as_os_str()
-        .to_string_lossy()
-        .split(['/', '\\'])
-        .any(|segment| segment == "..")
-}
-
-#[cfg(not(windows))]
-const fn raw_parent_component(_path: &Path) -> bool {
-    false
 }
 
 fn no_follow_path_key(path: &Path) -> PathBuf {

@@ -8,6 +8,7 @@ use cap_std::fs::{Dir, Metadata, OpenOptions};
 use serde::{Deserialize, Serialize};
 
 use crate::filesystem_identity::MetadataIdentity;
+use kitrove_model::raw_parent_component;
 
 pub(crate) enum ReadOnlyRootOpen {
     Open(Dir),
@@ -243,19 +244,6 @@ fn split_absolute_path(root: &Path) -> Result<(PathBuf, Vec<OsString>), ()> {
         return Err(());
     }
     Ok((anchor, components))
-}
-
-#[cfg(windows)]
-fn raw_parent_component(path: &Path) -> bool {
-    path.as_os_str()
-        .to_string_lossy()
-        .split(['/', '\\'])
-        .any(|segment| segment == "..")
-}
-
-#[cfg(not(windows))]
-const fn raw_parent_component(_path: &Path) -> bool {
-    false
 }
 
 #[cfg(windows)]

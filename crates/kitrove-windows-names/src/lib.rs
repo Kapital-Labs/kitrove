@@ -60,6 +60,26 @@ pub fn is_lossless_windows_component(component: &str) -> bool {
     )
 }
 
+/// Returns whether a path spells a parent-directory segment under either Windows separator.
+///
+/// Verbatim Windows paths do not treat `/` as a separator, so `std::path` reports
+/// `other/../target` as one normal component. Other platforms have no such spelling.
+#[cfg(windows)]
+#[must_use]
+pub fn raw_parent_component(path: &std::path::Path) -> bool {
+    path.as_os_str()
+        .to_string_lossy()
+        .split(['/', '\\'])
+        .any(|segment| segment == "..")
+}
+
+/// Returns whether a path spells a parent-directory segment under either Windows separator.
+#[cfg(not(windows))]
+#[must_use]
+pub const fn raw_parent_component(_path: &std::path::Path) -> bool {
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -90,6 +110,36 @@ mod tests {
         }
         for component in ["pi.exe", "console.txt", "COM10", "LPT0", "normal name"] {
             assert!(is_lossless_windows_component(component), "{component:?}");
+        }
+    }
+
+    #[test]
+    fn raw_parent_segments_are_found_only_under_windows_separator_rules() {
+        use std::path::Path;
+
+        for path in ["/root/other/../target", "relative/..", ".."] {
+            assert_eq!(
+                raw_parent_component(Path::new(path)),
+                cfg!(windows),
+                "{path}"
+            );
+        }
+        for path in ["/root/a..b", "/root/...", "/root/..hidden", ""] {
+            assert!(!raw_parent_component(Path::new(path)), "{path}");
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn raw_parent_segments_are_found_inside_verbatim_components() {
+        use std::path::Path;
+
+        for path in [
+            r"\?\C:\root\other/../target",
+            r"C:\root\..\target",
+            r"\?\C:\root\..",
+        ] {
+            assert!(raw_parent_component(Path::new(path)), "{path}");
         }
     }
 }

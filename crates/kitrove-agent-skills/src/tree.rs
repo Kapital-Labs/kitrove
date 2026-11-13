@@ -20,6 +20,7 @@ use cap_fs_ext::OsMetadataExt as _;
 
 use crate::directory_entries::{BoundedDirectoryEntries, collect_bounded_sorted_directory_entries};
 use crate::{CaptureLimits, CaptureMeter, SkillError};
+use kitrove_model::raw_parent_component;
 
 /// Maximum directories visited by ordinary skill capture.
 pub const MAX_CAPTURE_DIRECTORIES: usize = 512;
@@ -839,6 +840,13 @@ fn enqueue_directory_entries(
 }
 
 fn open_root(root: &Path) -> Result<Dir, SkillError> {
+    if contains_parent_component(root) {
+        return Err(SkillError::new(
+            "capture.invalid_root_path",
+            root,
+            "capture root must not contain parent-directory components",
+        ));
+    }
     let (anchor, components) = split_absolute_root(root)?;
     let mut directory = Dir::open_ambient_dir(&anchor, ambient_authority())
         .map_err(|error| io_error(&anchor, "open filesystem root", &error))?;
@@ -929,19 +937,6 @@ pub(crate) fn contains_parent_component(path: &Path) -> bool {
         matches!(component, Component::ParentDir)
             || matches!(component, Component::Normal(value) if value == OsStr::new(".."))
     }) || raw_parent_component(path)
-}
-
-#[cfg(windows)]
-fn raw_parent_component(path: &Path) -> bool {
-    path.as_os_str()
-        .to_string_lossy()
-        .split(['/', '\\'])
-        .any(|segment| segment == "..")
-}
-
-#[cfg(not(windows))]
-const fn raw_parent_component(_path: &Path) -> bool {
-    false
 }
 
 #[allow(clippy::too_many_arguments)]

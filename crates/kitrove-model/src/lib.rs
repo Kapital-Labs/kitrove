@@ -27,7 +27,7 @@ pub use identity::{
     InvalidAssetId, MachineId, NormalizedDestination, PackApplicationId, ProfileId, ProvenanceId,
     ReceiptId, Revision,
 };
-pub use kitrove_windows_names::is_lossless_windows_component;
+pub use kitrove_windows_names::{is_lossless_windows_component, raw_parent_component};
 pub use local::{
     BindingResolver, DeploymentReceipt, LocalState, MachineConfig, PackApplicationClaim,
     ReceiptTarget, ScanRecord, TrustDecision,
