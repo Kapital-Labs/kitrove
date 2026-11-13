@@ -414,10 +414,10 @@ Crate SHA-256: fe3e9d21d39e6f39ff46e03d5b621424f88ee23d8a1672c6bfc9ccc7f2da4f6a
   SHA-256:cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30	LICENSE-APACHE
   SHA-256:91585c36e4fb9ab4ca0d3dfac5d66d3c0c62cc51f640a0e1196542daf2267eae	LICENSE-MIT
 
-Package: curve25519-dalek 5.0.0-rc.1
+Package: curve25519-dalek 5.0.0
 Declared license: BSD-3-Clause
 Source: registry+https://github.com/rust-lang/crates.io-index
-Crate SHA-256: c906a87e53a36ff795d72e06e8162a83c5436e3ea89e942a9cb9fc083f0a384f
+Crate SHA-256: b5eed333089e2e1c1ac8c6c0398e5e2497b4c9926ca6d0365ed1e099afa5bc23
   SHA-256:403c53069750101aeb9df7e15f127056ceaf7e4e92d0b919a1f4c084afd5f1d4	LICENSE
 
 Package: curve25519-dalek-derive 0.1.1
@@ -546,10 +546,10 @@ Crate SHA-256: 29fcf32e6c73d1079f83ab4d782de2d81620346a5f38c6237a86a22f8368980a
   SHA-256:78779d420019e6b4630376af8e86b6b335ee8a2f89ede6e0411e0469a326aaa4	LICENSE-APACHE
   SHA-256:9aa4f92bfcde293ebeca9e2379fa18d1d61f000977da144c7b74c2986c9b6466	LICENSE-MIT
 
-Package: ed25519-dalek 3.0.0-rc.1
+Package: ed25519-dalek 3.0.0
 Declared license: BSD-3-Clause
 Source: registry+https://github.com/rust-lang/crates.io-index
-Crate SHA-256: 1685663e23882cd8517dcbcb1c23a6ebff4433c22dfb681d760219b62cd1b849
+Crate SHA-256: 6ebaa1a2bf1290ab3bfe5a7b771d050ebffab2711c19a81691c683a5144a25de
   SHA-256:7a313964a6e050794d2ad57f4863c11f6bbe055c0ae6ce2cf3b9fc45150bada3	LICENSE
 
 Package: elliptic-curve 0.14.1
@@ -1028,13 +1028,6 @@ Crate SHA-256: 4250ce6452e92010fdf7268ccc5d14faa80bb12fc741938534c58f16804e03c7
   SHA-256:a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5	LICENSE-APACHE
   SHA-256:a07fcacc3c60de4dc0fab10ac9d6aaba7379974e28451c99da7f7df09c25b28c	LICENSE-MIT
 
-Package: internal-russh-num-bigint 0.5.0
-Declared license: MIT OR Apache-2.0
-Source: registry+https://github.com/rust-lang/crates.io-index
-Crate SHA-256: ae8e22120c32fb4d19ec55fba35015f57095cd95a2e3b732e44457f5915b2ee8
-  SHA-256:a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2	LICENSE-APACHE
-  SHA-256:6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb	LICENSE-MIT
-
 Package: io-extras 0.19.0
 Declared license: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 Source: registry+https://github.com/rust-lang/crates.io-index
@@ -1245,10 +1238,10 @@ Source: registry+https://github.com/rust-lang/crates.io-index
 Crate SHA-256: cf20d2fde8ff38632c426f1165ed7436270b44f199fc55284c38276f9db47c3d
   SHA-256:66e3ee1fa7f909ad3c612d556f2a0cdabcd809ad6e66f3b0605015ac64841b70	LICENSE
 
-Package: num-bigint 0.4.8
+Package: num-bigint 0.5.1
 Declared license: MIT OR Apache-2.0
 Source: registry+https://github.com/rust-lang/crates.io-index
-Crate SHA-256: c89e69e7e0f03bea5ef08013795c25018e101932225a656383bd384495ecc367
+Crate SHA-256: 93e7820bc0a80a0238e650327316f929ba18d5be054b647490a3a6a339f3e7c0
   SHA-256:a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2	LICENSE-APACHE
   SHA-256:6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb	LICENSE-MIT
 
@@ -1280,26 +1273,26 @@ Crate SHA-256: 9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50
   SHA-256:a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2	LICENSE-APACHE
   SHA-256:23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3	LICENSE-MIT
 
-Package: p256 0.14.0-rc.15
+Package: p256 0.14.0
 Declared license: Apache-2.0 OR MIT
 Source: registry+https://github.com/rust-lang/crates.io-index
-Crate SHA-256: b6bb40a5099e2c38a09dd29321a7a7f045f165a54317679c7cdfb0cbaf8f6b1e
+Crate SHA-256: d2c9239b2dbc807adbbe147e8cf72ea7450c3a0aabe62cb8e75ff4ec22e1f72a
   SHA-256:a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5	LICENSE-APACHE
-  SHA-256:233b95ccbf90dc67e32f3e8995c489f6312d9191ebd141a931c3b684f1e3be6d	LICENSE-MIT
+  SHA-256:d8c4ab431f20da8452c9a217084163822e5fd9d134e1343903c929f2859fc8fd	LICENSE-MIT
 
-Package: p384 0.14.0-rc.15
+Package: p384 0.14.0
 Declared license: Apache-2.0 OR MIT
 Source: registry+https://github.com/rust-lang/crates.io-index
-Crate SHA-256: 492f329d7eb11d22dadc988626b9ea1f503b4ab043a8b1e4e2cc4ae45dabdd70
+Crate SHA-256: d17b851e6b3e378ab4ecb07fa2ed23f4d15f075735f8fec9fa1e7bdce5f8301f
   SHA-256:a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5	LICENSE-APACHE
   SHA-256:02168781a5b59970e3da1784d2eb69f432598a3757f283dbffdafd9d483a9113	LICENSE-MIT
 
-Package: p521 0.14.0-rc.15
+Package: p521 0.14.0
 Declared license: Apache-2.0 OR MIT
 Source: registry+https://github.com/rust-lang/crates.io-index
-Crate SHA-256: ff42e4ace5424e3b6d7cb82514be89866b85af87015f80341e37dcc21a66ce6e
+Crate SHA-256: 4ad64cc32c2dc466317c12ee5853e61f159f9eab1fe7efade0395dc2e7b43449
   SHA-256:a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5	LICENSE-APACHE
-  SHA-256:d27687b51f2874822c1530976b7e837eac4f308d94bf3dd42047011b7d437b47	LICENSE-MIT
+  SHA-256:d8c4ab431f20da8452c9a217084163822e5fd9d134e1343903c929f2859fc8fd	LICENSE-MIT
 
 Package: pageant 0.2.0
 Declared license: Apache-2.0
@@ -1590,12 +1583,12 @@ Source: registry+https://github.com/rust-lang/crates.io-index
 Crate SHA-256: 9a1efe12a1469752d0e6ff5ebec0b6ef4924cc5c4c71046b0ec730040535819d
   SHA-256:a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9	LICENSE-APACHE
 
-Package: russh 0.62.0
+Package: russh 0.65.1
 Declared license: Apache-2.0
 Source: registry+https://github.com/rust-lang/crates.io-index
-Crate SHA-256: d5aaf63e853fd2fc9a0761c21e7840d7fb0be05efbcf7e4e6117210c83f0b26a
-Supplement source: https://raw.githubusercontent.com/warp-tech/russh/907c732562c5732aad6c140dba958eafddc41ba0/LICENSE.txt
-Supplement provenance: Workspace-root Apache-2.0 text at the crate's recorded VCS revision 907c732562c5732aad6c140dba958eafddc41ba0; published crate omits it.
+Crate SHA-256: 94be3d86c71b9ed220a675c405e35c7a02565a009bf8da2e9cc13a700320a5c5
+Supplement source: https://raw.githubusercontent.com/warp-tech/russh/b33092aad1e51c66258a12e8b83fc473a68d9d34/LICENSE.txt
+Supplement provenance: Workspace-root Apache-2.0 text at the crate's recorded VCS revision b33092aad1e51c66258a12e8b83fc473a68d9d34; published crate omits it.
   SHA-256:cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30	supplement:russh-APACHE.txt
 
 Package: russh-cryptovec 0.62.0
@@ -1621,10 +1614,10 @@ Crate SHA-256: cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92
   SHA-256:a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2	LICENSE-APACHE
   SHA-256:c9a75f18b9ab2927829a208fc6aa2cf4e63b8420887ba29cdb265d6619ae82d5	LICENSE-MIT
 
-Package: rustix 1.1.4
+Package: rustix 1.1.6
 Declared license: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 Source: registry+https://github.com/rust-lang/crates.io-index
-Crate SHA-256: b6fe4565b9518b83ef4f91bb47ce29620ca828bd32cb7e408f0062e9930ba190
+Crate SHA-256: e5e76742e5294153d4dde1207dbec5bdd81eef6fabdc0d2118babadabfd858aa
   SHA-256:377c2e7c53250cc5905c0b0532d35973392af16ffb9596a41d99d202cf3617c9	COPYRIGHT
   SHA-256:a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2	LICENSE-APACHE
   SHA-256:268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5	LICENSE-Apache-2.0_WITH_LLVM-exception
@@ -1820,6 +1813,13 @@ Crate SHA-256: be176f1a57ce4e3d31c1a166222d9768de5954f811601fb7ca06fc8203905ce1
   SHA-256:a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5	LICENSE-APACHE
   SHA-256:6462612d92b861384dcd378168a7a0ef3ef28876d3d380d382cb5a3091e360b8	LICENSE-MIT
 
+Package: sha3 0.12.0
+Declared license: MIT OR Apache-2.0
+Source: registry+https://github.com/rust-lang/crates.io-index
+Crate SHA-256: bc9bad02c26382724b2d2692c6f179285e4b54eeecd7968f52a50059c3c11759
+  SHA-256:a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5	LICENSE-APACHE
+  SHA-256:6462612d92b861384dcd378168a7a0ef3ef28876d3d380d382cb5a3091e360b8	LICENSE-MIT
+
 Package: shlex 2.0.1
 Declared license: MIT OR Apache-2.0
 Source: registry+https://github.com/rust-lang/crates.io-index
@@ -1932,6 +1932,13 @@ Source: registry+https://github.com/rust-lang/crates.io-index
 Crate SHA-256: 1d9efca8738c78ee9484207732f728b1ef517bbb1833d6fc0879ca898a522f6f
   SHA-256:a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5	LICENSE-APACHE
   SHA-256:57a4d75c1d095bb94754a478f3cd15e60ac66a5c5627d844be01a918eea5fe88	LICENSE-MIT
+
+Package: sponge-cursor 0.1.0
+Declared license: MIT OR Apache-2.0
+Source: registry+https://github.com/rust-lang/crates.io-index
+Crate SHA-256: 3a0219bd7d979d58245a4f41f695e1ac9f8befdffadd7f61f1bae9e39abc6620
+  SHA-256:a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5	LICENSE-APACHE
+  SHA-256:083cb05a34eb9c78faf69aa49674ec30d1eadbdc2042473644992786e6c8249b	LICENSE-MIT
 
 Package: ssh-cipher 0.3.0
 Declared license: Apache-2.0 OR MIT
@@ -3770,6 +3777,35 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+
+===== END TEXT =====
+
+===== TEXT SHA-256:083cb05a34eb9c78faf69aa49674ec30d1eadbdc2042473644992786e6c8249b (1077 bytes) =====
+Copyright (c) 2026 The RustCrypto Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
 
 ===== END TEXT =====
 
@@ -15628,35 +15664,6 @@ PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
 LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
-
-===== END TEXT =====
-
-===== TEXT SHA-256:d27687b51f2874822c1530976b7e837eac4f308d94bf3dd42047011b7d437b47 (1070 bytes) =====
-Copyright (c) 2020-2022 RustCrypto Developers
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
 
 ===== END TEXT =====
 

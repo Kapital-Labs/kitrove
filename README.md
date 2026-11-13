@@ -33,7 +33,7 @@ kitrove --version
 kitrove init
 ```
 
-The Homebrew cask installs the latest reviewed preview, currently RC5.11, not a
+The Homebrew cask installs the latest reviewed preview, currently RC5.13, not a
 stable release. Start with a new isolated collection and empty destinations using
 disposable capabilities. Preview recommended skills, exclude entries by number,
 and approve the displayed ready set once or review individually. Application
@@ -48,7 +48,7 @@ executable it installed.
 
 ## Build from source
 
-You need Rust 1.88 or newer. Build from a source revision you have reviewed:
+You need Rust 1.89 or newer. Build from a source revision you have reviewed:
 
 ```sh
 cargo build --locked --release -p kitrove-cli

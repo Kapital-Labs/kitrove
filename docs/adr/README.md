@@ -96,4 +96,6 @@ ADRs document foundational decisions and their consequences. Accepted ADRs are a
 | [0069](0069-readonly-ticket-process-ownership.md) | Read-only ticket validation has a closed owned lifetime | Accepted for prerequisite implementation; validation pending | NS-07, NS-09 |
 | [0070](0070-readonly-ticket-connection-loss-recovery.md) | Read-only ticket connection-loss recovery stays evidence-bound | Accepted for source repair; validation pending | NS-07, NS-09 |
 
+| [0071](0071-patched-ssh-and-filesystem-dependencies.md) | Patched SSH and filesystem dependencies | Accepted for RC5.13 implementation; validation pending | NS-05, NS-06, NS-07, NS-09 |
+
 Use [`0000-template.md`](0000-template.md) for new records.
