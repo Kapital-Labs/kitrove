@@ -100,6 +100,12 @@ signature packages from release candidates to final releases, replaces
 `internal-russh-num-bigint` with `num-bigint` 0.5.1, and adds `sha3` 0.12.0 and
 `sponge-cursor` 0.1.0 (both MIT OR Apache-2.0; Rust 1.85; no build script).
 
+The RC5.13 filesystem dependency update selects rustix 1.1.6 for
+RUSTSEC-2026-0486. The published crate keeps its Apache-2.0 OR MIT license
+and declares Rust 1.65. Only its locked version and checksum change relative
+to the reviewed SSH update. The existing Windows binding selections are
+preserved after validating the published dependency ranges.
+
 The October 2026 security remediation replaces ZIP 6.0.0 with exact-pinned
 9.0.5 (MIT; Rust 1.88) for RUSTSEC-2026-0367/0368/0369. Default features
 remain disabled. The complete lock delta removes `arbitrary`/`derive_arbitrary`,

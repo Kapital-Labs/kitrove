@@ -37,7 +37,7 @@ exclude = [
 ]
 
 [workspace.package]
-version = "0.1.0-rc.5.12"
+version = "0.1.0-rc.5.13"
 edition = "2024"
 rust-version = "1.89"
 authors = ["Brandon Kaplan"]
@@ -95,7 +95,7 @@ yaml_serde = "0.10.7"
 tempfile = "3.27.0"
 unicase = "=2.9.0"
 unicode-normalization = "=0.1.25"
-rustix = { version = "1.1.4", features = ["fs", "process"] }
+rustix = { version = "1.1.6", features = ["fs", "process"] }
 rand = "=0.10.2"
 rpassword = "=7.5.4"
 russh = { version = "=0.65.1", default-features = false, features = ["ring"] }

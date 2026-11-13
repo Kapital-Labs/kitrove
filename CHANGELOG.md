@@ -4,7 +4,14 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.5.13
+
+Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.
+
 ### Security
+
+- Update rustix to 1.1.6 for the extended-attribute buffer initialization fix
+  in RUSTSEC-2026-0486.
 
 - Update the SSH transport dependency `russh` to 0.65.1 for RUSTSEC-2026-0492
   and RUSTSEC-2026-0495. A server can no longer deliver channel messages for
