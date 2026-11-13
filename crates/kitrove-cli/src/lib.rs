@@ -48,7 +48,6 @@ const NORTH_STAR: &str = include_str!("../../../NORTH_STAR.md");
 const INVARIANTS: &str = include_str!("../../../docs/architecture/INVARIANTS.md");
 
 /// Runs the process-facing CLI entry point.
-#[must_use]
 pub fn main_entry() -> ExitCode {
     ExitCode::from(run(env::args_os().skip(1)))
 }
