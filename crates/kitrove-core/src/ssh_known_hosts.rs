@@ -32,6 +32,17 @@ pub(crate) fn verify_known_host_file(
     verify_known_host_bytes(&bytes, host, port, server_key)
 }
 
+/// Returns the plain key a server presented. Host certificates are refused, because
+/// trusting one needs certificate-authority policy this verifier does not implement.
+pub(crate) fn presented_plain_key(
+    presented: &russh::keys::PublicKeyOrCertificate,
+) -> Result<&PublicKey, BackendError> {
+    match presented {
+        russh::keys::PublicKeyOrCertificate::PublicKey { key, .. } => Ok(key),
+        russh::keys::PublicKeyOrCertificate::Certificate(_) => Err(known_hosts_unsupported()),
+    }
+}
+
 /// Verifies one SSH server key against already-bounded `known_hosts` bytes.
 pub(crate) fn verify_known_host_bytes(
     bytes: &[u8],
@@ -451,5 +462,29 @@ mod tests {
                 "sync_backend.ssh_known_hosts_unsupported"
             );
         }
+    }
+
+    // A throwaway ed25519 host certificate for `git.example.com`, signed by a throwaway
+    // authority with unlimited validity. Neither private key is retained.
+    const HOST_CERTIFICATE: &str = "ssh-ed25519-cert-v01@openssh.com AAAAIHNzaC1lZDI1NTE5LWNlcnQtdjAxQG9wZW5zc2guY29tAAAAINUE/ZE7MKQds7Gezn2gvR0lIGZmS4NFYtZUEIl5f4btAAAAIBemGFZzbMcFQzkqaetEeJ+r5PdHojQzWO6RCtF0LwGiAAAAAAAAAAAAAAACAAAADGZpeHR1cmUtaG9zdAAAABMAAAAPZ2l0LmV4YW1wbGUuY29tAAAAAAAAAAD//////////wAAAAAAAAAAAAAAAAAAADMAAAALc3NoLWVkMjU1MTkAAAAgmeKGVYtOC4G2YWL3yU/1grj3UJDOkWgEkgCbVAyR0ysAAABTAAAAC3NzaC1lZDI1NTE5AAAAQPTOPxkPlruX8pMAD08bApukIO7t45s+4YxuQbLBvYTbbRRJw7cQLYU1lG42Fxo4K0QI68j5JZ8cvNVhOc1bNAE=";
+
+    #[test]
+    fn presented_plain_keys_pass_through_and_host_certificates_are_refused() {
+        use russh::keys::{Certificate, PublicKeyOrCertificate};
+
+        let key = parse_public_key_base64(KEY).unwrap();
+        let plain = PublicKeyOrCertificate::PublicKey {
+            key: key.clone(),
+            hash_alg: None,
+        };
+        assert_eq!(super::presented_plain_key(&plain).unwrap(), &key);
+
+        let certificate = PublicKeyOrCertificate::Certificate(
+            Certificate::from_openssh(HOST_CERTIFICATE).unwrap(),
+        );
+        assert_eq!(
+            super::presented_plain_key(&certificate).unwrap_err().code(),
+            "sync_backend.ssh_known_hosts_unsupported"
+        );
     }
 }

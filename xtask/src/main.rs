@@ -11,13 +11,13 @@ mod release_archive;
 mod release_staging;
 
 const REVIEWED_CARGO_LOCK_BLAKE3: &str =
-    "2c499b6e0306fd1a5a19a7f65efa33887a03c7466fe6b9a04ca0176a49071d19";
+    "6b04d64edf3b1d10063d44039d1ccc4f97bd922961d5ea829d1b6e6810061728";
 const REVIEWED_SIGSTORE_REKOR_TREE_BLAKE3: &str =
     "898ca8f9c61bd79c3ef16bcc22650249eb4f32872540d281660f07b1c828c355";
 const REVIEWED_SIGSTORE_TSA_TREE_BLAKE3: &str =
     "c48b716039e6942cf81eba8cf3558d7fe6d08facf5353ca5de99b03072cfc8db";
 const REVIEWED_RELEASE_WORKFLOW_BLAKE3: &str =
-    "a658fcf7da2af8a0251a74bc930adcab821197a8e945dbaebd257a23afc22a90";
+    "daa186b1f08dcb53a9c9623fc8beabd2b9406641026b362f88b758e610ed933f";
 const REVIEWED_DIST_CONFIG_BLAKE3: &str =
     "0f5c695bb633db7d1fe4bdd8f85aba21262069181635445b0b79e35d80a3b003";
 const REVIEWED_RELEASE_POLICY_BLAKE3: &str =
@@ -1375,7 +1375,7 @@ fn check_git_dependency_boundary(root: &Path) -> Result<(), String> {
         "calcifer-macos-acl = \"=0.1.0\"",
         "hmac = \"=0.13.0\"",
         "rpassword = \"=7.5.4\"",
-        "russh = { version = \"=0.62.0\", default-features = false, features = [\"ring\"] }",
+        "russh = { version = \"=0.65.1\", default-features = false, features = [\"ring\"] }",
         "tokio = { version = \"=1.53.3\", default-features = false, features = [\"io-util\", \"net\", \"rt\", \"sync\", \"time\"] }",
         "sha1 = \"=0.11.0\"",
         "zeroize = \"=1.9.0\"",
@@ -1401,7 +1401,7 @@ fn check_git_dependency_boundary(root: &Path) -> Result<(), String> {
         ("calcifer-macos-acl", "0.1.0"),
         ("gix-zlib", "0.1.0"),
         ("aes", "0.9.2"),
-        ("russh", "0.62.0"),
+        ("russh", "0.65.1"),
         ("russh-cryptovec", "0.62.0"),
         ("rpassword", "7.5.4"),
         ("rtoolbox", "0.0.6"),
@@ -1459,7 +1459,7 @@ fn check_git_dependency_boundary(root: &Path) -> Result<(), String> {
     for required in [
         "gix-zlib v0.1.0",
         "aes v0.9.2",
-        "russh v0.62.0",
+        "russh v0.65.1",
         "russh-cryptovec v0.62.0",
         "rpassword v7.5.4",
         "rtoolbox v0.0.6",

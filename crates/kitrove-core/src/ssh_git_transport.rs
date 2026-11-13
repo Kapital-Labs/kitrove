@@ -13,7 +13,7 @@ use crate::git_remote::{GitSshService, SshGitRemoteUrl};
 use crate::git_sync_backend::{MAX_PACKET_LINE_BYTES, limit_exceeded, parse_hex_length};
 #[cfg(unix)]
 use crate::read_only_fs::{ReadOnlyRootOpen, open_root_nofollow, safe_metadata};
-use crate::ssh_known_hosts::verify_known_host_file;
+use crate::ssh_known_hosts::{presented_plain_key, verify_known_host_file};
 
 const MAX_AGENT_IDENTITIES: usize = 16;
 const MAX_AUTHENTICATION_ATTEMPTS: usize = 8;
@@ -48,9 +48,11 @@ impl client::Handler for HostKeyHandler {
 
     async fn check_server_key(
         &mut self,
-        server_key: &russh::keys::PublicKey,
+        server_key: &russh::keys::PublicKeyOrCertificate,
     ) -> Result<bool, Self::Error> {
-        match verify_known_host_file(&self.known_hosts, &self.host, self.port, server_key) {
+        let verified = presented_plain_key(server_key)
+            .and_then(|key| verify_known_host_file(&self.known_hosts, &self.host, self.port, key));
+        match verified {
             Ok(()) => Ok(true),
             Err(error) => {
                 record_host_failure(&self.failure, error);
@@ -585,7 +587,7 @@ mod tests {
         async fn auth_publickey(
             &mut self,
             _: &str,
-            _: &russh::keys::PublicKey,
+            _: russh::server::VerifiedPublicKey<'_>,
         ) -> Result<russh::server::Auth, Self::Error> {
             Ok(russh::server::Auth::Accept)
         }
@@ -616,7 +618,7 @@ mod tests {
         async fn auth_publickey(
             &mut self,
             _: &str,
-            _: &russh::keys::PublicKey,
+            _: russh::server::VerifiedPublicKey<'_>,
         ) -> Result<russh::server::Auth, Self::Error> {
             Ok(russh::server::Auth::Accept)
         }

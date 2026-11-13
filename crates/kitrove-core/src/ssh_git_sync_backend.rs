@@ -410,7 +410,7 @@ mod tests {
         async fn auth_publickey(
             &mut self,
             _: &str,
-            _: &russh::keys::PublicKey,
+            _: russh::server::VerifiedPublicKey<'_>,
         ) -> Result<russh::server::Auth, Self::Error> {
             Ok(russh::server::Auth::Accept)
         }
