@@ -284,8 +284,20 @@ fn check_governance(root: &Path) -> Result<(), String> {
     }
 
     let adr_index = read(root, "docs/adr/README.md")?;
-    for number in 1..=10 {
-        require_token(&adr_index, &format!("{number:04}"), "docs/adr/README.md")?;
+    let mut decisions = 0;
+    for entry in fs::read_dir(root.join("docs/adr"))
+        .map_err(|error| format!("cannot read docs/adr: {error}"))?
+    {
+        let name = entry
+            .map_err(|error| format!("cannot read docs/adr entry: {error}"))?
+            .file_name();
+        if let Some(number) = name.to_str().and_then(adr_number) {
+            require_token(&adr_index, number, "docs/adr/README.md")?;
+            decisions += 1;
+        }
+    }
+    if decisions < 10 {
+        return Err("docs/adr holds fewer decision records than the founding set".to_owned());
     }
 
     if private_context {
@@ -1541,6 +1553,15 @@ fn read(root: &Path, relative: &str) -> Result<String, String> {
         .map_err(|error| format!("cannot read {relative}: {error}"))
 }
 
+/// Returns the four-digit number of a `NNNN-title.md` decision record.
+fn adr_number(file_name: &str) -> Option<&str> {
+    let (number, title) = file_name.split_once('-')?;
+    (number.len() == 4
+        && number.bytes().all(|byte| byte.is_ascii_digit())
+        && title.ends_with(".md"))
+    .then_some(number)
+}
+
 fn require_token(content: &str, token: &str, location: &str) -> Result<(), String> {
     if content.contains(token) {
         Ok(())
@@ -1925,6 +1946,21 @@ x86_64-pc-windows-msvc = ["kitrove"]
         ));
         assert!(!license_expression_allowed("GPL-3.0-only"));
         assert!(!license_expression_allowed(""));
+    }
+
+    #[test]
+    fn adr_numbers_come_from_decision_file_names_only() {
+        assert_eq!(super::adr_number("0042-platform-signing.md"), Some("0042"));
+        assert_eq!(super::adr_number("0000-template.md"), Some("0000"));
+        for name in [
+            "README.md",
+            "42-short.md",
+            "0042.md",
+            "0042-notes.txt",
+            "x042-a.md",
+        ] {
+            assert_eq!(super::adr_number(name), None, "{name}");
+        }
     }
 
     #[test]
