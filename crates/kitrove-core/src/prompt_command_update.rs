@@ -1,20 +1,17 @@
-use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt::{self, Debug, Display, Formatter};
 
 use kitrove_model::{
-    Asset, AssetId, AssetKind, ContentHash, EnvironmentManifest, Lockfile, Revision, SchemaVersion,
+    Asset, AssetId, AssetKind, ContentHash, EnvironmentManifest, Lockfile, Revision,
 };
 use kitrove_prompt_commands::{
     StoredNativePromptCommand as StoredNativePromptObject,
     StoredPromptCommand as StoredPromptObject,
 };
 
-use crate::adoption::content_addressed_update_root;
-use crate::whole_file_adoption::{self, UpdateDigestInput};
+use crate::whole_file_adoption::{self, UpdateFailure};
 use crate::{
-    LockStatus, PromptCommandAdoptionOutcome, PromptCommandObservation,
-    TierOnePromptCommandCapabilities, compare_lockfile, derive_lockfile, derive_manifest_revision,
+    PromptCommandAdoptionOutcome, PromptCommandObservation, TierOnePromptCommandCapabilities,
     plan_prompt_command_adoption,
 };
 
@@ -114,19 +111,16 @@ impl PromptCommandUpdatePlan {
         manifest: &EnvironmentManifest,
         lock_text: Option<&str>,
     ) -> Result<(), PromptCommandUpdateError> {
-        let revision = derive_manifest_revision(manifest)
-            .map_err(|_| update_error("prompt_command_update.manifest_stale"))?;
-        if ContentHash::digest(manifest_text.as_bytes()) != self.base_manifest_hash
-            || revision != self.base_manifest_revision
-            || manifest
-                .assets
-                .get(&self.asset.id)
-                .map(|asset| &asset.content_hash)
-                != Some(&self.expected_prior)
-            || lock_text != Some(self.observed_lock_text.as_str())
-            || compare_lockfile(manifest, lock_text).map(|comparison| comparison.status())
-                != Ok(LockStatus::InSync)
-        {
+        if !whole_file_adoption::update_authority_is_current(
+            manifest_text,
+            manifest,
+            lock_text,
+            &self.asset.id,
+            &self.expected_prior,
+            &self.base_manifest_hash,
+            &self.base_manifest_revision,
+            &self.observed_lock_text,
+        ) {
             return Err(update_error("prompt_command_update.manifest_stale"));
         }
         Ok(())
@@ -193,132 +187,68 @@ pub fn plan_prompt_command_update(
     lock_text: Option<&str>,
     capabilities: &TierOnePromptCommandCapabilities,
 ) -> Result<PromptCommandUpdatePlan, PromptCommandUpdateError> {
-    manifest
-        .validate()
-        .map_err(|_| update_error("prompt_command_update.manifest_invalid"))?;
-    if EnvironmentManifest::from_toml(manifest_text).as_ref() != Ok(manifest) {
-        return Err(update_error("prompt_command_update.manifest_invalid"));
-    }
-    let base_manifest_hash = ContentHash::digest(manifest_text.as_bytes());
-    let base_manifest_revision = derive_manifest_revision(manifest)
-        .map_err(|_| update_error("prompt_command_update.manifest_invalid"))?;
-    let observed_lock_text = lock_text
-        .filter(|text| {
-            compare_lockfile(manifest, Some(text)).map(|comparison| comparison.status())
-                == Ok(LockStatus::InSync)
-        })
-        .ok_or_else(|| update_error("prompt_command_update.lock_not_in_sync"))?
-        .to_owned();
-    let prior_asset = manifest
-        .assets
-        .get(asset_id)
-        .filter(|asset| asset.kind == AssetKind::Command)
-        .ok_or_else(|| update_error("prompt_command_update.asset_missing"))?;
-    if &prior_asset.content_hash != expected_prior {
-        return Err(update_error(
-            "prompt_command_update.expected_prior_mismatch",
-        ));
-    }
-
-    let empty = EnvironmentManifest {
-        schema_version: SchemaVersion::V1,
-        assets: BTreeMap::new(),
-        packs: BTreeMap::new(),
-        profiles: BTreeMap::new(),
-        required_bindings: BTreeSet::new(),
-    };
-    let PromptCommandAdoptionOutcome::Ready(candidate) =
-        plan_prompt_command_adoption(observation, asset_id, &empty, capabilities)
-            .map_err(|_| update_error("prompt_command_update.derivation_failed"))?
+    let base = whole_file_adoption::update_base(
+        AssetKind::Command,
+        asset_id,
+        expected_prior,
+        manifest_text,
+        manifest,
+        lock_text,
+    )
+    .map_err(planning_error)?;
+    let PromptCommandAdoptionOutcome::Ready(candidate) = plan_prompt_command_adoption(
+        observation,
+        asset_id,
+        &whole_file_adoption::empty_manifest(),
+        capabilities,
+    )
+    .map_err(|_| update_error("prompt_command_update.derivation_failed"))?
     else {
         return Err(update_error("prompt_command_update.content_blocked"));
     };
-    let portable_object = candidate.portable_object().clone();
-    let native_object = candidate.native_object().clone();
-    if whole_file_adoption::same_adopted_authority(prior_asset, candidate.asset()) {
-        return Err(update_error("prompt_command_update.revision_unchanged"));
-    }
-    let mut asset = candidate.asset().clone();
-    let portable = asset
-        .portable
-        .as_mut()
-        .ok_or_else(|| update_error("prompt_command_update.derivation_failed"))?;
-    portable.root = content_addressed_update_root(asset_id, None, &portable.object_hash)
-        .map_err(|_| update_error("prompt_command_update.object_path_invalid"))?;
-    let native = asset
-        .native_variants
-        .get_mut(observation.harness())
-        .ok_or_else(|| update_error("prompt_command_update.derivation_failed"))?;
-    native.root =
-        content_addressed_update_root(asset_id, Some(observation.harness()), &native.object_hash)
-            .map_err(|_| update_error("prompt_command_update.object_path_invalid"))?;
-    asset.refresh_content_hash();
-
-    let mut proposed_manifest = manifest.clone();
-    proposed_manifest
-        .assets
-        .insert(asset_id.clone(), asset.clone());
-    proposed_manifest
-        .refresh_pack_revisions()
-        .map_err(|_| update_error("prompt_command_update.proposed_manifest_invalid"))?;
-    let proposed_lock = derive_lockfile(&proposed_manifest)
-        .map_err(|_| update_error("prompt_command_update.proposed_lock_invalid"))?;
-    let proposed_manifest_revision = derive_manifest_revision(&proposed_manifest)
-        .map_err(|_| update_error("prompt_command_update.proposed_manifest_invalid"))?;
-    let digest = plan_digest(
-        observation,
+    let proposal = whole_file_adoption::propose_update(
+        b"kitrove-prompt-command-update-plan-v1\0",
+        observation.identity(),
+        observation.harness(),
         asset_id,
         expected_prior,
-        &asset,
-        &base_manifest_hash,
-        &base_manifest_revision,
-        &proposed_manifest_revision,
-        &observed_lock_text,
-        &proposed_lock,
-    )?;
+        &base,
+        candidate.asset(),
+        manifest,
+        false,
+    )
+    .map_err(planning_error)?;
 
     Ok(PromptCommandUpdatePlan {
         observation: observation.clone(),
         expected_prior: expected_prior.clone(),
-        prior_asset: prior_asset.clone(),
-        asset,
-        portable_object,
-        native_object,
-        proposed_manifest,
-        proposed_lock,
-        observed_lock_text,
-        base_manifest_hash,
-        base_manifest_revision,
-        proposed_manifest_revision,
-        digest,
+        prior_asset: base.prior_asset,
+        asset: proposal.asset,
+        portable_object: candidate.portable_object().clone(),
+        native_object: candidate.native_object().clone(),
+        proposed_manifest: proposal.manifest,
+        proposed_lock: proposal.lock,
+        observed_lock_text: base.observed_lock_text,
+        base_manifest_hash: base.manifest_hash,
+        base_manifest_revision: base.manifest_revision,
+        proposed_manifest_revision: proposal.manifest_revision,
+        digest: proposal.digest,
     })
 }
 
-#[allow(clippy::too_many_arguments)]
-fn plan_digest(
-    observation: &PromptCommandObservation,
-    asset_id: &AssetId,
-    expected_prior: &ContentHash,
-    asset: &Asset,
-    base_manifest_hash: &ContentHash,
-    base_revision: &Revision,
-    proposed_revision: &Revision,
-    observed_lock: &str,
-    proposed_lock: &Lockfile,
-) -> Result<ContentHash, PromptCommandUpdateError> {
-    whole_file_adoption::update_digest(UpdateDigestInput {
-        domain: b"kitrove-prompt-command-update-plan-v1\0",
-        observation_identity: observation.identity(),
-        asset_id,
-        expected_prior,
-        asset,
-        base_manifest_hash,
-        base_revision,
-        proposed_revision,
-        observed_lock,
-        proposed_lock,
+fn planning_error(failure: UpdateFailure) -> PromptCommandUpdateError {
+    update_error(match failure {
+        UpdateFailure::ManifestInvalid => "prompt_command_update.manifest_invalid",
+        UpdateFailure::LockNotInSync => "prompt_command_update.lock_not_in_sync",
+        UpdateFailure::AssetMissing => "prompt_command_update.asset_missing",
+        UpdateFailure::ExpectedPriorMismatch => "prompt_command_update.expected_prior_mismatch",
+        UpdateFailure::DerivationFailed => "prompt_command_update.derivation_failed",
+        UpdateFailure::RevisionUnchanged => "prompt_command_update.revision_unchanged",
+        UpdateFailure::ObjectPathInvalid => "prompt_command_update.object_path_invalid",
+        UpdateFailure::ProposedManifestInvalid => "prompt_command_update.proposed_manifest_invalid",
+        UpdateFailure::ProposedLockInvalid => "prompt_command_update.proposed_lock_invalid",
+        UpdateFailure::PlanDigestFailed => "prompt_command_update.plan_digest_failed",
     })
-    .map_err(|()| update_error("prompt_command_update.plan_digest_failed"))
 }
 
 fn update_error(code: &'static str) -> PromptCommandUpdateError {
@@ -375,7 +305,12 @@ mod tests {
         NativePromptDialect, PromptCommandLimits, parse_native_prompt_command,
     };
 
+    use std::collections::{BTreeMap, BTreeSet};
+
+    use kitrove_model::SchemaVersion;
+
     use super::*;
+    use crate::derive_lockfile;
 
     fn capability(fidelity: Fidelity, version: &'static str) -> CapabilityMatrix {
         let evidence = vec![FidelityEvidence::new(
@@ -618,5 +553,88 @@ mod tests {
 
         assert_ne!(plan.asset().provenance, plan.prior_asset().provenance);
         assert_ne!(plan.asset().content_hash, expected);
+    }
+
+    #[test]
+    fn update_failures_keep_their_exact_codes_messages_and_plan_identity() {
+        let (asset_id, manifest, manifest_text, lock_text) = adopted();
+        let expected = manifest.assets[&asset_id].content_hash.clone();
+        let changed = observation("Review all files in $ARGUMENTS.\n");
+        let plan_with = |id: &AssetId, text: &str, lock: Option<&str>| {
+            plan_prompt_command_update(
+                &changed,
+                id,
+                &expected,
+                text,
+                &manifest,
+                lock,
+                &capabilities(),
+            )
+        };
+        let failure = |id: &AssetId, text: &str, lock: Option<&str>| {
+            plan_with(id, text, lock).unwrap_err().to_string()
+        };
+
+        assert_eq!(
+            failure(&asset_id, "", Some(&lock_text)),
+            "prompt_command_update.manifest_invalid: prompt-command update planning requires a valid exact manifest"
+        );
+        assert_eq!(
+            failure(&asset_id, &manifest_text, None),
+            "prompt_command_update.lock_not_in_sync: prompt-command update planning requires generated lock state in sync"
+        );
+        assert_eq!(
+            failure(&asset_id, &manifest_text, Some("{}")),
+            "prompt_command_update.lock_not_in_sync: prompt-command update planning requires generated lock state in sync"
+        );
+        assert_eq!(
+            failure(
+                &AssetId::parse("absent").unwrap(),
+                &manifest_text,
+                Some(&lock_text)
+            ),
+            "prompt_command_update.asset_missing: the prompt-command asset does not exist"
+        );
+        // An invalid manifest is reported before a missing lock or asset.
+        assert!(
+            failure(&AssetId::parse("absent").unwrap(), "", None)
+                .starts_with("prompt_command_update.manifest_invalid")
+        );
+        // A missing lock is reported before a missing asset.
+        assert!(
+            failure(&AssetId::parse("absent").unwrap(), &manifest_text, None)
+                .starts_with("prompt_command_update.lock_not_in_sync")
+        );
+
+        let plan = plan_with(&asset_id, &manifest_text, Some(&lock_text)).unwrap();
+        assert_eq!(
+            plan.ensure_observation_fresh(&observation("Different $ARGUMENTS.\n"))
+                .unwrap_err()
+                .to_string(),
+            "prompt_command_update.observation_stale: the prompt-command observation changed after planning"
+        );
+        assert_eq!(
+            plan.ensure_portable_authority_fresh(&manifest_text, &manifest, None)
+                .unwrap_err()
+                .to_string(),
+            "prompt_command_update.manifest_stale: portable prompt-command authority changed after planning"
+        );
+        assert_eq!(
+            format!("{:?}", plan_with(&asset_id, "", None).unwrap_err()),
+            "PromptCommandUpdateError { code: \"prompt_command_update.manifest_invalid\" }"
+        );
+        assert_eq!(
+            plan.digest().as_str(),
+            "blake3:591f8ec26eb162c1371b5995598dfe6370faff3b06b6b04be2a4bf16ef6628f3"
+        );
+        assert_eq!(
+            plan.asset().content_hash.as_str(),
+            "blake3:88dedb91945418ec38d830f098469d4c335d1db25b0a0ae42f3d9c121147ed6f"
+        );
+        assert_eq!(
+            plan.proposed_manifest_revision().as_str(),
+            "manifest:blake3:afb58888cf1a72513d06b240abceb84f18eddb1e633bae382347372bfa5f21ed"
+        );
+        assert!(format!("{plan:?}").starts_with("PromptCommandUpdatePlan { asset_id: "));
     }
 }

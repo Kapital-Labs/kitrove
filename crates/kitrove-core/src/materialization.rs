@@ -824,6 +824,91 @@ pub(crate) fn validate_local_receipts(
     Ok(())
 }
 
+/// Why one whole-target receipt could not be claimed for removal.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ReceiptClaimFailure {
+    StateInvalid,
+    Unavailable,
+    Mismatch,
+    Modified,
+}
+
+/// The single receipt that owns a destination, and local state with it released.
+pub(crate) struct ClaimedReceipt {
+    pub receipt_id: ReceiptId,
+    pub receipt: DeploymentReceipt,
+    pub proposed_state: LocalState,
+    pub proposed_state_text: String,
+}
+
+/// Claims the one unshared whole-target receipt that owns an unmodified destination.
+pub(crate) fn claim_whole_target_receipt(
+    local_state_text: &str,
+    destination: &NormalizedDestination,
+    asset_id: &AssetId,
+    harness: &kitrove_model::HarnessId,
+    scope: HarnessScope,
+    observed_hash: &ContentHash,
+) -> Result<ClaimedReceipt, ReceiptClaimFailure> {
+    let mut proposed_state =
+        LocalState::from_json(local_state_text).map_err(|_| ReceiptClaimFailure::StateInvalid)?;
+    validate_local_receipts(&proposed_state).map_err(|_| ReceiptClaimFailure::StateInvalid)?;
+    let matching = proposed_state
+        .receipts
+        .iter()
+        .filter(|(_, receipt)| receipt.destination == *destination)
+        .collect::<Vec<_>>();
+    let [(receipt_id, receipt)] = matching.as_slice() else {
+        return Err(ReceiptClaimFailure::Unavailable);
+    };
+    if receipt.asset_id != *asset_id
+        || receipt.harness != *harness
+        || receipt.scope != scope
+        || receipt.target != kitrove_model::ReceiptTarget::WholeTarget
+        || !receipt.shared_with.is_empty()
+    {
+        return Err(ReceiptClaimFailure::Mismatch);
+    }
+    if &receipt.rendered_hash != observed_hash {
+        return Err(ReceiptClaimFailure::Modified);
+    }
+    let receipt_id = (*receipt_id).clone();
+    let receipt = (*receipt).clone();
+    proposed_state.receipts.remove(&receipt_id);
+    let proposed_state_text = proposed_state
+        .to_json()
+        .map_err(|_| ReceiptClaimFailure::StateInvalid)?;
+    Ok(ClaimedReceipt {
+        receipt_id,
+        receipt,
+        proposed_state,
+        proposed_state_text,
+    })
+}
+
+/// Starts a whole-file removal digest from its domain, ordered records, and target anchor.
+pub(crate) fn whole_file_removal_hasher(
+    domain: &'static [u8],
+    records: &[&str],
+    anchor: kitrove_adapter_api::TargetAnchor,
+) -> blake3::Hasher {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(domain);
+    for value in records {
+        write_digest_record(&mut hasher, value);
+    }
+    hasher.update(&[match anchor {
+        kitrove_adapter_api::TargetAnchor::Scope => 0,
+        kitrove_adapter_api::TargetAnchor::HarnessConfiguration => 1,
+    }]);
+    hasher
+}
+
+pub(crate) fn finish_digest(hasher: &blake3::Hasher) -> ContentHash {
+    ContentHash::parse(format!("blake3:{}", hasher.finalize().to_hex()))
+        .expect("a lowercase BLAKE3 digest is a valid content hash")
+}
+
 pub(crate) fn receipts_for_destination<'a>(
     local_state: &'a LocalState,
     harness: &kitrove_model::HarnessId,

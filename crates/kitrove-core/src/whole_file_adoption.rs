@@ -1,8 +1,12 @@
+use std::collections::{BTreeMap, BTreeSet};
+
 use kitrove_model::{
-    Asset, AssetId, ContentHash, HarnessId, HarnessScope, Lockfile, PortablePath, Revision,
+    Asset, AssetId, AssetKind, ContentHash, EnvironmentManifest, HarnessId, HarnessScope, Lockfile,
+    PortablePath, Revision, SchemaVersion,
 };
 
-use crate::adoption::AdoptionDisposition;
+use crate::adoption::{AdoptionDisposition, content_addressed_update_root};
+use crate::{LockStatus, compare_lockfile, derive_lockfile, derive_manifest_revision};
 
 pub(crate) struct BlockDigestInput<'a> {
     pub domain: &'static [u8],
@@ -132,6 +136,179 @@ pub(crate) fn update_digest(input: UpdateDigestInput<'_>) -> Result<ContentHash,
         write_record(&mut hasher, value);
     }
     Ok(digest(hasher))
+}
+
+/// Why a whole-file update could not be planned, before a kind names its own code.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum UpdateFailure {
+    ManifestInvalid,
+    LockNotInSync,
+    AssetMissing,
+    ExpectedPriorMismatch,
+    DerivationFailed,
+    RevisionUnchanged,
+    ObjectPathInvalid,
+    ProposedManifestInvalid,
+    ProposedLockInvalid,
+    PlanDigestFailed,
+}
+
+/// Exact portable authority an update replaces.
+pub(crate) struct UpdateBase {
+    pub prior_asset: Asset,
+    pub manifest_hash: ContentHash,
+    pub manifest_revision: Revision,
+    pub observed_lock_text: String,
+}
+
+/// Replacement authority derived from one freshly adopted candidate.
+pub(crate) struct UpdateProposal {
+    pub asset: Asset,
+    pub manifest: EnvironmentManifest,
+    pub lock: Lockfile,
+    pub manifest_revision: Revision,
+    pub digest: ContentHash,
+}
+
+pub(crate) fn empty_manifest() -> EnvironmentManifest {
+    EnvironmentManifest {
+        schema_version: SchemaVersion::V1,
+        assets: BTreeMap::new(),
+        packs: BTreeMap::new(),
+        profiles: BTreeMap::new(),
+        required_bindings: BTreeSet::new(),
+    }
+}
+
+/// Binds an update to the exact manifest, in-sync lock, and prior revision of one asset.
+pub(crate) fn update_base(
+    kind: AssetKind,
+    asset_id: &AssetId,
+    expected_prior: &ContentHash,
+    manifest_text: &str,
+    manifest: &EnvironmentManifest,
+    lock_text: Option<&str>,
+) -> Result<UpdateBase, UpdateFailure> {
+    manifest
+        .validate()
+        .map_err(|_| UpdateFailure::ManifestInvalid)?;
+    if EnvironmentManifest::from_toml(manifest_text).as_ref() != Ok(manifest) {
+        return Err(UpdateFailure::ManifestInvalid);
+    }
+    let manifest_hash = ContentHash::digest(manifest_text.as_bytes());
+    let manifest_revision =
+        derive_manifest_revision(manifest).map_err(|_| UpdateFailure::ManifestInvalid)?;
+    let observed_lock_text = lock_text
+        .filter(|text| {
+            compare_lockfile(manifest, Some(text)).map(|comparison| comparison.status())
+                == Ok(LockStatus::InSync)
+        })
+        .ok_or(UpdateFailure::LockNotInSync)?
+        .to_owned();
+    let prior_asset = manifest
+        .assets
+        .get(asset_id)
+        .filter(|asset| asset.kind == kind)
+        .ok_or(UpdateFailure::AssetMissing)?;
+    if &prior_asset.content_hash != expected_prior {
+        return Err(UpdateFailure::ExpectedPriorMismatch);
+    }
+    Ok(UpdateBase {
+        prior_asset: prior_asset.clone(),
+        manifest_hash,
+        manifest_revision,
+        observed_lock_text,
+    })
+}
+
+/// Rehomes a candidate under content-addressed update roots and derives the proposed authority.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn propose_update(
+    domain: &'static [u8],
+    observation_identity: &ContentHash,
+    harness: &HarnessId,
+    asset_id: &AssetId,
+    expected_prior: &ContentHash,
+    base: &UpdateBase,
+    candidate: &Asset,
+    manifest: &EnvironmentManifest,
+    carry_required_bindings: bool,
+) -> Result<UpdateProposal, UpdateFailure> {
+    if same_adopted_authority(&base.prior_asset, candidate) {
+        return Err(UpdateFailure::RevisionUnchanged);
+    }
+    let mut asset = candidate.clone();
+    let portable = asset
+        .portable
+        .as_mut()
+        .ok_or(UpdateFailure::DerivationFailed)?;
+    portable.root = content_addressed_update_root(asset_id, None, &portable.object_hash)
+        .map_err(|_| UpdateFailure::ObjectPathInvalid)?;
+    let native = asset
+        .native_variants
+        .get_mut(harness)
+        .ok_or(UpdateFailure::DerivationFailed)?;
+    native.root = content_addressed_update_root(asset_id, Some(harness), &native.object_hash)
+        .map_err(|_| UpdateFailure::ObjectPathInvalid)?;
+    asset.refresh_content_hash();
+
+    let mut proposed = manifest.clone();
+    if carry_required_bindings {
+        proposed
+            .required_bindings
+            .extend(asset.required_bindings.iter().cloned());
+    }
+    proposed.assets.insert(asset_id.clone(), asset.clone());
+    proposed
+        .refresh_pack_revisions()
+        .map_err(|_| UpdateFailure::ProposedManifestInvalid)?;
+    let lock = derive_lockfile(&proposed).map_err(|_| UpdateFailure::ProposedLockInvalid)?;
+    let manifest_revision =
+        derive_manifest_revision(&proposed).map_err(|_| UpdateFailure::ProposedManifestInvalid)?;
+    let digest = update_digest(UpdateDigestInput {
+        domain,
+        observation_identity,
+        asset_id,
+        expected_prior,
+        asset: &asset,
+        base_manifest_hash: &base.manifest_hash,
+        base_revision: &base.manifest_revision,
+        proposed_revision: &manifest_revision,
+        observed_lock: &base.observed_lock_text,
+        proposed_lock: &lock,
+    })
+    .map_err(|()| UpdateFailure::PlanDigestFailed)?;
+    Ok(UpdateProposal {
+        asset,
+        manifest: proposed,
+        lock,
+        manifest_revision,
+        digest,
+    })
+}
+
+/// Returns whether portable authority still matches what an update plan was bound to.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn update_authority_is_current(
+    manifest_text: &str,
+    manifest: &EnvironmentManifest,
+    lock_text: Option<&str>,
+    asset_id: &AssetId,
+    expected_prior: &ContentHash,
+    base_manifest_hash: &ContentHash,
+    base_manifest_revision: &Revision,
+    observed_lock_text: &str,
+) -> bool {
+    derive_manifest_revision(manifest).as_ref() == Ok(base_manifest_revision)
+        && &ContentHash::digest(manifest_text.as_bytes()) == base_manifest_hash
+        && manifest
+            .assets
+            .get(asset_id)
+            .map(|asset| &asset.content_hash)
+            == Some(expected_prior)
+        && lock_text == Some(observed_lock_text)
+        && compare_lockfile(manifest, lock_text).map(|comparison| comparison.status())
+            == Ok(LockStatus::InSync)
 }
 
 fn write_record(hasher: &mut blake3::Hasher, value: &str) {
