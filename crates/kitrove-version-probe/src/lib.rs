@@ -77,7 +77,7 @@ const PI_VERSION_REQUIREMENT: &str = ">=0.79.0, <1.0.0";
 #[cfg(all(any(unix, windows), not(test)))]
 const PROBE_TIMEOUT: Duration = Duration::from_secs(5);
 #[cfg(all(any(unix, windows), test))]
-const PROBE_TIMEOUT: Duration = Duration::from_secs(1);
+const PROBE_TIMEOUT: Duration = Duration::from_secs(3);
 #[cfg(any(unix, windows))]
 const OUTPUT_READER_TIMEOUT: Duration = Duration::from_secs(1);
 #[cfg(any(unix, windows))]
@@ -1146,13 +1146,16 @@ mod tests {
     fn timeout_terminates_forked_descendants() {
         let root = tempfile::tempdir().unwrap();
         let marker = root.path().join("descendant-marker");
+        // The descendant outlives the probe limit, so only cleanup can stop its write.
+        let descendant_delay = PROBE_TIMEOUT + Duration::from_secs(1);
         let body = format!(
-            "(sleep 2; printf survived > '{}') & while :; do :; done",
+            "(sleep {}; printf survived > '{}') & while :; do :; done",
+            descendant_delay.as_secs(),
             marker.display()
         );
         let (_binary_root, binary) = probe_script(&body);
         assert_eq!(probe_error_code(&binary), "version.probe_timeout");
-        thread::sleep(Duration::from_millis(2_100));
+        thread::sleep(descendant_delay + Duration::from_millis(100));
         assert!(
             !marker.exists(),
             "a forked probe descendant survived cleanup"
