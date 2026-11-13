@@ -70,7 +70,6 @@ fn emit(output: std::fmt::Arguments<'_>) {
 }
 
 /// Runs the process-facing CLI entry point.
-#[must_use]
 pub fn main_entry() -> ExitCode {
     ExitCode::from(run(env::args_os().skip(1)))
 }
