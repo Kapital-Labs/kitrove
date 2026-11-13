@@ -15,6 +15,7 @@ use crate::{
     AgentSkillFixture, FilesystemSnapshot, FixtureBuilder, HarnessFixture, ProcessSentinel,
     SentinelEvent,
 };
+use kitrove_model::raw_parent_component;
 
 /// Expected locator outcome for the shared policy boundary.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -926,19 +927,6 @@ fn is_safe_absolute(path: &Path) -> bool {
                 matches!(component, Component::ParentDir | Component::CurDir)
                     || matches!(component, Component::Normal(value) if value == OsStr::new(".") || value == OsStr::new(".."))
             })
-}
-
-#[cfg(windows)]
-fn raw_parent_component(path: &Path) -> bool {
-    path.as_os_str()
-        .to_string_lossy()
-        .split(['/', '\\'])
-        .any(|segment| segment == "..")
-}
-
-#[cfg(not(windows))]
-const fn raw_parent_component(_path: &Path) -> bool {
-    false
 }
 
 fn scope_selected(selection: ScopeSelection, scope: HarnessScope) -> bool {

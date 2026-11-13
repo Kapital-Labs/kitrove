@@ -30,6 +30,7 @@ use kitrove_model::{
 
 use crate::adapters::{instruction_target_policy, mcp_target_policy};
 use crate::args::{CliError, ScanArgs};
+use kitrove_model::raw_parent_component;
 
 const MANIFEST_NAME: &str = "kitrove.toml";
 const STATE_NAME: &str = "state.json";
@@ -59,7 +60,7 @@ pub(crate) fn run_scan(arguments: ScanArgs, registry: &PolicyRegistry) -> Result
     } else {
         crate::scan_display::render(&report)
     };
-    print!("{output}");
+    out!("{output}");
     Ok(status)
 }
 
@@ -1497,19 +1498,6 @@ fn split_absolute_root(root: &Path) -> Result<(PathBuf, Vec<OsString>), ()> {
     (!anchor.as_os_str().is_empty())
         .then_some((anchor, components))
         .ok_or(())
-}
-
-#[cfg(windows)]
-fn raw_parent_component(path: &Path) -> bool {
-    path.as_os_str()
-        .to_string_lossy()
-        .split(['/', '\\'])
-        .any(|segment| segment == "..")
-}
-
-#[cfg(not(windows))]
-const fn raw_parent_component(_path: &Path) -> bool {
-    false
 }
 
 fn safe_metadata(metadata: &Metadata) -> bool {

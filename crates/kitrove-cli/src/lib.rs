@@ -1,6 +1,19 @@
 #![forbid(unsafe_code)]
 //! Concrete composition root for the Kitrove command-line interface.
 
+/// Writes command output. A reader that closed the pipe ends output quietly.
+macro_rules! out {
+    ($($argument:tt)*) => {
+        $crate::emit(format_args!($($argument)*))
+    };
+}
+
+macro_rules! outln {
+    ($($argument:tt)*) => {
+        $crate::emit(format_args!("{}\n", format_args!($($argument)*)))
+    };
+}
+
 mod adapters;
 mod args;
 mod batch_recovery;
@@ -46,6 +59,15 @@ use version_probe::run_version_probe;
 
 const NORTH_STAR: &str = include_str!("../../../NORTH_STAR.md");
 const INVARIANTS: &str = include_str!("../../../docs/architecture/INVARIANTS.md");
+
+fn emit(output: std::fmt::Arguments<'_>) {
+    if let Err(error) = write!(io::stdout().lock(), "{output}") {
+        assert!(
+            error.kind() == io::ErrorKind::BrokenPipe,
+            "failed printing to stdout: {error}"
+        );
+    }
+}
 
 /// Runs the process-facing CLI entry point.
 pub fn main_entry() -> ExitCode {
@@ -102,7 +124,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
             };
             match run_init(arguments, &registry) {
                 Ok(completed) => {
-                    print!("{}", completed.output);
+                    out!("{}", completed.output);
                     return completed.status;
                 }
                 Err(error) => {
@@ -112,39 +134,39 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
             }
         }
         Command::Help => {
-            println!(
+            outln!(
                 "MACHINE-READABLE ERRORS:\n    kitrove --json-errors <command> [arguments]\n    Emits versioned error codes on stderr; use --json for command results.\n    Does not change approval, recovery or interactive behavior.\n"
             );
-            println!(
+            outln!(
                 "AUTHORED PACKS:\n    kitrove pack create --authored --pack <id> --member <id>... --plan --json\n    Repeat --authored and the same selection with --confirm <digest>.\n    Member provenance is preserved; update retains the selected pack mode.\n    Without --authored, create requires one shared distribution source.\n"
             );
-            println!(
+            outln!(
                 "PACK IMPORT APPROVAL:\n    kitrove pack adopt|rollback [selection] --plan --json\n    kitrove pack adopt|rollback [same selection] --confirm <digest> --json\n    These flags conflict with legacy --yes; rollback requires --expected-prior and --to.\n"
             );
-            println!(
+            outln!(
                 "ADOPTION APPROVAL:\n    kitrove adopt [selection] <observation-id> --plan --json\n    kitrove adopt [same selection] <observation-id> --confirm <digest> --json\n    Updates also require --update <asset-id> --expected-prior <content-hash>.\n    Approval never authorizes pending recovery or executable trust.\n"
             );
-            println!(
+            outln!(
                 "REMOVAL APPROVAL:\n    kitrove remove [selection] --plan --json\n    kitrove remove [same selection] --confirm <batch_digest> --json\n    kitrove pack remove [selection including --expected-prior] --plan --json\n    kitrove pack remove [same selection] --confirm <batch_digest> --json\n"
             );
-            println!(
+            outln!(
                 "AGENT APPROVAL:\n    kitrove plan [selection] --json\n    kitrove apply [same selection] --confirm <batch_digest> [--json]\n    Approval uses the complete batch_digest, never an individual plan_digest.\n    kitrove pack create|update [selection] --plan --json\n    kitrove pack create|update [same selection] --confirm <digest> --json\n    Pack update still requires --expected-prior <pack-revision>.\n    Pending recovery requires explicit handling and a fresh plan.\n"
             );
-            println!(
+            outln!(
                 "GUIDED SETUP:\n    kitrove init        Interactive first/second computer setup\n    kitrove configure [--environment <path>]    Revisit setup\n    kitrove scan --verbose    Full diagnostic text (JSON unchanged)\n    kitrove adopt <skill-name> --harness <tool>    Select an exact unique name\n"
             );
-            print!("{HELP}{ADDITIONAL_MCP_HELP}{ADDITIONAL_SYNC_HELP}{ADDITIONAL_PACK_HELP}")
+            out!("{HELP}{ADDITIONAL_MCP_HELP}{ADDITIONAL_SYNC_HELP}{ADDITIONAL_PACK_HELP}")
         }
-        Command::About => println!(
+        Command::About => outln!(
             "Kitrove {} — bidirectional agent capability portability",
             env!("CARGO_PKG_VERSION")
         ),
-        Command::NorthStar => print!("{NORTH_STAR}"),
-        Command::Invariants => print!("{INVARIANTS}"),
-        Command::Version => println!("kitrove {}", env!("CARGO_PKG_VERSION")),
+        Command::NorthStar => out!("{NORTH_STAR}"),
+        Command::Invariants => out!("{INVARIANTS}"),
+        Command::Version => outln!("kitrove {}", env!("CARGO_PKG_VERSION")),
         Command::VersionProbe(arguments) => match run_version_probe(arguments) {
             Ok(completed) => {
-                print!("{}", completed.output);
+                out!("{}", completed.output);
                 return completed.status;
             }
             Err(error) => {
@@ -154,7 +176,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         },
         Command::Status(arguments) => match run_status(arguments) {
             Ok(completed) => {
-                print!("{}", completed.output);
+                out!("{}", completed.output);
                 return completed.status;
             }
             Err(error) => {
@@ -164,7 +186,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         },
         Command::Lock(arguments) => match run_lock(arguments) {
             Ok(completed) => {
-                print!("{}", completed.output);
+                out!("{}", completed.output);
                 return completed.status;
             }
             Err(error) => {
@@ -174,7 +196,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         },
         Command::Plan(arguments) => match run_plan(arguments) {
             Ok(completed) => {
-                print!("{}", completed.output);
+                out!("{}", completed.output);
                 return completed.status;
             }
             Err(error) => {
@@ -185,7 +207,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         Command::ConfirmedApply(arguments, digest) => match run_confirmed_apply(arguments, &digest)
         {
             Ok(completed) => {
-                print!("{}", completed.output);
+                out!("{}", completed.output);
                 return completed.status;
             }
             Err(error) => {
@@ -195,7 +217,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         },
         Command::Apply(arguments) => match run_apply(arguments, confirm_apply) {
             Ok(completed) => {
-                print!("{}", completed.output);
+                out!("{}", completed.output);
                 return completed.status;
             }
             Err(error) => {
@@ -205,7 +227,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         },
         Command::Remove(arguments) => match run_remove(arguments, confirm_removal) {
             Ok(completed) => {
-                print!("{}", completed.output);
+                out!("{}", completed.output);
                 return completed.status;
             }
             Err(error) => {
@@ -215,7 +237,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         },
         Command::SyncPlan(arguments) => match run_sync_plan(arguments) {
             Ok(completed) => {
-                print!("{}", completed.output);
+                out!("{}", completed.output);
                 return completed.status;
             }
             Err(error) => {
@@ -225,7 +247,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         },
         Command::SyncApply(arguments) => match run_sync_apply(arguments) {
             Ok(completed) => {
-                print!("{}", completed.output);
+                out!("{}", completed.output);
                 return completed.status;
             }
             Err(error) => {
@@ -235,7 +257,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         },
         Command::TrustPlan(arguments) => match run_trust_plan(arguments) {
             Ok(completed) => {
-                print!("{}", completed.output);
+                out!("{}", completed.output);
                 return completed.status;
             }
             Err(error) => {
@@ -245,7 +267,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         },
         Command::TrustApply(arguments) => match run_trust_apply(arguments) {
             Ok(completed) => {
-                print!("{}", completed.output);
+                out!("{}", completed.output);
                 return completed.status;
             }
             Err(error) => {
@@ -255,7 +277,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         },
         Command::TrustAudit(arguments) => match run_trust_audit(arguments) {
             Ok(completed) => {
-                print!("{}", completed.output);
+                out!("{}", completed.output);
                 return completed.status;
             }
             Err(error) => {
@@ -265,7 +287,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         },
         Command::PackList(arguments) => match run_pack_list(arguments) {
             Ok(completed) => {
-                print!("{}", completed.output);
+                out!("{}", completed.output);
                 return completed.status;
             }
             Err(error) => {
@@ -275,7 +297,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         },
         Command::PackDiscover(arguments) => match run_pack_discover(arguments) {
             Ok(completed) => {
-                print!("{}", completed.output);
+                out!("{}", completed.output);
                 return completed.status;
             }
             Err(error) => {
@@ -285,7 +307,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         },
         Command::PackAdopt(arguments) => match run_pack_adopt(arguments, confirm_pack_adoption) {
             Ok(completed) => {
-                print!("{}", completed.output);
+                out!("{}", completed.output);
                 return completed.status;
             }
             Err(error) => {
@@ -295,7 +317,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         },
         Command::PackCreate(arguments) => match run_pack_create(arguments, confirm_pack_creation) {
             Ok(completed) => {
-                print!("{}", completed.output);
+                out!("{}", completed.output);
                 return completed.status;
             }
             Err(error) => {
@@ -305,7 +327,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         },
         Command::PackUpdate(arguments) => match run_pack_update(arguments, confirm_pack_update) {
             Ok(completed) => {
-                print!("{}", completed.output);
+                out!("{}", completed.output);
                 return completed.status;
             }
             Err(error) => {
@@ -316,7 +338,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         Command::PackRollback(arguments) => {
             match run_pack_rollback(arguments, confirm_pack_rollback) {
                 Ok(completed) => {
-                    print!("{}", completed.output);
+                    out!("{}", completed.output);
                     return completed.status;
                 }
                 Err(error) => {
@@ -327,7 +349,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         }
         Command::PackRemove(arguments) => match run_pack_remove(arguments, confirm_removal) {
             Ok(completed) => {
-                print!("{}", completed.output);
+                out!("{}", completed.output);
                 return completed.status;
             }
             Err(error) => {
@@ -337,7 +359,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         },
         Command::PackInspect(arguments) => match run_pack_inspect(arguments) {
             Ok(completed) => {
-                print!("{}", completed.output);
+                out!("{}", completed.output);
                 return completed.status;
             }
             Err(error) => {
@@ -360,7 +382,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
             };
             match run_adopt(arguments, &registry, confirm_adoption) {
                 Ok(completed) => {
-                    print!("{}", completed.output);
+                    out!("{}", completed.output);
                     return completed.status;
                 }
                 Err(error) => {

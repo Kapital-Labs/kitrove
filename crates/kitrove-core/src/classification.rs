@@ -27,6 +27,7 @@ use crate::{
     AgentScanEntry, InvalidReceipt, ObservedCandidate, ReceiptIndex, ReceiptInvalidityScope,
     ScanBudget, ScanClassification, ScanEntry, ScanMode,
 };
+use kitrove_model::raw_parent_component;
 
 const MAX_RECEIPT_RAW_BYTES: usize = 1024 * 1024;
 
@@ -1334,19 +1335,6 @@ fn split_absolute_root(path: &Path) -> Result<(PathBuf, Vec<OsString>), ()> {
     (!anchor.as_os_str().is_empty())
         .then_some((anchor, components))
         .ok_or(())
-}
-
-#[cfg(windows)]
-fn raw_parent_component(path: &Path) -> bool {
-    path.as_os_str()
-        .to_string_lossy()
-        .split(['/', '\\'])
-        .any(|segment| segment == "..")
-}
-
-#[cfg(not(windows))]
-const fn raw_parent_component(_path: &Path) -> bool {
-    false
 }
 
 fn safe_metadata(metadata: &Metadata) -> bool {

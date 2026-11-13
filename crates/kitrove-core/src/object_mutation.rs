@@ -38,6 +38,7 @@ use crate::quarantine_name::RemovedObjectKind;
 #[cfg(not(unix))]
 use crate::quarantine_name::RetainedTombstoneName;
 use crate::read_only_fs::{RegularFileMode, has_single_file_link};
+use kitrove_model::raw_parent_component;
 
 const INITIAL_AUTHORITY_LIMIT: usize = 32 * 1024 * 1024;
 #[cfg(test)]
@@ -4835,19 +4836,6 @@ fn split_absolute_root(root: &Path) -> Result<(PathBuf, Vec<OsString>), ObjectMu
         return Err(unsafe_root());
     }
     Ok((anchor, components))
-}
-
-#[cfg(windows)]
-fn raw_parent_component(path: &Path) -> bool {
-    path.as_os_str()
-        .to_string_lossy()
-        .split(['/', '\\'])
-        .any(|segment| segment == "..")
-}
-
-#[cfg(not(windows))]
-const fn raw_parent_component(_path: &Path) -> bool {
-    false
 }
 
 fn split_portable(path: &PortablePath) -> (Vec<&OsStr>, &OsStr) {

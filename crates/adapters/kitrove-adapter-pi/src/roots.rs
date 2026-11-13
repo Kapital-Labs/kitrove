@@ -10,6 +10,7 @@ use kitrove_adapter_api::{
     RootIdAuthority, RootPathAuthority, RootRankAuthority, RootTier, ScanFinding,
 };
 use kitrove_agent_skills::SkillSourceLayout;
+use kitrove_model::raw_parent_component;
 use kitrove_model::{AssetKind, HarnessId, HarnessScope};
 
 pub(crate) const USER_NATIVE_RANK: u32 = 10;
@@ -736,19 +737,6 @@ fn safe_absolute_path(path: &Path) -> bool {
                 matches!(component, Component::ParentDir | Component::CurDir)
                     || matches!(component, Component::Normal(value) if value == OsStr::new(".") || value == OsStr::new(".."))
             })
-}
-
-#[cfg(windows)]
-fn raw_parent_component(path: &Path) -> bool {
-    path.as_os_str()
-        .to_string_lossy()
-        .split(['/', '\\'])
-        .any(|segment| segment == "..")
-}
-
-#[cfg(not(windows))]
-const fn raw_parent_component(_path: &Path) -> bool {
-    false
 }
 
 fn no_follow_path_key(path: &Path) -> PathBuf {

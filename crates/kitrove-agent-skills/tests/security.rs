@@ -400,3 +400,38 @@ fn classifies_a_prose_only_skill_with_references_as_agent_active() {
 
     assert_eq!(snapshot.content_class, ContentClass::AgentActive);
 }
+
+#[cfg(windows)]
+#[test]
+fn directory_walk_refuses_a_raw_parent_segment_in_a_verbatim_root() {
+    use kitrove_agent_skills::{
+        DirectoryWalkControl, DirectoryWalkMeter, walk_directories_nofollow,
+    };
+
+    struct Unmetered;
+    impl DirectoryWalkMeter for Unmetered {
+        fn try_discovery_entry(&mut self) -> bool {
+            true
+        }
+        fn remaining_discovery_entries(&self) -> usize {
+            usize::MAX
+        }
+    }
+
+    let parent = tempfile::tempdir().unwrap();
+    std::fs::create_dir(parent.path().join("other")).unwrap();
+    std::fs::create_dir(parent.path().join("target")).unwrap();
+    // Canonical Windows paths are verbatim, where `/` is not a separator and std
+    // reports `other/../target` as one normal component.
+    let mut aliased = parent.path().canonicalize().unwrap().into_os_string();
+    aliased.push(r"\other/../target");
+
+    let mut visited = 0;
+    let report = walk_directories_nofollow(Path::new(&aliased), 4, &mut Unmetered, &mut |_, _| {
+        visited += 1;
+        DirectoryWalkControl::Continue
+    });
+
+    assert!(report.unreadable);
+    assert_eq!(visited, 0);
+}

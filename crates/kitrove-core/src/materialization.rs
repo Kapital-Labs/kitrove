@@ -15,6 +15,7 @@ use kitrove_model::{
 
 use crate::derive_manifest_revision;
 use crate::read_only_fs::RegularFileMode;
+use kitrove_model::raw_parent_component;
 
 /// Stable redacted planning or rendering failure.
 #[derive(Clone, Eq, PartialEq)]
@@ -412,19 +413,6 @@ fn strip_lossless_verbatim_disk_prefix(path: &str) -> &str {
     } else {
         path
     }
-}
-
-#[cfg(windows)]
-fn raw_parent_component(path: &Path) -> bool {
-    path.as_os_str()
-        .to_string_lossy()
-        .split(['/', '\\'])
-        .any(|segment| segment == "..")
-}
-
-#[cfg(not(windows))]
-const fn raw_parent_component(_path: &Path) -> bool {
-    false
 }
 
 /// Captures the exact layout-aware identity of one destination without mutation.
