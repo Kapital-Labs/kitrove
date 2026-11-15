@@ -1,0 +1,45 @@
+name: Protected Apple credential validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_source:
+        description: Exact reviewed main commit for this one credential-only diagnostic
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apple-notary-validation
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: >-
+      github.event_name == 'workflow_dispatch' && github.repository == 'Kapital-Labs/kitrove' &&
+      github.ref == 'refs/heads/main' && github.sha == inputs.expected_source &&
+      github.sha == vars.KITROVE_NOTARY_VALIDATION_SHA && github.run_attempt == 1 &&
+      vars.KITROVE_SIGNING_REHEARSAL_SHA == '' &&
+      vars.KITROVE_HOSTED_SIGNING_READY == ''
+    environment: release
+    runs-on: macos-15
+    timeout-minutes: 8
+    env:
+      KITROVE_NOTARY_VALIDATION_SHA: ${{ vars.KITROVE_NOTARY_VALIDATION_SHA }}
+      KITROVE_SIGNING_REHEARSAL_SHA: ${{ vars.KITROVE_SIGNING_REHEARSAL_SHA }}
+      KITROVE_HOSTED_SIGNING_READY: ${{ vars.KITROVE_HOSTED_SIGNING_READY }}
+      KITROVE_DIAGNOSTIC_EXPECTED_SOURCE: ${{ inputs.expected_source }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Compile empty Keychain helper before credentials
+        run: xcrun swiftc scripts/hosted_apple_notary_keychain.swift -o "$RUNNER_TEMP/kitrove-notary-keychain"
+      - name: Validate existing notarization credentials
+        env:
+          APPLE_ID: ${{ secrets.KITROVE_APPLE_ID }}
+          TEAM_ID: ${{ secrets.KITROVE_APPLE_TEAM_ID }}
+          NOTARY_PASSWORD: ${{ secrets.KITROVE_GITHUB_NOTARIZATION }}
+        run: python3 scripts/hosted_apple_notary_validation.py

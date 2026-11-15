@@ -24,6 +24,7 @@ def require(condition, message):
 
 
 OPERATIONS = frozenset(('identity import', 'Keychain cleanup',
+    'notarization Keychain creation',
     'Keychain search-list snapshot', 'Keychain search-list restoration',
     'application archive preparation', 'installer archive preparation', 'installer container preparation'))
 
@@ -143,19 +144,74 @@ def native(args, payload=None, timeout=30, *, operation, env=None):
     return result
 
 
+AUTHENTICATION_HTTP_STATUSES = frozenset((401, 403, 408, 429, 500, 502, 503, 504))
+
+
+def authentication_response_category(output):
+    """Retain only an observed allowlisted HTTP status, never provider text."""
+    if not isinstance(output, bytes) or len(output) > 256 * 1024:
+        return 'response-unclassified'
+    statuses = set(re.findall(rb'\bHTTP status code: ([0-9]{3})(?![0-9])', output))
+    if len(statuses) == 1:
+        status = int(next(iter(statuses)))
+        if status in AUTHENTICATION_HTTP_STATUSES:
+            return f'response-http-{status}'
+    return 'response-unclassified'
+
+
+class AuthenticationFailure(RuntimeError):
+    """Closed evidence only; no credential, provider response or command arguments."""
+
+    CATEGORIES = frozenset(('terminal-create', 'terminal-poll', 'terminal-read',
+        'child-wait', 'echo-check', 'credential-write', 'incomplete-input',
+        'response-limit', 'native-failure', 'credential-not-sent', 'timeout'))
+
+    def __init__(self, category, sent=False, *, returncode=None, response='response-unclassified'):
+        safe = category if isinstance(category, str) and category in self.CATEGORIES else 'unclassified'
+        fields = [safe]
+        if type(returncode) is int and 0 <= returncode <= 255:
+            fields.append(f'native-exit={returncode}')
+        elif type(returncode) is int and -127 <= returncode < 0:
+            fields.append('native-termination')
+        fields.append('credential-sent=' + ('true' if sent is True else 'false'))
+        allowed = {f'response-http-{status}' for status in AUTHENTICATION_HTTP_STATUSES}
+        fields.append(response if isinstance(response, str) and response in allowed
+                      else 'response-unclassified')
+        super().__init__(' '.join('[' + field + ']' for field in fields))
+
+
 def authenticate(args, password):
     """Supply one password only after the native terminal disables echo."""
     require(password and '\n' not in password and '\r' not in password, 'Invalid credential')
     import pty
     import termios
     check_pending_cancellation()
-    with cancellation_scope() as cancellation:
-        check_pending_cancellation()
-        _authenticate(args, password, pty, termios, cancellation)
+    print('Starting: notarization credential validation', flush=True)
+    try:
+        with cancellation_scope() as cancellation:
+            check_pending_cancellation()
+            _authenticate(args, password, pty, termios, cancellation)
+    except AuthenticationFailure as error:
+        print('Failed: notarization credential validation ' + str(error), flush=True)
+        raise
+    except ProcessCleanupError as error:
+        print('Failed: notarization credential validation [process-cleanup-unconfirmed] '
+              '[' + error.category + ']', flush=True)
+        raise
+    except ProcessCancelled:
+        print('Failed: notarization credential validation [cancelled]', flush=True)
+        raise
+    except Exception:
+        print('Failed: notarization credential validation [unclassified]', flush=True)
+        raise RuntimeError('Apple notarization credential validation failed') from None
+    print('Passed: notarization credential validation', flush=True)
 
 
 def _authenticate(args, password, pty, termios, cancellation):
-    pid, terminal = pty.fork()
+    try:
+        pid, terminal = pty.fork()
+    except OSError:
+        raise AuthenticationFailure('terminal-create') from None
     if pid == 0:
         try:
             # forkpty establishes a new session before executing the trusted tool.
@@ -168,10 +224,13 @@ def _authenticate(args, password, pty, termios, cancellation):
     sent = False
     reaped = False
     deadline = time.monotonic() + 90
+    phase = 'terminal-poll'
     try:
         while time.monotonic() < deadline:
             raise_if_cancelled(cancellation)
+            phase = 'terminal-poll'
             if select.select([terminal], [], [], 0.1)[0]:
+                phase = 'terminal-read'
                 try:
                     data = os.read(terminal, 4096)
                 except OSError as error:
@@ -179,19 +238,30 @@ def _authenticate(args, password, pty, termios, cancellation):
                         raise
                     data = b''
                 output.extend(data)
-                require(len(output) <= 262144, 'Provider response exceeded limit')
+                if len(output) > 262144:
+                    raise AuthenticationFailure('response-limit', sent)
+            phase = 'child-wait'
             finished, status = os.waitpid(pid, os.WNOHANG)
             if finished:
                 reaped = True
-                require(sent and os.waitstatus_to_exitcode(status) == 0, 'Authentication failed')
+                returncode = os.waitstatus_to_exitcode(status)
+                if not sent or returncode != 0:
+                    raise AuthenticationFailure('native-failure' if returncode != 0
+                        else 'credential-not-sent', sent, returncode=returncode,
+                        response=authentication_response_category(bytes(output)))
                 break
             if not sent and b'password' in output.lower():
+                phase = 'echo-check'
                 if not termios.tcgetattr(terminal)[3] & termios.ECHO:
                     payload = (password + '\n').encode()
-                    require(os.write(terminal, payload) == len(payload), 'Incomplete credential input')
+                    phase = 'credential-write'
+                    if os.write(terminal, payload) != len(payload):
+                        raise AuthenticationFailure('incomplete-input', sent)
                     sent = True
         else:
-            raise RuntimeError('Authentication timed out')
+            raise AuthenticationFailure('timeout', sent)
+    except (OSError, termios.error):
+        raise AuthenticationFailure(phase, sent) from None
     finally:
         def reap():
             nonlocal reaped
