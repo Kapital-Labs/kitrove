@@ -342,6 +342,135 @@ class HostedAppleSigningTests(unittest.TestCase):
                     with self.assertRaises(RuntimeError):
                         signing.authenticate(['notarytool', 'store-credentials', 'fixture'], 'terminal-canary')
 
+    @unittest.skipUnless(os.name == 'posix', 'native terminal protocol requires POSIX')
+    def test_authentication_failure_reports_native_status_without_provider_data(self):
+        import termios
+
+        def child(_path, _args):
+            attributes = termios.tcgetattr(0)
+            attributes[3] &= ~termios.ECHO
+            termios.tcsetattr(0, termios.TCSANOW, attributes)
+            os.write(1, b'App-specific password: ')
+            supplied = os.read(0, 256)
+            if supplied != b'terminal-canary\n':
+                os._exit(2)
+            os.write(2, b'Error: HTTP status code: 401. SECRET_ACCOUNT /SECRET_PATH\n')
+            os._exit(1)
+
+        output = io.StringIO()
+        with patch.object(signing.os, 'execv', side_effect=child), \
+             contextlib.redirect_stdout(output), self.assertRaises(RuntimeError) as failure:
+            signing.authenticate(['notarytool', 'store-credentials', 'fixture'], 'terminal-canary')
+        self.assertEqual(output.getvalue(),
+            'Starting: notarization credential validation\n'
+            'Failed: notarization credential validation [native-failure] '
+            '[native-exit=1] [credential-sent=true] [response-http-401]\n')
+        self.assertNotIn('SECRET', str(failure.exception))
+        self.assertNotIn('terminal-canary', str(failure.exception))
+
+    @unittest.skipUnless(os.name == 'posix', 'native terminal protocol requires POSIX')
+    def test_authentication_exit_before_prompt_stays_distinct_and_never_sends_password(self):
+        def child(_path, _args):
+            os.write(2, b'SECRET_ACCOUNT /SECRET_PATH\n')
+            os._exit(0)
+
+        output = io.StringIO()
+        with patch.object(signing.os, 'execv', side_effect=child), \
+             contextlib.redirect_stdout(output), self.assertRaises(RuntimeError):
+            signing.authenticate(['notarytool', 'store-credentials', 'fixture'], 'terminal-canary')
+        self.assertEqual(output.getvalue(),
+            'Starting: notarization credential validation\n'
+            'Failed: notarization credential validation [credential-not-sent] '
+            '[native-exit=0] [credential-sent=false] [response-unclassified]\n')
+
+    def test_authentication_response_categories_are_closed_and_conflicts_are_unknown(self):
+        self.assertTrue(hasattr(signing, 'authentication_response_category'))
+        for status in (401, 403, 408, 429, 500, 502, 503, 504):
+            self.assertEqual(signing.authentication_response_category(
+                f'Error: HTTP status code: {status}. SECRET'.encode()), f'response-http-{status}')
+        for response in (b'SECRET', b'HTTP status code: 4010', b'HTTP status code: SECRET',
+                         b'HTTP status code: 401\nHTTP status code: 503',
+                         b'X' * (256 * 1024) + b'HTTP status code: 401'):
+            self.assertEqual(signing.authentication_response_category(response), 'response-unclassified')
+
+    def test_authentication_failure_cannot_echo_arbitrary_fields(self):
+        for value in ('SECRET', None, [], 1000, True):
+            detail = str(signing.AuthenticationFailure(value, value,
+                returncode=value, response=value))
+            self.assertEqual(detail,
+                '[unclassified] [credential-sent=' + ('true' if value is True else 'false')
+                + '] [response-unclassified]')
+
+    @unittest.skipUnless(os.name == 'posix', 'native terminal protocol requires POSIX')
+    def test_authentication_never_writes_while_terminal_echo_is_enabled(self):
+        def child(_path, _args):
+            import select
+            import termios
+            attributes = termios.tcgetattr(0)
+            attributes[3] |= termios.ECHO
+            termios.tcsetattr(0, termios.TCSANOW, attributes)
+            os.write(1, b'App-specific password: ')
+            os._exit(77 if select.select([0], [], [], 0.1)[0] else 0)
+
+        output = io.StringIO()
+        with patch.object(signing.os, 'execv', side_effect=child), \
+             contextlib.redirect_stdout(output), self.assertRaises(RuntimeError):
+            signing.authenticate(['notarytool', 'store-credentials', 'fixture'], 'terminal-canary')
+        self.assertIn('[credential-not-sent] [native-exit=0] [credential-sent=false]', output.getvalue())
+        self.assertNotIn('terminal-canary', output.getvalue())
+
+    @unittest.skipUnless(os.name == 'posix', 'native terminal protocol requires POSIX')
+    def test_authentication_cleanup_uncertainty_overrides_primary_failure(self):
+        output = io.StringIO()
+        with patch.object(signing.os, 'execv', side_effect=lambda _path, _args: os._exit(1)), \
+             patch.object(signing, 'stop_process_group', side_effect=signing.ProcessCleanupError(
+                 'SECRET', category='probe-denied')), contextlib.redirect_stdout(output), \
+             self.assertRaises(signing.ProcessCleanupError):
+            signing.authenticate(['notarytool', 'store-credentials', 'fixture'], 'terminal-canary')
+        self.assertEqual(output.getvalue(),
+            'Starting: notarization credential validation\n'
+            'Failed: notarization credential validation [process-cleanup-unconfirmed] [probe-denied]\n')
+
+    @unittest.skipUnless(os.name == 'posix', 'native terminal protocol requires POSIX')
+    def test_authentication_terminal_create_failure_is_closed(self):
+        output = io.StringIO()
+        with patch('pty.fork', side_effect=OSError('SECRET_PATH')), \
+             contextlib.redirect_stdout(output), self.assertRaises(RuntimeError):
+            signing.authenticate(['notarytool', 'store-credentials', 'fixture'], 'terminal-canary')
+        self.assertEqual(output.getvalue(),
+            'Starting: notarization credential validation\n'
+            'Failed: notarization credential validation [terminal-create] '
+            '[credential-sent=false] [response-unclassified]\n')
+
+    @unittest.skipUnless(os.name == 'posix', 'native terminal protocol requires POSIX')
+    def test_authentication_capture_limit_still_stops_the_owned_child(self):
+        def child(_path, _args):
+            for _ in range(96):
+                os.write(1, b'SECRET_PROVIDER ' * 512)
+            os._exit(1)
+
+        output = io.StringIO()
+        with patch.object(signing.os, 'execv', side_effect=child), \
+             contextlib.redirect_stdout(output), self.assertRaises(RuntimeError):
+            signing.authenticate(['notarytool', 'store-credentials', 'fixture'], 'terminal-canary')
+        self.assertEqual(output.getvalue(),
+            'Starting: notarization credential validation\n'
+            'Failed: notarization credential validation [response-limit] '
+            '[credential-sent=false] [response-unclassified]\n')
+
+    @unittest.skipUnless(os.name == 'posix', 'native terminal protocol requires POSIX')
+    def test_authentication_timeout_does_not_print_or_send_credentials(self):
+        output = io.StringIO()
+        with patch.object(signing.os, 'execv', side_effect=lambda _path, _args: os._exit(0)), \
+             patch.object(signing, 'time', types.SimpleNamespace(monotonic=unittest.mock.Mock(
+                side_effect=[0, 91]))), contextlib.redirect_stdout(output), \
+             self.assertRaises(RuntimeError):
+            signing.authenticate(['notarytool', 'store-credentials', 'fixture'], 'terminal-canary')
+        self.assertEqual(output.getvalue(),
+            'Starting: notarization credential validation\n'
+            'Failed: notarization credential validation [timeout] '
+            '[credential-sent=false] [response-unclassified]\n')
+
     def test_workflow_orders_compile_credentials_cleanup_and_attestation(self):
         workflow = (Path(__file__).resolve().parent.parent / '.github/workflows/release.yml').read_text()
         compile_step = workflow.index('Compile Apple signing helpers before exposing credentials')
