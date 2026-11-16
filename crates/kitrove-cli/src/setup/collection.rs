@@ -1,7 +1,9 @@
 //! Setup-only selection and presentation; existing exact adoption commits own writes.
 use super::collection_selection::{self, Skipped};
 use super::*;
-use kitrove_core::{AdoptionPlan, AdoptionPlanOutcome, ScanEntry, ScanReport, plan_adoption};
+use kitrove_core::{
+    AdoptionBlockReason, AdoptionPlan, AdoptionPlanOutcome, ScanEntry, ScanReport, plan_adoption,
+};
 use kitrove_model::EnvironmentManifest;
 
 const SELECTION_PROMPT: &str = concat!(
@@ -74,7 +76,18 @@ pub(super) fn collect<R: PromptInput, W: Write>(
     root: &std::path::Path,
     registry: &PolicyRegistry,
 ) -> Result<(), CliError> {
-    let report = scan_report(scan_args(root), registry)?;
+    let selection = scan_args(root);
+    let report = scan_report(selection.clone(), registry)?;
+    collect_report(dialog, root, registry, &report, &selection)
+}
+
+pub(super) fn collect_report<R: PromptInput, W: Write>(
+    dialog: &mut Dialog<R, W>,
+    root: &std::path::Path,
+    registry: &PolicyRegistry,
+    report: &ScanReport,
+    selection: &ScanArgs,
+) -> Result<(), CliError> {
     let candidates: Vec<_> = report
         .entries
         .iter()
@@ -101,7 +114,7 @@ pub(super) fn collect<R: PromptInput, W: Write>(
             loop {
                 let response = dialog.ask(SELECTION_PROMPT)?;
                 if response == "v" {
-                    dialog.say(&crate::scan_display::render(&report))?;
+                    dialog.say(&crate::scan_display::render(report))?;
                     for (index, entry) in candidates.iter().enumerate() {
                         dialog.say(&format!("  {}. {}", index + 1, label(entry)))?;
                     }
@@ -122,7 +135,7 @@ pub(super) fn collect<R: PromptInput, W: Write>(
             dialog.say("Collection skipped.")?;
             return Ok(());
         }
-        let (items, skipped) = preview(dialog, root, &report, &candidates, &selected)?;
+        let (items, skipped) = preview(dialog, root, report, &candidates, &selected)?;
         let sources = if items.is_empty() && skipped.has_ambiguity() {
             collection_selection::source_choices(&candidates, &selected)
         } else {
@@ -132,7 +145,7 @@ pub(super) fn collect<R: PromptInput, W: Write>(
         if items.is_empty() {
             dialog.say("No skills ready to collect. Nothing has changed.")?;
             if sources.is_empty() {
-                dialog.hint("Review individually to choose or rename a copy, or choose different skills. A name already in the collection does not prove its content matches.")?;
+                dialog.hint("Choose r to review or rename selected skills, or s to choose different skills.")?;
             } else {
                 dialog.say("The same skill names were found in more than one tool.")?;
                 dialog.hint("Choosing a tool only previews; nothing is collected yet.")?;
@@ -161,7 +174,9 @@ pub(super) fn collect<R: PromptInput, W: Write>(
             match response.as_str() {
                 "" | "y" | "yes" if !items.is_empty() => {
                     for (completed, item) in items.iter().enumerate() {
-                        if let Err(error) = commit(root, candidates[item.index], item, registry) {
+                        if let Err(error) =
+                            commit(root, candidates[item.index], item, registry, selection)
+                        {
                             dialog.warning(&format!("Stopped after {completed} completed adoptions; later items did not run. Use status before continuing."))?;
                             return Err(error);
                         }
@@ -173,7 +188,15 @@ pub(super) fn collect<R: PromptInput, W: Write>(
                     ));
                 }
                 "r" => {
-                    return individually(dialog, root, &report, &candidates, &selected, registry);
+                    return individually(
+                        dialog,
+                        root,
+                        report,
+                        &candidates,
+                        &selected,
+                        registry,
+                        selection,
+                    );
                 }
                 "s" => continue 'selection,
                 "" if items.is_empty() => continue 'selection,
@@ -264,7 +287,7 @@ fn preview<R: PromptInput, W: Write>(
     let mut items = Vec::new();
     let mut skipped = Skipped::default();
     dialog.heading("Adoption preview (no writes)")?;
-    dialog.hint("Names and four-tool fidelity follow. Each item is a separate transaction; on failure completed items remain and later items stop.")?;
+    dialog.hint("Review the skills below before adding them. If one addition fails, earlier completed additions remain and later items stop.")?;
     for (index, entry) in candidates.iter().enumerate() {
         if !selected.contains(&index) {
             skipped.push(
@@ -307,24 +330,14 @@ fn preview<R: PromptInput, W: Write>(
                 });
                 manifest = plan.proposed_manifest().clone();
             }
-            AdoptionPlanOutcome::Blocked(blocked) => skipped.push(
-                "blocked plan; no trust granted",
-                format!(
-                    "Omitted: {}. {}: {:?}. No trust is granted.",
-                    index + 1,
-                    label(entry),
-                    blocked.reason()
-                ),
-            ),
+            AdoptionPlanOutcome::Blocked(blocked) => skipped.blocked(format!(
+                "{}: {}",
+                label(entry),
+                block_reason(blocked.reason())
+            )),
         }
     }
-    skipped.summary(dialog)?;
-    dialog.detail(&format!(
-        "{} ready; {} selected but omitted; {} excluded by selection.",
-        items.len(),
-        selected.len() - items.len(),
-        candidates.len() - selected.len()
-    ))?;
+    skipped.summary(dialog, selected.len(), items.len())?;
     Ok((items, skipped))
 }
 
@@ -333,6 +346,7 @@ fn commit(
     entry: &ScanEntry,
     item: &PreviewedItem,
     registry: &PolicyRegistry,
+    selection: &ScanArgs,
 ) -> Result<(), CliError> {
     let done = run_adopt(
         AdoptArgs {
@@ -347,10 +361,10 @@ fn commit(
             update_asset_id: None,
             expected_prior: None,
             binding: None,
-            harnesses: BTreeSet::from([entry.harness.clone()]),
-            scope: ScopeSelection::User,
-            project_root: None,
-            roots: Vec::new(),
+            harnesses: selection.harnesses.clone(),
+            scope: selection.scope,
+            project_root: selection.project_root.clone(),
+            roots: selection.roots.clone(),
             environment: Some(root.to_owned()),
             json: true,
         },
@@ -373,6 +387,7 @@ fn individually<R: PromptInput, W: Write>(
     candidates: &[&ScanEntry],
     selected: &[usize],
     registry: &PolicyRegistry,
+    selection: &ScanArgs,
 ) -> Result<(), CliError> {
     for &index in selected {
         let entry = candidates[index];
@@ -397,8 +412,8 @@ fn individually<R: PromptInput, W: Write>(
                 AdoptionPlanOutcome::Ready(plan) => plan,
                 AdoptionPlanOutcome::Blocked(blocked) => {
                     dialog.warning(&format!(
-                        "Skipped this skill: {:?}. No trust is granted.",
-                        blocked.reason()
+                        "Skipped this skill: {}.",
+                        block_reason(blocked.reason())
                     ))?;
                     break;
                 }
@@ -417,6 +432,7 @@ fn individually<R: PromptInput, W: Write>(
                             digest: plan.digest().clone(),
                         },
                         registry,
+                        selection,
                     )?;
                     dialog.success(&format!("Adopted {}.", plan.asset().id.as_str()))?;
                     break;
@@ -431,4 +447,19 @@ fn individually<R: PromptInput, W: Write>(
         }
     }
     Ok(())
+}
+
+fn block_reason(reason: AdoptionBlockReason) -> &'static str {
+    match reason {
+        AdoptionBlockReason::PortableProjectionUnavailable => {
+            "cannot be converted to a portable skill"
+        }
+        AdoptionBlockReason::ExecutableTrustRequired => {
+            "contains executable files; trust must be reviewed separately"
+        }
+        AdoptionBlockReason::CredentialShapedNativeIdentity => {
+            "the source identity looks like a credential; review it locally"
+        }
+        AdoptionBlockReason::AssetConflict => "conflicts with an existing collection item",
+    }
 }

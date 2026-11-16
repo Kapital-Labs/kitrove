@@ -94,7 +94,7 @@ pub(crate) struct AdoptArgs {
     pub json: bool,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct ScanArgs {
     pub harnesses: BTreeSet<HarnessId>,
     pub scope: ScopeSelection,

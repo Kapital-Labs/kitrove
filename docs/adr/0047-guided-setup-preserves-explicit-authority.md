@@ -44,6 +44,30 @@ tool is absent.
 
 ## Boundaries and validation
 
+### Scan-to-collection handoff amendment (2026-11-16)
+
+ADR-0072 permits an explicit **Add to collection** action in interactive scan. The
+observation engine remains read-only. Browsing, cancellation before the handoff,
+JSON, verbose and non-terminal scan never initialize or adopt. Choosing the action
+leaves browsing for the existing guided collection operations: select a collection,
+validate existing state or separately confirm initialization, select skills, review
+the exact plans, then separately approve addition. No Apply, trust, execution or
+sync follows. Completion after this handoff must not claim no files changed.
+
+The handoff retains the captured observations and the original harness, scope,
+project boundary and explicit roots. Fresh commit uses that capture selection and
+the existing per-item digest confirmation. Changed source or destination authority
+still refuses the commit. Choosing another collection does not widen the scan or
+silently select another source. Existing collection names do not prove content
+equality or authorize replacement.
+
+Scan calls readable candidates **Ready to preview**, not **Available to add**.
+Only the collection planner determines readiness to add. Its summary distinguishes
+ready items, occupied names and blockers, with bounded named blocker explanations.
+Unselected copies remain inspectable on demand rather than dominating the summary.
+There is no schema, capture policy, provenance, trust, receipt, sync or compatibility
+change. This source change is unreleased until a separately authorized release.
+
 ### Git storage choice amendment (2026-11-06)
 
 Storage selection offers a shared folder or one Git repository choice. State

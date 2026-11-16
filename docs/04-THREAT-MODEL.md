@@ -107,6 +107,13 @@ content or prior adoption. See the November9 ADR-0047 amendment.
 
 ### Path traversal and symlink escape
 
+Interactive scan may hand off to guided collection only on the displayed Add to
+collection key. Keep the original capture selection and exact observed identities;
+never substitute an all-harness or user-only rescan. Collection initialization and
+adoption retain separate confirmations and fresh lifecycle/digest checks. Browsing,
+JSON, verbose and non-terminal scan remain non-mutating. A post-handoff exit must
+not claim no files changed; already completed steps remain on later failure or quit.
+
 Normalize paths, reject absolute and parent-traversal entries, inspect symlinks, stage in isolated directories, and test cross-platform edge cases.
 
 ### Aggregate scan exhaustion

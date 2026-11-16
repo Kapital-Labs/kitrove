@@ -38,14 +38,16 @@ const STATE_NAME: &str = "state.json";
 pub(crate) fn run_scan(arguments: ScanArgs, registry: &PolicyRegistry) -> Result<u8, CliError> {
     let json = arguments.json;
     let verbose = arguments.verbose;
+    let interactive = !json && !verbose && io::stdin().is_terminal() && io::stdout().is_terminal();
+    let selection = interactive.then(|| arguments.clone());
     let report = scan_report(arguments, registry)?;
     let status = if report_needs_attention(&report) {
         3
     } else {
         0
     };
-    if !json && !verbose && io::stdin().is_terminal() && io::stdout().is_terminal() {
-        crate::setup::browse_scan(&report)?;
+    if let Some(selection) = selection {
+        crate::setup::browse_scan(&report, &selection, registry)?;
         return Ok(status);
     }
     let output = if json {

@@ -4,6 +4,15 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+### Changed
+
+- Interactive scan offers a direct, explicitly confirmed path to collect the
+  scanned skills without restarting in configure. The original scan filters and
+  normal preview/confirmation checks are preserved.
+- Scan labels candidates as ready to preview. Collection previews distinguish
+  occupied names and blocked skills, explain blockers and keep unselected-copy
+  details out of the default summary.
+
 ## 0.1.0-rc.5.14
 
 Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.

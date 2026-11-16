@@ -69,7 +69,7 @@ pub(crate) fn render(report: &ScanReport) -> String {
     }
     writeln!(
         out,
-        "\n{} skills observed; {} available to add. Destination compatibility is checked by plan.",
+        "\n{} skills observed; {} ready to preview. Existing collection names and adoption blockers are checked in the preview.",
         report.entries.len(),
         report.entries.iter().filter(|e| selectable(e)).count()
     )
@@ -102,7 +102,7 @@ fn entry_status(entry: &ScanEntry) -> &'static str {
         "shadowed"
     } else {
         match entry.classification {
-            ScanClassification::Unmanaged if selectable(entry) => "available to add",
+            ScanClassification::Unmanaged if selectable(entry) => "ready to preview",
             ScanClassification::Unmanaged => "needs portability review",
             ScanClassification::ManagedUnchanged => "managed, unchanged",
             ScanClassification::ManagedModified => "managed, locally changed",
