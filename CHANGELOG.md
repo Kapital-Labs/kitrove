@@ -4,6 +4,17 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.5.14
+
+Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.
+Includes the pipe, Windows path and dependency fixes prepared for RC5.13.
+
+### Changed
+
+- Hosted Apple notarization authentication reports bounded failure categories
+  without exposing credentials or raw provider output. Signing, cleanup and
+  publication keep the existing native verification and reviewer gates.
+
 ## 0.1.0-rc.5.13
 
 Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.
