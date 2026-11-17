@@ -75,7 +75,7 @@ pub(super) fn collect<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
     root: &std::path::Path,
     registry: &PolicyRegistry,
-) -> Result<(), CliError> {
+) -> Result<Vec<AssetId>, CliError> {
     let selection = scan_args(root);
     let report = scan_report(selection.clone(), registry)?;
     collect_report(dialog, root, registry, &report, &selection)
@@ -87,23 +87,22 @@ pub(super) fn collect_report<R: PromptInput, W: Write>(
     registry: &PolicyRegistry,
     report: &ScanReport,
     selection: &ScanArgs,
-) -> Result<(), CliError> {
+) -> Result<Vec<AssetId>, CliError> {
     let candidates: Vec<_> = report
         .entries
         .iter()
         .filter(|entry| selectable(entry))
         .collect();
     dialog.say(&format!("Collection scan (read-only): {} skills observed; {} selectable; {} not selectable.\nOriginal files remain unchanged. No skills are applied, executed or synchronized.", report.entries.len(), candidates.len(), report.entries.len() - candidates.len()))?;
-    for (index, entry) in candidates.iter().enumerate().take(20) {
-        dialog.say(&format!("  {}. {}", index + 1, label(entry)))?;
-    }
+    super::collection_status::grouped(dialog, &candidates)?;
     if candidates.is_empty() {
         dialog.say("No skills available to collect. Use scan --verbose for findings.")?;
-        return Ok(());
+        return Ok(Vec::new());
     }
     if candidates.len() > 20 {
-        dialog
-            .say("Showing the first 20; v shows the full inventory and numbered selection list.")?;
+        dialog.say(
+            "Showing the first 20 skill names; v shows every source copy and original number.",
+        )?;
     }
     collection_selection::show_sources(dialog, &candidates)?;
     let mut next_selection = None;
@@ -133,7 +132,7 @@ pub(super) fn collect_report<R: PromptInput, W: Write>(
         };
         if selected.is_empty() {
             dialog.say("Collection skipped.")?;
-            return Ok(());
+            return Ok(Vec::new());
         }
         let (items, skipped) = preview(dialog, root, report, &candidates, &selected)?;
         let sources = if items.is_empty() && skipped.has_ambiguity() {
@@ -182,10 +181,11 @@ pub(super) fn collect_report<R: PromptInput, W: Write>(
                         }
                         dialog.success(&format!("Adopted {}.", item.id.as_str()))?;
                     }
-                    return dialog.success(&format!(
+                    dialog.success(&format!(
                         "Adopted {} skills. Apply and sync remain separate choices.",
                         items.len()
-                    ));
+                    ))?;
+                    return Ok(items.into_iter().map(|item| item.id).collect());
                 }
                 "r" => {
                     return individually(
@@ -201,7 +201,10 @@ pub(super) fn collect_report<R: PromptInput, W: Write>(
                 "s" => continue 'selection,
                 "" if items.is_empty() => continue 'selection,
                 "d" => skipped.all(dialog)?,
-                "n" | "no" => return dialog.say("Collection skipped."),
+                "n" | "no" => {
+                    dialog.say("Collection skipped.")?;
+                    return Ok(Vec::new());
+                }
                 _ => dialog.say("Choose one of the displayed options. Nothing has changed.")?,
             }
         }
@@ -299,7 +302,9 @@ fn preview<R: PromptInput, W: Write>(
         let id = AssetId::parse(name(entry).to_owned());
         let reason = match &id {
             Err(_) => Some("name needs an explicit rename; review individually"),
-            Ok(id) if occupied(&manifest, id) => Some(collection_selection::OCCUPIED),
+            Ok(id) if occupied(&manifest, id) => Some(super::collection_status::existing(
+                root, &manifest, id, entry,
+            )),
             Ok(_) => None,
         };
         let reason = reason.or_else(|| {
@@ -337,7 +342,12 @@ fn preview<R: PromptInput, W: Write>(
             )),
         }
     }
-    skipped.summary(dialog, selected.len(), items.len())?;
+    let selected_names = selected
+        .iter()
+        .map(|index| name(candidates[*index]))
+        .collect::<BTreeSet<_>>()
+        .len();
+    skipped.summary(dialog, selected.len(), selected_names, items.len())?;
     Ok((items, skipped))
 }
 
@@ -388,7 +398,8 @@ fn individually<R: PromptInput, W: Write>(
     selected: &[usize],
     registry: &PolicyRegistry,
     selection: &ScanArgs,
-) -> Result<(), CliError> {
+) -> Result<Vec<AssetId>, CliError> {
+    let mut adopted = Vec::new();
     for &index in selected {
         let entry = candidates[index];
         let mut proposed_name = name(entry).to_owned();
@@ -435,6 +446,7 @@ fn individually<R: PromptInput, W: Write>(
                         selection,
                     )?;
                     dialog.success(&format!("Adopted {}.", plan.asset().id.as_str()))?;
+                    adopted.push(plan.asset().id.clone());
                     break;
                 }
                 "n" | "no" | "-" => {
@@ -446,7 +458,7 @@ fn individually<R: PromptInput, W: Write>(
             }
         }
     }
-    Ok(())
+    Ok(adopted)
 }
 
 fn block_reason(reason: AdoptionBlockReason) -> &'static str {

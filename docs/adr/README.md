@@ -100,4 +100,6 @@ ADRs document foundational decisions and their consequences. Accepted ADRs are a
 
 | [0072](0072-scan-handoff-to-explicit-collection.md) | Interactive inventory can enter explicit collection | Accepted for implementation; validation pending | NS-01, NS-02, NS-03, NS-04, NS-05, NS-06, NS-07, NS-09, NS-10 |
 
+| [0073](0073-tool-first-local-materialization.md) | Tool-first local materialization and explicit collection status | Accepted for implementation; validation pending | NS-01, NS-02, NS-03, NS-04, NS-05, NS-06, NS-07, NS-09, NS-10 |
+
 Use [`0000-template.md`](0000-template.md) for new records.

@@ -559,9 +559,12 @@ fn empty_preview_explains_existing_names_and_each_blocker_without_exclusion_nois
     std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
     skill(&a, "outside-selection", "Unselected source.");
     let output = script(&a, "\n1\nfrom pi\nn\n5\n", true, "");
-    assert!(output.contains("2 selected · 0 ready to add"), "{output}");
     assert!(
-        output.contains("1 name already in your collection"),
+        output.contains("2 skill names · 2 source copies selected · 0 ready to collect"),
+        "{output}"
+    );
+    assert!(
+        output.contains("1: already collected (exact native content matches)"),
         "{output}"
     );
     assert!(

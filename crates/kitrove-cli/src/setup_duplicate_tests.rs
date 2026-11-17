@@ -125,7 +125,7 @@ fn omission_output_is_bounded_but_details_retain_all_original_entries() {
         }
         let output = start(&a, if details { "\nd\nn\n5\n" } else { "\nn\n5\n" });
         assert!(manifest(&a).assets.is_empty());
-        assert!(output.contains("60 selected · 0 ready to add"));
+        assert!(output.contains("30 skill names · 60 source copies selected · 0 ready to collect"));
         if details {
             assert!(output.contains("Omitted: 60. shared-29"));
         } else {
@@ -149,7 +149,7 @@ fn occupied_names_remain_unchanged_and_never_count_as_successful_adoptions() {
         std::fs::read(a.join("collection/kitrove.toml")).unwrap(),
         before
     );
-    assert!(output.contains("already in your collection (skipped)"));
+    assert!(output.contains("already collected (exact native content matches)"));
     assert!(!output.contains("Choose a tool's copies to preview"));
     assert!(!output.contains("copies share a name across the selected sources"));
     assert!(!output.contains("Adopt the previewed set"));
