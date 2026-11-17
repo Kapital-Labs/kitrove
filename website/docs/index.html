@@ -37,7 +37,7 @@
         ><a href="#help">More documentation</a>
       </nav>
       <main id="main" class="docs-content">
-        <p class="eyebrow">Getting started · RC5.14</p>
+        <p class="eyebrow">Getting started · RC5.15</p>
         <h1>Your first collection.</h1>
         <p>
           Kitrove collects skills from your agent tools and helps you apply
@@ -46,8 +46,8 @@
         </p>
         <h2 id="install">Install the preview</h2>
         <p>
-          RC5.14 is a fresh-install evaluation preview for Apple Silicon macOS,
-          x86-64 Linux and x86-64 Windows. Intel Macs are unsupported in RC5.14.
+          RC5.15 is a fresh-install evaluation preview for Apple Silicon macOS,
+          x86-64 Linux and x86-64 Windows. Intel Macs are unsupported in RC5.15.
           Use a new isolated collection and empty destination with synthetic or
           disposable capabilities.
         </p>
@@ -58,7 +58,7 @@
         <pre><code>brew install --cask kapital-labs/tap/kitrove
 kitrove --version</code></pre>
         <p>
-          This installs the latest reviewed preview, currently RC5.14. The
+          This installs the latest reviewed preview, currently RC5.15. The
           shorter package name does not make it a stable release. Homebrew
           checks the pinned archive checksum; you trust Homebrew and the
           <a href="https://github.com/Kapital-Labs/homebrew-tap"
@@ -81,17 +81,17 @@ kitrove --version</code></pre>
         </p>
         <p>
           <a
-            href="https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.14"
-            >Download RC5.14</a
+            href="https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.15"
+            >Download RC5.15</a
           >
           and read its
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.14/release/notes/v0.1.0-rc.5.14.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.15/release/notes/v0.1.0-rc.5.15.md"
             >versioned release notes</a
           >. Verify before running a manual download on macOS, Linux or Windows:
           follow the
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.14/docs/INSTALLER.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.15/docs/INSTALLER.md"
             >versioned verification and staging guide</a
           >
           with an independently trusted or reviewed-source-built verifier. Match
@@ -103,9 +103,9 @@ kitrove --version</code></pre>
         <details>
           <summary>Older Linux package channels · RC4.2 only</summary>
           <p>
-            APT/DNF still distribute RC4.2 and do not install RC5.14. The RC4.2
-            WinGet submission is not an RC5.14 install path. No Chocolatey
-            package is published. These channels were not updated by RC5.14.
+            APT/DNF still distribute RC4.2 and do not install RC5.15. The RC4.2
+            WinGet submission is not an RC5.15 install path. No Chocolatey
+            package is published. These channels were not updated by RC5.15.
           </p>
           <p>
             Linux x86-64 users can choose
@@ -117,7 +117,7 @@ kitrove --version</code></pre>
             <a
               href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/LINUX-INSTALL.md#fedora--dnf"
               >Fedora / DNF</a
-            >. These are RC4.2 package instructions, not RC5.14 installation or
+            >. These are RC4.2 package instructions, not RC5.15 installation or
             upgrade instructions. Authenticate a download before its first
             execution.
           </p>
@@ -148,8 +148,10 @@ kitrove --version</code></pre>
             preview. Original source files stay in place.
           </li>
           <li>
-            Select <strong>Choose skills to add to your AI tools</strong>, pick
-            destinations, then review and confirm the separate application plan.
+            Select <strong>Choose skills to add to your AI tools</strong>.
+            Choose Claude Code, Codex, Pi or OpenCode, then all projects or one
+            project. Select saved skills, review destinations, and press
+            <code>y</code> to approve the separate application plan.
           </li>
         </ol>
         <p>
@@ -274,7 +276,7 @@ kitrove --version</code></pre>
         </p>
         <p>
           Conflicting content under the same identity stops the operation for
-          review. RC5.14 does not choose an automatic winner or create a
+          review. RC5.15 does not choose an automatic winner or create a
           keep-both rewrite.
         </p>
         <h2 id="scan">Inspect skills and choose by name</h2>
@@ -293,8 +295,12 @@ kitrove scan --harness claude --scope user</code></pre>
           observation ID from <code>kitrove scan --verbose</code>.
         </p>
         <p>
-          Scanning does not change files. Adoption still captures fresh content
-          and requires a confirmed plan. For automation, use
+          Browsing does not change files. Press <code>a</code> for
+          <strong>Add to collection</strong> without leaving scan. Choose an
+          existing collection or separately confirm a new one, then preview
+          and approve the chosen skills. Adoption still captures fresh content
+          and requires a confirmed plan. After collection, the optional tool
+          step has a separate destination preview and approval. For automation, use
           <code>kitrove scan --json</code>; bare Init and Configure require a
           terminal.
         </p>
@@ -311,38 +317,39 @@ kitrove scan --harness claude --scope user</code></pre>
           </li>
           <li>
             Executable capabilities need separate local trust. Setup does not
-            grant it or install prerequisites. Pi and OpenCode may ask for an
-            independently trusted local binary for a bounded version check.
+            grant it or install prerequisites. Ordinary skills need no tool
+            executable path. Selected Pi extensions or advanced OpenCode items
+            can require an explicit trusted binary for a bounded version check.
           </li>
           <li>
             Kitrove refuses unmanaged destination conflicts instead of
             overwriting existing files.
           </li>
           <li>
-            Keep RC5.14 collections separate from older previews. RC4.2 cannot
+            Keep RC5.15 collections separate from older previews. RC4.2 cannot
             read authored packs. Do not downgrade a collection or treat binary
             rollback as data recovery.
           </li>
         </ul>
         <p>
-          RC5.14 remains a prerelease. Its published artifacts passed independent
-          inventory, provenance, notice-byte and native Mac image verification;
-          those checks did not install or execute the downloaded products. Prior
+          RC5.15 remains a prerelease. Publication and Homebrew promotion require
+          independent inventory, provenance, notice-byte and native Mac image
+          verification. Those checks do not establish first-launch acceptance. Prior
           bounded source-built Mac/Linux tests covered skill and authored-pack
           transfer, updates, conflict refusal and unmanaged-file protection.
-          They are not RC5.14 production-artifact fresh-install acceptance,
+          They are not RC5.15 production-artifact fresh-install acceptance,
           clean-Mac online/offline first launch, all capability types, live
           agent-tool execution, Git-provider acceptance or concurrent sync.
         </p>
         <p>
-          RC5.14 includes exact agent plan/approval workflows, locally authored
+          RC5.15 includes exact agent plan/approval workflows, locally authored
           packs and explicit partial-fidelity warnings for native-only skill
           fields. These features are not in the older RC4.2 package channels.
           Cloud-provider sync is roadmap work, not an available feature.
         </p>
         <h2 id="existing-installations">Existing installations</h2>
         <p>
-          These instructions assume a fresh install. RC5.14 is not a supported
+          These instructions assume a fresh install. RC5.15 is not a supported
           in-place upgrade from RC4.2; no rollback-compatible predecessor is
           declared. Binary rollback does not roll back collection data.
         </p>
@@ -363,11 +370,11 @@ kitrove scan --harness claude --scope user</code></pre>
             >full setup guide</a
           >,
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.14/docs/INSTALLER.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.15/docs/INSTALLER.md"
             >release verification instructions</a
           >, and
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.14/docs/RELEASE-ACCEPTANCE.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.15/docs/RELEASE-ACCEPTANCE.md"
             >acceptance checklist</a
           >.
         </p>

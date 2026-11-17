@@ -1,9 +1,9 @@
-# Add collected skills to your AI tools (unreleased)
+# Add collected skills to your AI tools (RC5.15)
 
-This guided flow is in development after RC5.14. It is not yet in the released
-Homebrew executable. It adds local files for a tool to discover; it does not
-install tools, start an agent session, grant trust, connect accounts or share a
-collection. Advanced items can require an explicit bounded version check.
+This guided flow is included in RC5.15. It adds local files for a tool to
+discover; it does not install tools, start an agent session, grant trust, connect
+accounts or share a collection. Advanced items can require an explicit bounded
+version check.
 
 Run `kitrove configure --environment /absolute/path/to/collection` and choose
 **Choose skills to add to your AI tools**. After collecting skills in setup,
