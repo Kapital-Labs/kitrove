@@ -16,7 +16,7 @@ FIXTURE_BASE = Path(sys.argv[2]).resolve(strict=True)
 
 
 class Session:
-    def __init__(self, root, args):
+    def __init__(self, root, args, cwd=None):
         self.root = root
         self.env = os.environ.copy()
         for name in ("KITROVE_ENV", "XDG_DATA_HOME"):
@@ -27,7 +27,7 @@ class Session:
         (root / "home").mkdir(exist_ok=True)
         self.master, self.slave = pty.openpty()
         self.original = termios.tcgetattr(self.slave)
-        self.process = subprocess.Popen([BINARY, *args], cwd=root, env=self.env,
+        self.process = subprocess.Popen([BINARY, *args], cwd=cwd or root, env=self.env,
                                         stdin=self.slave, stdout=self.slave,
                                         stderr=self.slave, start_new_session=True)
         self.output = b""
@@ -269,7 +269,7 @@ def scan_inventory_menu():
         try:
             session.prompt(b"Explore the inventory")
             assert b"15 skills in the inventory" in session.output
-            assert b"Available to add (14)" in session.output, session.output
+            assert b"Ready to preview (14)" in session.output, session.output
             assert b"Needs review (1)" in session.output, session.output
             assert b"ready-01" not in session.output
             assert b"skill metadata could not be read" not in session.output
@@ -311,6 +311,107 @@ def scan_inventory_menu():
             assert not (root / "state").exists()
         finally:
             session.close()
+
+
+
+def scan_collect_menu(adopt, context="user", fresh=False, stale=False, cancel=False):
+    with tempfile.TemporaryDirectory(prefix="kitrove-scan-collect-", dir=FIXTURE_BASE) as tmp:
+        root = Path(tmp).resolve()
+        scan_args = ["scan", "--harness", "claude", "--scope", "user"]
+        source = root / "home/.claude/skills/scan-skill/SKILL.md"
+        if context == "project":
+            project = root / "project"
+            (project / ".git").mkdir(parents=True)
+            source = project / ".claude/skills/scan-skill/SKILL.md"
+            scan_args = ["scan", "--harness", "claude", "--scope", "project", "--project-root", str(project)]
+        elif context == "explicit":
+            supplied = root / "supplied"
+            source = supplied / "scan-skill/SKILL.md"
+            scan_args += ["--root", "claude:user:" + str(supplied)]
+        source.parent.mkdir(parents=True)
+        original = b"---\nname: scan-skill\ndescription: Scan collection fixture.\n---\nKeep source bytes.\n"
+        source.write_bytes(original)
+        unrelated = root / "home/.agents/skills/other-tool/SKILL.md"
+        unrelated.parent.mkdir(parents=True)
+        unrelated.write_text("---\nname: other-tool\ndescription: Excluded harness.\n---\nNot selected.\n")
+        env = os.environ.copy()
+        for name in ("KITROVE_ENV", "XDG_DATA_HOME"):
+            env.pop(name, None)
+        env.update(HOME=str(root / "home"), USERPROFILE=str(root / "home"), KITROVE_STATE_HOME=str(root / "state"))
+        if not fresh:
+            subprocess.run([BINARY, "init", "--environment", str(root / "collection"), "--machine-id", "scan-test"],
+                           cwd=root, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+            scan_args += ["--environment", str(root / "collection")]
+        before = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+        session = Session(root, scan_args, cwd=root / "project" if context == "project" else root)
+        try:
+            session.prompt(b"Explore the inventory")
+            session.menu_ready()
+            assert b"a        Add to collection" in session.output, (context, session.output)
+            if context == "user":
+                session.send(b"1")
+                session.prompt(b"Browse skills")
+                assert b"a        Add to collection" in session.output, "scan must offer a direct collection handoff"
+                session.menu_ready()
+            session.output = b""
+            session.send(b"a")
+            session.prompt(b"Where should your portable collection live?")
+            if cancel:
+                session.send(b"q\n")
+                session.finish(3)
+                assert before == {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+                return
+            if fresh:
+                session.send(str(root / "collection").encode() + b"\n")
+                session.prompt(b"Name this computer")
+                session.send(b"scan-new\n")
+                session.prompt(b"Create an empty collection")
+                session.send(b"y\n")
+            else:
+                session.send(b"\n")
+                session.prompt(b"Continue setup with this existing collection?")
+                session.send(b"y\n")
+            session.prompt(b"Choose skills to collect")
+            assert b"other-tool" not in session.output, "handoff widened the harness filter"
+            assert b"1 selectable" in session.output, session.output
+            preview_before = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+            session.send(b"\n")
+            session.prompt(b"Adopt these skills?")
+            session.menu_ready()
+            assert preview_before == {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}, "preview must not mutate"
+            if not fresh:
+                assert before == preview_before, "existing collection handoff must not mutate"
+            session.output = b""
+            if stale:
+                source.write_bytes(original + b"Changed after preview.\n")
+            session.send(b"y" if adopt else b"n")
+            session.until(b"Previously confirmed steps are retained" if stale else b"Collection step finished.")
+            session.finish(1 if stale else 3)
+            manifest = (root / "collection/kitrove.toml").read_text()
+            if adopt and not stale:
+                assert "scan-skill" in manifest and "other-tool" not in manifest
+                assert b"No files changed" not in session.output
+            elif not stale:
+                assert preview_before == {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+            else:
+                assert "scan-skill" not in manifest, "stale source was adopted"
+                assert b"Previously confirmed steps are retained" in session.output
+            assert source.read_bytes() == original + (b"Changed after preview.\n" if stale else b"")
+            state = (root / "state/state.json").read_text()
+            assert '"trust": {}' in state and '"receipts": {}' in state
+        finally:
+            session.close()
+
+
+for adopt in (False, True):
+    scan_collect_menu(adopt)
+scan_collect_menu(True, context="project")
+scan_collect_menu(True, context="explicit")
+scan_collect_menu(True, fresh=True)
+scan_collect_menu(False, fresh=True)
+scan_collect_menu(False, cancel=True)
+scan_collect_menu(True, stale=True)
+print("PASS: scan handoff preserves harness/project/explicit roots; preview/skip/cancel/stale sources keep existing bytes; initialization and adoption have separate approvals")
 
 
 scan_inventory_menu()

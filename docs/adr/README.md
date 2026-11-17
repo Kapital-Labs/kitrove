@@ -98,4 +98,6 @@ ADRs document foundational decisions and their consequences. Accepted ADRs are a
 
 | [0071](0071-patched-ssh-and-filesystem-dependencies.md) | Patched SSH and filesystem dependencies | Accepted for RC5.13 implementation; validation pending | NS-05, NS-06, NS-07, NS-09 |
 
+| [0072](0072-scan-handoff-to-explicit-collection.md) | Interactive inventory can enter explicit collection | Accepted for implementation; validation pending | NS-01, NS-02, NS-03, NS-04, NS-05, NS-06, NS-07, NS-09, NS-10 |
+
 Use [`0000-template.md`](0000-template.md) for new records.

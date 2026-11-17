@@ -9,6 +9,14 @@ pub(super) fn select<R: PromptInput, W: Write>(
     registry: &PolicyRegistry,
 ) -> Result<Option<(PathBuf, bool)>, CliError> {
     let suggestion = default_collection()?;
+    select_with_suggestion(dialog, registry, suggestion)
+}
+
+pub(super) fn select_with_suggestion<R: PromptInput, W: Write>(
+    dialog: &mut Dialog<R, W>,
+    registry: &PolicyRegistry,
+    suggestion: PathBuf,
+) -> Result<Option<(PathBuf, bool)>, CliError> {
     let response = dialog.ask(&format!(
         "Where should your portable collection live? [{}]",
         safe(&suggestion.display().to_string())

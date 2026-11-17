@@ -212,7 +212,12 @@ class SiteTests(unittest.TestCase):
         for text in (" ".join(guide.split()), docs):
             self.assertIn("numbered source tool", text)
             self.assertIn("skipped-item counts by reason", text)
-        self.assertIn("20 examples", quick)
+        self.assertIn("Up to ten", quick)
+        self.assertIn("named blocker explanations", quick)
+        self.assertIn("Ready to preview", quick)
+        self.assertIn("**Add to collection**", quick)
+        self.assertIn("handoff requires a future release after RC5.14", quick)
+        self.assertIn("11 names are already", quick)
         self.assertIn("Quick skill collection (RC5.9)", quick)
         self.assertNotIn("Next-preview improvement", quick)
         self.assertNotIn("These improvements require a future release", quick)

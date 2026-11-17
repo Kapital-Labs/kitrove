@@ -96,6 +96,7 @@ pub(super) fn show_sources<R: PromptInput, W: Write>(
 pub(super) struct Skipped {
     details: Vec<String>,
     reasons: BTreeMap<&'static str, usize>,
+    blockers: Vec<String>,
 }
 
 impl Skipped {
@@ -108,27 +109,48 @@ impl Skipped {
         *self.reasons.entry(reason).or_default() += 1;
     }
 
+    pub(super) fn blocked(&mut self, detail: String) {
+        self.push("blocked", format!("Blocked: {detail}"));
+        self.blockers.push(detail);
+    }
+
     pub(super) fn summary<R: PromptInput, W: Write>(
         &self,
         dialog: &mut Dialog<R, W>,
+        selected: usize,
+        ready: usize,
     ) -> Result<(), CliError> {
+        dialog.say(&format!("\n{selected} selected · {ready} ready to add"))?;
         for (reason, count) in &self.reasons {
             let summary = match *reason {
-                AMBIGUOUS => {
-                    format!("{count} copies have the same name in multiple selected sources.")
+                OCCUPIED => {
+                    let noun = if *count == 1 { "name" } else { "names" };
+                    format!("  {count} {noun} already in your collection (skipped)")
                 }
-                OCCUPIED => format!(
-                    "{count} copies: collection name already in use. Nothing will be overwritten."
+                AMBIGUOUS => format!(
+                    "  {count} copies share a name across the selected sources (choose one source)"
                 ),
-                "excluded by selection" => format!("{count} copies excluded by your selection."),
-                _ => format!("{count}: {reason}"),
+                "excluded by selection" | "blocked" => continue,
+                _ => format!("  {count}: {reason}"),
             };
-            dialog.detail(&summary)?;
+            dialog.say(&summary)?;
+        }
+        if !self.blockers.is_empty() {
+            dialog.say(&format!("  {} blocked:", self.blockers.len()))?;
+            for detail in self.blockers.iter().take(10) {
+                dialog.say(&format!("    - {detail}"))?;
+            }
+            if self.blockers.len() > 10 {
+                dialog.hint("Showing the first 10 blocked skills; d shows all details.")?;
+            }
+        }
+        if self.reasons.contains_key(OCCUPIED) {
+            dialog.hint(
+                "Matching names do not prove matching contents. Nothing existing is overwritten.",
+            )?;
         }
         if !self.details.is_empty() {
-            dialog.hint(
-                "Press d for skipped-item details. Existing collection items are not overwritten.",
-            )?;
+            dialog.hint("d shows all skipped-item details, including unselected copies.")?;
         }
         Ok(())
     }

@@ -502,7 +502,7 @@ fn text_and_json_inventory_use_the_same_attention_exit() {
         stderr(&text_output)
     );
     assert!(stdout(&text_output).starts_with("Kitrove inventory (read-only)"));
-    assert!(stdout(&text_output).contains("available to add"));
+    assert!(stdout(&text_output).contains("ready to preview"));
     assert!(!stdout(&text_output).contains("observation-"));
     let verbose = fixture
         .command()

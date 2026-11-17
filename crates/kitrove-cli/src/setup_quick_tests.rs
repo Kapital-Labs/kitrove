@@ -307,7 +307,7 @@ fn bulk_preview_retains_partial_reasons_and_omits_executable_content() {
     let output = script(&a, "\n1\nall\nd\ny\nn\n5\n", true, "");
     assert!(output.contains("No skills ready to collect"));
     assert!(!output.contains("Adopt the previewed set"));
-    assert!(output.contains("ExecutableTrustRequired"));
+    assert!(output.contains("contains executable files; trust must be reviewed separately"));
     assert!(!output.contains("kitrove-synthetic-secret-canary-12345"));
     assert!(
         !manifest(&a)
@@ -534,4 +534,44 @@ fn race_child() {
         assert_eq!(result.unwrap_err().code, "adoption.recovery_required");
     }
     println!("{output}");
+}
+
+#[cfg(unix)]
+#[test]
+fn empty_preview_explains_existing_names_and_each_blocker_without_exclusion_noise() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let tmp = kitrove_testkit::trusted_tempdir(".setup-readable-summary-");
+    let root = std::fs::canonicalize(tmp.path()).unwrap();
+    let a = machine(&root, "a");
+    unique_skill(&a, "existing");
+    script(
+        &a,
+        &format!(
+            "1\n{}\nfixture\ny\nfrom pi\ny\n5\n",
+            a.join("collection").display()
+        ),
+        false,
+        "",
+    );
+    unique_skill(&a, "blocked");
+    let executable = a.join("home/.pi/agent/skills/blocked/run.sh");
+    std::fs::write(&executable, "#!/bin/sh\nexit 0\n").unwrap();
+    std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+    skill(&a, "outside-selection", "Unselected source.");
+    let output = script(&a, "\n1\nfrom pi\nn\n5\n", true, "");
+    assert!(output.contains("2 selected · 0 ready to add"), "{output}");
+    assert!(
+        output.contains("1 name already in your collection"),
+        "{output}"
+    );
+    assert!(
+        output.contains(
+            "blocked (pi, User): contains executable files; trust must be reviewed separately"
+        ),
+        "{output}"
+    );
+    assert!(!output.contains("copies excluded by your selection"));
+    assert!(!output.contains("selected but omitted"));
+    assert!(!output.contains("blocked plan; no trust granted"));
+    assert_eq!(manifest(&a).assets.len(), 1);
 }
