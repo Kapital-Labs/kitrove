@@ -301,17 +301,25 @@ fn core_recovery_guard_is_not_hidden_by_advisory_destination_readiness() {
     std::fs::create_dir_all(target.parent().unwrap()).unwrap();
     std::fs::write(&target, "User-owned target.\n").unwrap();
     let journal = a.join("state/.kitrove/atomic-apply-journal.json");
-    std::fs::create_dir_all(journal.parent().unwrap()).unwrap();
-    std::fs::write(&journal, "{\"not\":\"valid journal authority\"}").unwrap();
+    let invalid = b"{\"not\":\"valid journal authority\"}";
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt as _;
+        std::fs::create_dir_all(journal.parent().unwrap()).unwrap();
+        std::fs::write(&journal, invalid).unwrap();
         std::fs::set_permissions(
             journal.parent().unwrap(),
             std::fs::Permissions::from_mode(0o700),
         )
         .unwrap();
         std::fs::set_permissions(&journal, std::fs::Permissions::from_mode(0o600)).unwrap();
+    }
+    #[cfg(windows)]
+    {
+        kitrove_windows_security::ensure_private_directory_for_tests(journal.parent().unwrap())
+            .unwrap();
+        kitrove_windows_security::write_current_user_owned_file_for_tests(&journal, invalid)
+            .unwrap();
     }
     assert_eq!(
         kitrove_core::inspect_atomic_apply_batch_journal(&a.join("state"))
