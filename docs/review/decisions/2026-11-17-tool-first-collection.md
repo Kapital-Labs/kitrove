@@ -27,8 +27,10 @@ trust grant or ownership acquisition. Missing comparison evidence is explicitly
 unverified. A source grouping never selects or merges a native source silently.
 Descriptions use verified portable objects and escaped bounded display text;
 full objects are still checked by planning. Discovery warnings grant no authority
-and cannot prove a runtime load. Unmanaged conflicts stop the selection; stale
-plan/commit failures propagate. Full fidelity reasons and MCP connection effects
+and cannot prove a runtime load. Readiness stays advisory: the final apply entry retains pending-batch recovery
+before building the fresh plan. Standalone preflight cannot stop that entry or
+turn an authoritative planning/recovery error into setup success. Unmanaged
+conflicts and stale plan/commit failures propagate. Full fidelity reasons and MCP connection effects
 remain visible before confirmation; full canonical plan details are available.
 Descriptions/fidelity remain bound to the selected manifest snapshot; a changed
 collection refuses before confirmation, and the existing final batch refresh

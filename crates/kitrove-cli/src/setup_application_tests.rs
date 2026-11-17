@@ -97,7 +97,7 @@ fn unmanaged_destination_is_reported_without_overwrite_or_adoption_of_ownership(
     let existing = a.join("home/.config/opencode/skills/alpha");
     std::fs::create_dir_all(&existing).unwrap();
     std::fs::write(existing.join("SKILL.md"), "User owned content.").unwrap();
-    let output = script(&a, "\n2\n4\n1\n1\n5\n", true, "");
+    let output = script(&a, "\n2\n4\n1\n1\n5\n", true, "apply.destination_unmanaged");
     assert!(output.contains("Needs review"));
     assert_eq!(
         std::fs::read_to_string(existing.join("SKILL.md")).unwrap(),
@@ -291,5 +291,40 @@ fn structured_preview_keeps_removals_and_later_page_connection_effects_visible()
     assert!(
         !output.contains("remote-tools"),
         "later-page items stay paged; their connection effect stays visible"
+    );
+}
+
+#[test]
+fn core_recovery_guard_is_not_hidden_by_advisory_destination_readiness() {
+    let (_tmp, a) = prepared();
+    let target = a.join("home/.config/opencode/skills/alpha/SKILL.md");
+    std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+    std::fs::write(&target, "User-owned target.\n").unwrap();
+    let journal = a.join("state/.kitrove/atomic-apply-journal.json");
+    std::fs::create_dir_all(journal.parent().unwrap()).unwrap();
+    std::fs::write(&journal, "{\"not\":\"valid journal authority\"}").unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(
+            journal.parent().unwrap(),
+            std::fs::Permissions::from_mode(0o700),
+        )
+        .unwrap();
+        std::fs::set_permissions(&journal, std::fs::Permissions::from_mode(0o600)).unwrap();
+    }
+    assert_eq!(
+        kitrove_core::inspect_atomic_apply_batch_journal(&a.join("state"))
+            .unwrap_err()
+            .code(),
+        "apply.batch_journal_invalid"
+    );
+    let before = std::fs::read(&journal).unwrap();
+    let output = script(&a, "\n2\n4\n1\n1\n", true, "apply.batch_journal_invalid");
+    assert!(output.contains("Needs review"));
+    assert_eq!(std::fs::read(journal).unwrap(), before);
+    assert_eq!(
+        std::fs::read_to_string(target).unwrap(),
+        "User-owned target.\n"
     );
 }

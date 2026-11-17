@@ -29,7 +29,10 @@ asking for the collection path again. Skipping this next step keeps the collecti
    details. Approval covers the whole selected batch, not only the visible page.
 5. Press `y` to approve that exact plan. Enter or `n` skips tool changes. A changed
    destination or collection after approval still refuses a stale plan. An
-   unmanaged conflict stops the selection; existing files are not overwritten.
+   unmanaged conflict is refused by the core planner; existing files are not overwritten.
+   Completed collection steps remain if apply fails. Readiness is advisory: an
+   interrupted earlier apply may need recovery before a new plan. Select the
+   intended items explicitly to enter the existing recovery/confirmation flow.
 
 Ordinary skills do not need an executable path. Selected Pi extensions still
 need an explicit trusted Pi version probe and existing trust. OpenCode

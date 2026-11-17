@@ -94,44 +94,9 @@ pub(super) fn apply<R: PromptInput, W: Write>(
         }
         args.version_binaries.push(PathBuf::from(path));
     }
-    // Skill-only readiness uses the real destination planner, never cached compatibility as permission.
-    if assets
-        .iter()
-        .all(|id| manifest.assets[id].kind == AssetKind::Skill)
-    {
-        let mut blocked = false;
-        let mut ready = 0;
-        dialog.heading("Destination check (no writes)")?;
-        for id in &assets {
-            let one = MaterializeArgs {
-                profile: None,
-                assets: BTreeSet::from([id.clone()]),
-                packs: BTreeSet::new(),
-                targets: args.targets.clone(),
-                scope,
-                project_root: args.project_root.clone(),
-                version_binaries: Vec::new(),
-                environment: Some(root.to_owned()),
-                json: true,
-            };
-            match crate::materialize::run_plan(one) {
-                Ok(_) => ready += 1,
-                Err(error) => {
-                    blocked = true;
-                    dialog.warning(&format!(
-                        "Needs review: {} — {} [{}]",
-                        safe(id.as_str()),
-                        safe(&error.to_string()),
-                        error.code
-                    ))?;
-                }
-            }
-        }
-        dialog.say(&format!("{ready} selected skills passed the destination check. The exact combined plan follows before any approval."))?;
-        if blocked {
-            return dialog.hint("No items were added. Choose different items or resolve the reported destination conflict, then preview again. Existing files are not overwritten.");
-        }
-    }
+    // Readiness is advisory. Only run_apply owns pending-batch recovery and the
+    // final fresh plan; a separate preflight must not hide its authoritative error
+    // or block recovery of a previously approved operation.
     super::application_preview::discovery(dialog, root, &manifest, &assets, &args)?;
     super::application_preview::compatibility(dialog, &manifest, &assets, &args.targets)?;
     let mut prompt_error = None;
