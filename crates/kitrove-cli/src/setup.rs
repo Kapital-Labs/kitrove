@@ -19,8 +19,12 @@ use crate::portable::{load_manifest, run_adopt, run_status};
 use crate::scan::{resolve_required_environment_root, resolve_required_state_root, scan_report};
 use crate::scan_display::{name, safe, selectable};
 
+mod application;
+mod application_preview;
+mod application_readiness;
 mod collection;
 mod collection_selection;
+mod collection_status;
 mod initialization;
 mod inventory;
 mod menu_input;
@@ -104,11 +108,6 @@ impl<R: PromptInput, W: Write> Dialog<R, W> {
         let text = text.lines().map(safe).collect::<Vec<_>>().join("\n");
         presentation::block(&mut self.output, self.color, "Command output", &text)
             .map_err(|_| io_error())
-    }
-
-    fn confirm_plan(&mut self, plan: &str) -> Result<bool, CliError> {
-        self.summary(plan)?;
-        self.confirm("Proceed with this plan?")
     }
 
     fn summary(&mut self, encoded: &str) -> Result<(), CliError> {
@@ -257,8 +256,7 @@ impl<R: PromptInput, W: Write> Dialog<R, W> {
         for (index, label) in labels.iter().enumerate() {
             prompt.push_str(&format!("\n{}. {}", index + 1, safe(label)));
         }
-        prompt
-            .push_str("\nSelect 1,4,7; all; all,-3,-8 (all except); or n/Enter to skip (q stops):");
+        prompt.push_str("\n1,4,7      Select numbers\nall,-3     All except these\nEnter/n    Skip\nq          Quit");
         loop {
             let response = self.ask(&prompt)?;
             match selection(&response, labels.len()) {
@@ -421,8 +419,9 @@ fn run<R: PromptInput, W: Write>(
             "collection needs attention; use status before continuing",
         ));
     }
+    let mut just_collected = Vec::new();
     match start.as_str() {
-        "1" => collect(dialog, &root, registry)?,
+        "1" => just_collected = collect(dialog, &root, registry)?,
         "2" => synchronize(dialog, &root, false)?,
         "3" => import(dialog, &root)?,
         "4" => {
@@ -430,16 +429,19 @@ fn run<R: PromptInput, W: Write>(
             if let Some(backend) = remote(dialog, false)?
                 && synchronize_with(dialog, &root, backend.clone())?
             {
-                collect(dialog, &root, registry)?;
+                just_collected = collect(dialog, &root, registry)?;
                 synchronize_with(dialog, &root, backend)?;
             }
         }
         _ => {}
     }
     loop {
+        if !just_collected.is_empty() {
+            dialog.hint("Next: add the collected skills to a tool with option 2. Those skills will be suggested; installation still needs a separate preview and approval.")?;
+        }
         match dialog.menu("What would you like to do?\n1. Add skills from this computer\n2. Choose skills to add to your AI tools\n3. Share this collection with another computer\n4. Copy selected items from another collection\n5. Finish for now\nChoose 1-5 [5]:", true)?.as_str() {
-            "1" => collect(dialog, &root, registry)?,
-            "2" => apply(dialog, &root)?,
+            "1" => just_collected = collect(dialog, &root, registry)?,
+            "2" => application::apply(dialog, &root, &just_collected)?,
             "3" => synchronize(dialog, &root, true)?,
             "4" => import(dialog, &root)?,
             "" | "5" => break,
@@ -457,7 +459,7 @@ fn collect<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
     root: &std::path::Path,
     registry: &PolicyRegistry,
-) -> Result<(), CliError> {
+) -> Result<Vec<AssetId>, CliError> {
     collection::collect(dialog, root, registry)
 }
 
@@ -730,96 +732,6 @@ fn import_backend<R: PromptInput, W: Write, B: SyncBackend>(
     )
 }
 
-fn apply<R: PromptInput, W: Write>(
-    dialog: &mut Dialog<R, W>,
-    root: &std::path::Path,
-) -> Result<(), CliError> {
-    let manifest = load_manifest(root)?;
-    let items: Vec<_> = manifest
-        .assets
-        .keys()
-        .chain(manifest.packs.keys())
-        .cloned()
-        .collect();
-    let labels: Vec<_> = items.iter().map(|id| id.as_str().to_owned()).collect();
-    dialog.hint("This adds selected collection items to tools on this computer. It does not run them or share them with another computer.")?;
-    let selected = dialog.choose("Which saved items would you like to add?", &labels)?;
-    if selected.is_empty() {
-        return Ok(());
-    }
-    let harnesses = [
-        HarnessId::Claude,
-        HarnessId::Codex,
-        HarnessId::Pi,
-        HarnessId::OpenCode,
-    ];
-    let labels = harnesses
-        .iter()
-        .map(|h| h.as_str().to_owned())
-        .collect::<Vec<_>>();
-    let targets: BTreeSet<_> = dialog
-        .choose(
-            "Which AI tools should receive these items on this computer?",
-            &labels,
-        )?
-        .into_iter()
-        .map(|i| harnesses[i].clone())
-        .collect();
-    if targets.is_empty() {
-        return Ok(());
-    }
-    let mut binaries = Vec::new();
-    for target in &targets {
-        if matches!(target, HarnessId::Pi | HarnessId::OpenCode) {
-            dialog.say("This tool requires explicit version evidence. Planning may run the selected local executable's bounded version probe; no upstream code or dependencies are installed.")?;
-            let path = dialog.ask(&format!(
-                "Absolute trusted {} executable path (Enter cancels application):",
-                target.as_str()
-            ))?;
-            if path.is_empty() {
-                return Ok(());
-            }
-            binaries.push(PathBuf::from(path));
-        }
-    }
-    let mut args = MaterializeArgs {
-        profile: None,
-        assets: BTreeSet::new(),
-        packs: BTreeSet::new(),
-        targets,
-        scope: HarnessScope::User,
-        project_root: None,
-        version_binaries: binaries,
-        environment: Some(root.to_owned()),
-        json: true,
-    };
-    for i in selected {
-        if manifest.packs.contains_key(&items[i]) {
-            args.packs.insert(items[i].clone());
-        } else {
-            args.assets.insert(items[i].clone());
-        }
-    }
-    let mut prompt_error = None;
-    let result = crate::materialize::run_apply(args, |plan| match dialog.confirm_plan(plan) {
-        Ok(yes) => yes,
-        Err(error) => {
-            prompt_error = Some(error);
-            false
-        }
-    });
-    if let Some(error) = prompt_error {
-        return Err(error);
-    }
-    match result {
-        Ok(done) => dialog.outcome(&done.output),
-        Err(error) if error.code == "apply.confirmation_required" => {
-            dialog.say("Application skipped.")
-        }
-        Err(error) => Err(error),
-    }
-}
-
 fn human_summary(value: &serde_json::Value, indent: usize) -> String {
     let padding = " ".repeat(indent);
     match value {
@@ -1037,10 +949,10 @@ mod tests {
         let local = std::fs::read_to_string(c.join("state/state.json")).unwrap();
         assert!(local.contains("machine-c"));
         assert!(!local.contains("machine-a"));
-        script(&c, "\n2\n1\n2\n\n5\n", true, "");
+        script(&c, "\n2\n2\n1\n1\n\n5\n", true, "");
         assert!(!c.join("home/.agents/skills/alpha").exists());
         // Configure applies only the selected item, using receipt-backed normal APIs.
-        script(&c, "\n2\n1\n2\nyes\n5\n", true, "");
+        script(&c, "\n2\n2\n1\n1\nyes\n5\n", true, "");
         assert!(c.join("home/.agents/skills/alpha/SKILL.md").is_file());
         assert!(!c.join("home/.agents/skills/beta").exists());
         // A second computer can start with its own independent skill, then merge.
@@ -1102,7 +1014,7 @@ mod tests {
         let root = std::fs::canonicalize(tmp.path()).unwrap();
         let a = machine(&root, "a");
         skill(&a, "example", "Default-home fixture instructions.");
-        script(&a, "1\n\na\nyes\n1\nyes\n2\n1\n2\nyes\n5\n", false, "");
+        script(&a, "1\n\na\nyes\n1\nyes\n2\n2\n1\n1\nyes\n5\n", false, "");
         assert!(a.join("home/Kitrove/kitrove.toml").is_file());
         assert!(a.join("home/.agents/skills/example/SKILL.md").is_file());
     }
@@ -1213,3 +1125,10 @@ mod tests {
         assert_eq!(dialog.ask("input").unwrap_err().code, "setup.input_limit");
     }
 }
+
+#[cfg(test)]
+#[path = "setup_application_tests.rs"]
+mod application_tests;
+#[cfg(test)]
+#[path = "setup_collection_status_tests.rs"]
+mod collection_status_tests;

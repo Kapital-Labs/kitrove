@@ -385,6 +385,10 @@ def scan_collect_menu(adopt, context="user", fresh=False, stale=False, cancel=Fa
             if stale:
                 source.write_bytes(original + b"Changed after preview.\n")
             session.send(b"y" if adopt else b"n")
+            if adopt and not stale:
+                session.prompt(b"Next: add the collected skills to a tool?")
+                session.menu_ready()
+                session.send(b"n")
             session.until(b"Previously confirmed steps are retained" if stale else b"Collection step finished.")
             session.finish(1 if stale else 3)
             manifest = (root / "collection/kitrove.toml").read_text()
@@ -401,6 +405,98 @@ def scan_collect_menu(adopt, context="user", fresh=False, stale=False, cancel=Fa
             assert '"trust": {}' in state and '"receipts": {}' in state
         finally:
             session.close()
+
+
+def tool_first_application(tool, *, project=False, approve=True, stale=False, change_collection=False):
+    import json
+    import shutil
+    with tempfile.TemporaryDirectory(prefix="kitrove-tool-apply-", dir=FIXTURE_BASE) as tmp:
+        root = Path(tmp).resolve()
+        source = root / "home/.pi/agent/skills/alpha/SKILL.md"
+        source.parent.mkdir(parents=True)
+        original = b"---\nname: alpha\ndescription: Synthetic tool installation.\n---\nReview the diff.\n"
+        source.write_bytes(original)
+        session = Session(root, ["init"])
+        try:
+            def answer(marker, value, immediate=False):
+                session.prompt(marker)
+                if immediate:
+                    session.menu_ready()
+                else:
+                    session.restored()
+                session.output = b""
+                session.send(value)
+            answer(b"Choose 1-5:", b"1", True)
+            answer(b"Where should your portable collection live?", str(root / "collection").encode() + b"\n")
+            answer(b"Name this computer", b"tools-test\n")
+            answer(b"y/yes confirms", b"y\n")
+            answer(b"Choose skills to collect", b"from pi\n")
+            answer(b"Adopt these skills?", b"y", True)
+            session.until(b"Adopted 1 skills")
+            # Only the synthetic source is removed to create an empty Pi destination too.
+            assert source.read_bytes() == original
+            shutil.rmtree(source.parent)
+            answer(b"Choose 1-5 [5]:", b"2", True)
+            answer(b"Which AI tools", str(tool).encode() + b"\r", True)
+            answer(b"Where should these items", b"2" if project else b"1", True)
+            if project:
+                answer(b"Absolute project folder", str(root).encode() + b"\n")
+            if change_collection:
+                session.prompt(b"Which saved items")
+                beta = root / "home/.pi/agent/skills/beta/SKILL.md"
+                beta.parent.mkdir(parents=True)
+                beta.write_bytes(b"---\nname: beta\ndescription: Concurrent fixture addition.\n---\nKeep beta.\n")
+                result = subprocess.run([BINARY, "adopt", "beta", "--harness", "pi", "--scope", "user", "--environment", str(root / "collection"), "--json"], cwd=root, env=session.env, input=b"yes\n", stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
+                assert result.returncode == 0, result.stderr
+            answer(b"Which saved items", b"\n")
+            if change_collection:
+                session.until(b"the collection changed during selection")
+                session.finish(1)
+                local = json.loads((root / "state/state.json").read_text())
+                assert not local["receipts"] and not local["trust"]
+                assert not (root / "home/.config/opencode/skills/alpha").exists()
+                return
+            session.prompt(b"Add the previewed items?")
+            session.menu_ready()
+            assert b"Absolute trusted" not in session.output
+            destination = {
+                1: ".claude/skills", 2: ".agents/skills",
+                3: ".pi/skills" if project else ".pi/agent/skills",
+                4: ".opencode/skills" if project else ".config/opencode/skills",
+            }[tool]
+            target = (root if project else root / "home") / destination / "alpha/SKILL.md"
+            if stale:
+                target.parent.mkdir(parents=True)
+                target.write_bytes(b"Unmanaged content created after the preview.\n")
+            session.output = b""
+            session.send(b"y\r" if approve else b"\r")
+            if stale:
+                session.until(b"Previously confirmed steps are retained")
+                session.finish(1)
+                assert target.read_bytes() == b"Unmanaged content created after the preview.\n"
+            else:
+                session.prompt(b"Choose 1-5 [5]:")
+                session.menu_ready()
+                session.send(b"5")
+                session.finish(0)
+                assert target.exists() == approve
+                if approve:
+                    assert b"Review the diff." in target.read_bytes()
+                    assert b"Files added" in session.output
+            local = json.loads((root / "state/state.json").read_text())
+            assert bool(local["receipts"]) == (approve and not stale)
+            assert not local["trust"]
+        finally:
+            session.close()
+
+
+for tool in (1, 2, 3, 4):
+    tool_first_application(tool)
+tool_first_application(4, project=True)
+tool_first_application(4, approve=False)
+tool_first_application(4, stale=True)
+tool_first_application(4, change_collection=True)
+print("PASS: all four tool-first journeys preserve separate apply approval; project scope, Enter skip, stale destination and terminal restoration verified")
 
 
 for adopt in (False, True):

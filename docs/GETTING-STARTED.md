@@ -88,6 +88,10 @@ pending recovery or failed commit stops later items; completed items remain and
 are reported. See the [quick collection flow](SETUP-QUICK-ADOPTION.md) for omitted
 items, naming conflicts and exact confirmation semantics.
 
+[The upcoming tool-first flow](ADD-TO-TOOLS.md) chooses tools and scope before
+items and offers just-collected skills as suggestions. This is unreleased after
+RC5.14; the current released flow is described below.
+
 Select **Choose skills to add to your AI tools** to select destinations. This is a
 separate plan and confirmation. Fidelity results explain what transfers; an unmanaged destination
 conflict is refused, not overwritten. Pi and OpenCode may require the absolute

@@ -273,3 +273,20 @@ Independent threat-model review; secret scanning; archive and path traversal tes
 - resolver returning a known secret followed by failure
 - unknown future harness version
 - adapter omission that must produce `Partial`
+
+### Tool-first guided installation and content-status confusion
+
+A selected tool, same-name discovery observation or matching native content is
+not ownership, trust, runtime loading or write permission. Setup compares native
+content only through manifest-authorized no-follow object loading; missing,
+other-tool or unverifiable variants remain unverified. Grouping copies retains
+original observation IDs/numbers and grants no merge or preferred-source authority.
+
+The tool-first menu delegates every destination and write to existing exact
+materialization plans. Shared tool version-selection rules prevent both unused
+skill probes and omitted required Pi/OpenCode gates, including pack leaves.
+Project scope is explicit; no tool is launched, configured or trusted implicitly.
+Filtered bulk selection is limited to visible matches. Paged summaries preserve
+full plan details, fidelity loss and connection effects before approval. Pending
+keystrokes cannot approve a later preview; source/destination/state revalidation
+and unmanaged ownership refusal are unchanged. See ADR-0073.

@@ -30,8 +30,9 @@ pub(crate) fn browse_scan(
     dialog.hint("Add copies to your Kitrove collection. Your tool files stay in place; apply and sync are separate.")?;
     let result = collect_scanned(&mut dialog, report, selection, registry);
     match result {
-        Ok(()) => dialog
-            .hint("Collection step finished. No skills were applied to tools or synchronized."),
+        Ok(()) => dialog.hint(
+            "Collection step finished. Tool installation and sync require separate approvals.",
+        ),
         Err(error) => {
             dialog.hint("Previously confirmed steps are retained. No later step ran.")?;
             if error.code == cancelled().code {
@@ -58,7 +59,11 @@ fn collect_scanned(
     else {
         return Ok(());
     };
-    collection::collect_report(dialog, &root, registry, report, selection)
+    let adopted = collection::collect_report(dialog, &root, registry, report, selection)?;
+    if adopted.is_empty() {
+        return Ok(());
+    }
+    super::application::offer(dialog, &root, &adopted)
 }
 
 fn terminal_error() -> CliError {

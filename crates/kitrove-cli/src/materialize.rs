@@ -207,16 +207,11 @@ fn build_plans(arguments: &MaterializeArgs) -> Result<PlannedMaterialization, Cl
     };
     let targets = select_targets(&selection.targets, &local_state)?;
     let selected_targets = targets.iter().cloned().collect::<BTreeSet<_>>();
-    let needs_pi_extension = asset_ids.iter().any(|asset_id| {
-        manifest.assets[*asset_id].kind == AssetKind::Extension && targets.contains(&HarnessId::Pi)
-    });
-    let needs_opencode_v2 = targets.contains(&HarnessId::OpenCode)
-        && asset_ids.iter().any(|asset_id| {
-            matches!(
-                manifest.assets[*asset_id].kind,
-                AssetKind::Instruction | AssetKind::Command | AssetKind::Agent | AssetKind::Mcp
-            )
-        });
+    let (needs_pi_extension, needs_opencode_v2) = required_version_probes(
+        &manifest,
+        &asset_ids.iter().map(|id| (*id).clone()).collect(),
+        &selected_targets,
+    );
     let version_probes = MaterializationVersionProbes::acquire(
         &arguments.version_binaries,
         needs_pi_extension,
@@ -655,6 +650,27 @@ fn bind_probe_evidence(
             .map_err(|error| CliError::new(error.code, error.message))?;
     }
     Ok(())
+}
+
+/// Shared selection rule; setup must neither request unused probes nor omit required ones.
+pub(crate) fn required_version_probes(
+    manifest: &EnvironmentManifest,
+    assets: &BTreeSet<AssetId>,
+    targets: &BTreeSet<HarnessId>,
+) -> (bool, bool) {
+    let kinds = assets
+        .iter()
+        .filter_map(|id| manifest.assets.get(id).map(|asset| asset.kind));
+    (
+        targets.contains(&HarnessId::Pi) && kinds.clone().any(|kind| kind == AssetKind::Extension),
+        targets.contains(&HarnessId::OpenCode)
+            && kinds.clone().any(|kind| {
+                matches!(
+                    kind,
+                    AssetKind::Instruction | AssetKind::Command | AssetKind::Agent | AssetKind::Mcp
+                )
+            }),
+    )
 }
 
 fn select_assets<'a>(

@@ -133,6 +133,36 @@ checks, not missing skills. Unselected copies are omitted from the default
 summary; `d` still shows all skipped details, including exclusions. Up to ten
 named blocker explanations appear by default before the full-details option.
 
-Browsing, JSON, verbose and non-terminal scan remain read-only. The explicit
-handoff never applies skills to tools, executes them or synchronizes anything.
+Browsing, JSON, verbose and non-terminal scan remain read-only. The collection
+handoff itself never applies skills, executes them or synchronizes anything.
+The subsequent optional tool-first phase has its own selection and approval.
 A changed source, changed collection or pending recovery still refuses adoption.
+
+## Content status and grouped copies (unreleased)
+
+The next collection flow groups same-name source copies under one heading.
+The summary separates unique skill names, selected source copies and ready
+additions. Original inventory numbers, explicit exclusions and native variants remain
+separate; no tool wins automatically. Full inventory and skipped details remain
+available on demand.
+
+For an occupied collection name the preview distinguishes:
+
+- **Already collected (exact native content matches):** the captured source's
+  layout, document name, bytes and file modes match the validated stored native
+  object for that tool. This is an observation at comparison time, not update or
+  ownership permission.
+- **Same name, different native content:** the validated native content differs.
+  Review or rename explicitly; nothing existing is overwritten.
+- **Same name; native content not compared:** there is no comparable tool-native
+  variant or the object/evidence cannot be verified. It is not an equality claim.
+
+These are skipped copies, not successful new adoptions. A source can match one
+stored tool variant while another tool's same-name observation remains unverified.
+No cross-tool variants are silently merged and matching portable content alone
+is not an exact-native comparison.
+
+After a successful collection, setup suggests adding those newly collected IDs
+through option 2. The scan handoff offers the same next step directly. It reuses
+this collection and makes a separate [tool-first preview](ADD-TO-TOOLS.md).
+Collecting alone never applies to a tool or syncs anything.

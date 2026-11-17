@@ -5,7 +5,6 @@ use std::collections::BTreeMap;
 
 pub(super) const AMBIGUOUS: &str =
     "same name in multiple selected sources; review individually to choose or rename";
-pub(super) const OCCUPIED: &str = "collection name already in use; review individually to rename";
 
 // Only narrow this selection. Original indices (including exclusions) stay bound
 // to the displayed scan, and no harness is preferred or remembered.
@@ -118,14 +117,28 @@ impl Skipped {
         &self,
         dialog: &mut Dialog<R, W>,
         selected: usize,
+        names: usize,
         ready: usize,
     ) -> Result<(), CliError> {
-        dialog.say(&format!("\n{selected} selected · {ready} ready to add"))?;
+        let name_word = if names == 1 {
+            "skill name"
+        } else {
+            "skill names"
+        };
+        let copy_word = if selected == 1 {
+            "source copy"
+        } else {
+            "source copies"
+        };
+        dialog.say(&format!(
+            "\n{names} {name_word} · {selected} {copy_word} selected · {ready} ready to collect"
+        ))?;
         for (reason, count) in &self.reasons {
             let summary = match *reason {
-                OCCUPIED => {
-                    let noun = if *count == 1 { "name" } else { "names" };
-                    format!("  {count} {noun} already in your collection (skipped)")
+                super::collection_status::MATCHING
+                | super::collection_status::DIFFERENT
+                | super::collection_status::UNVERIFIED => {
+                    format!("  {count}: {reason} (skipped; no overwrite)")
                 }
                 AMBIGUOUS => format!(
                     "  {count} copies share a name across the selected sources (choose one source)"
@@ -144,7 +157,10 @@ impl Skipped {
                 dialog.hint("Showing the first 10 blocked skills; d shows all details.")?;
             }
         }
-        if self.reasons.contains_key(OCCUPIED) {
+        if self
+            .reasons
+            .contains_key(super::collection_status::UNVERIFIED)
+        {
             dialog.hint(
                 "Matching names do not prove matching contents. Nothing existing is overwritten.",
             )?;
