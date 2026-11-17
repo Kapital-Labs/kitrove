@@ -1,6 +1,6 @@
-# Quick skill collection (RC5.9)
+# Quick skill collection (RC5.15)
 
-These instructions assume RC5.9. Quick collection was introduced in RC5.6;
+These instructions assume RC5.15. Quick collection was introduced in RC5.6;
 RC5.5 has the older per-item prompts. Check
 `kitrove --version` before following these shortcuts. This guide does not itself
 establish publication or update an installed binary. Use the current download
@@ -42,7 +42,7 @@ After preview:
 - `s` chooses again using the same scan. An empty preview offers no adoption approval
   or zero-item success; Enter chooses again instead.
 - `d` shows complete skipped-item details. Ready plans always retain full
-  source/fidelity/loss details; the unreleased summary improvements below separate
+  source/fidelity/loss details; the summary improvements below separate
   occupied names and named blockers without listing every unselected copy.
 - `r` walks through the original selection. Enter or `y` accepts the current
   single plan, `n` skips it, and `r` changes its collection name before a new
@@ -77,7 +77,7 @@ other copies. Same-name ambiguity within the chosen tool still needs a specific
 numbered choice or individual review. Existing collection names are not overwritten.
 
 Skipped items retain complete details under `d`; ready plans still show full
-source/fidelity/loss details. The unreleased summary improvements below keep
+source/fidelity/loss details. The summary improvements below keep
 unselected-copy counts out of the default summary.
 An empty preview does not ask for adoption approval or report success. Enter or
 `s` chooses again using the same scan, `r` reviews individually, and `n` skips.
@@ -101,9 +101,9 @@ separately. A matching name is not proof that the source is already collected or
 unchanged. Ready plans still show every source, fidelity result and loss reason,
 and adoption still needs a separate confirmation of that exact new preview.
 
-## Collect from the scan browser (unreleased)
+## Collect from the scan browser (RC5.15)
 
-This handoff requires a future release after RC5.14. In an interactive terminal,
+This handoff is included in RC5.15. In an interactive terminal,
 run `kitrove scan --harness claude --scope user`. The browser's **Ready to preview**
 count means readable source candidates, not a promise that all can be added to
 an existing collection.
@@ -122,8 +122,9 @@ in the collection selection refer to that handoff's displayed list.
 The collection preview distinguishes:
 
 - **Ready to add:** the selected items that passed the planner for this collection.
-- **Names already in your collection:** skipped without comparing or overwriting
-  their contents. Use `r` to review individually and explicitly rename a copy.
+- **Names already in your collection:** skipped without overwriting. Verified
+  native matches, different contents and unverified copies have distinct labels
+  as described below. Use `r` to review individually and explicitly rename a copy.
 - **Blocked:** each skill's planner reason is shown directly, such as executable
   content requiring separate trust review. Adding from scan grants no trust.
 
@@ -138,9 +139,9 @@ handoff itself never applies skills, executes them or synchronizes anything.
 The subsequent optional tool-first phase has its own selection and approval.
 A changed source, changed collection or pending recovery still refuses adoption.
 
-## Content status and grouped copies (unreleased)
+## Content status and grouped copies (RC5.15)
 
-The next collection flow groups same-name source copies under one heading.
+RC5.15 groups same-name source copies under one heading.
 The summary separates unique skill names, selected source copies and ready
 additions. Original inventory numbers, explicit exclusions and native variants remain
 separate; no tool wins automatically. Full inventory and skipped details remain

@@ -4,10 +4,14 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
-- Guide local installation by tool and scope across Claude, Codex, Pi and OpenCode; suggest newly collected items, page/filter selections and preview destinations without unnecessary skill-only version probes.
-- Group same-name source copies and distinguish verified native-content matches from changed or unverified occupied names; existing ownership, trust and stale-plan gates remain unchanged.
+## 0.1.0-rc.5.15
+
+Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.
 
 ### Changed
+
+- Guide local installation by tool and scope across Claude, Codex, Pi and OpenCode; suggest newly collected items, page/filter selections and preview destinations without unnecessary skill-only version probes.
+- Group same-name source copies and distinguish verified native-content matches from changed or unverified occupied names; existing ownership, trust and stale-plan gates remain unchanged.
 
 - Interactive scan offers a direct, explicitly confirmed path to collect the
   scanned skills without restarting in configure. The original scan filters and
