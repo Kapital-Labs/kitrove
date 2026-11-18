@@ -14,6 +14,9 @@ impl Readiness {
         match self {
             Self::Ready => "Ready to add / update",
             Self::Current => "Already current (managed)",
+            Self::NeedsReview(error) if error.code == "apply.compatibility_blocked" => {
+                "Not compatible with the selected tools"
+            }
             Self::NeedsReview(_) => "Needs review",
             Self::AfterSelection => {
                 "Checked after selection (may need tool-version or trust evidence)"
