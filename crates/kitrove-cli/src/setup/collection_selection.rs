@@ -99,6 +99,11 @@ pub(super) struct Skipped {
 }
 
 impl Skipped {
+    pub(super) fn has_matching(&self) -> bool {
+        self.reasons
+            .contains_key(super::collection_status::MATCHING)
+    }
+
     pub(super) fn has_ambiguity(&self) -> bool {
         self.reasons.contains_key(AMBIGUOUS)
     }

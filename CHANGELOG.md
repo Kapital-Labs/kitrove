@@ -4,6 +4,16 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.5.16
+
+Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.
+
+### Changed
+
+- Clarify adding collected skills to a tool, ready/all selection and OpenCode
+  compatibility-folder copies. Skip verified exact collection matches during
+  individual review and explain the unsupported executable-skill collection path.
+
 ## 0.1.0-rc.5.15
 
 Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.

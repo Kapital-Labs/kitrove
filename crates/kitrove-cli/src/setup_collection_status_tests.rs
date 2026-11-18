@@ -113,3 +113,48 @@ fn missing_native_evidence_or_other_tool_variants_never_count_as_matching_conten
         super::collection_status::UNVERIFIED
     );
 }
+
+#[test]
+fn repeated_matching_collection_review_skips_rename_and_points_to_tools() {
+    let tmp = kitrove_testkit::trusted_tempdir(".setup-matching-review-");
+    let root = std::fs::canonicalize(tmp.path()).unwrap();
+    let a = machine(&root, "a");
+    skill(&a, "alpha", "Original source.");
+    script(
+        &a,
+        &format!(
+            "1\n{}\na\ny\nfrom claude\ny\n5\n",
+            a.join("collection").display()
+        ),
+        false,
+        "",
+    );
+    let before = std::fs::read(a.join("collection/kitrove.toml")).unwrap();
+    let original = std::fs::read(a.join("home/.claude/skills/alpha/SKILL.md")).unwrap();
+    let output = script(&a, "\n1\nfrom claude\nr\n5\n", true, "");
+    assert!(
+        output.contains("Add collected skills to a tool"),
+        "{output}"
+    );
+    assert!(output.contains("Skipped 1 already-collected"), "{output}");
+    assert!(!output.contains("New collection name"), "{output}");
+    assert!(!output.contains("Adopted 0"));
+    assert_eq!(
+        std::fs::read(a.join("collection/kitrove.toml")).unwrap(),
+        before
+    );
+    assert_eq!(
+        std::fs::read(a.join("home/.claude/skills/alpha/SKILL.md")).unwrap(),
+        original
+    );
+    assert!(!a.join("home/.config/opencode/skills/alpha").exists());
+    // A changed copy still needs the existing explicit rename/review path.
+    skill(&a, "alpha", "Changed source.");
+    let changed = script(&a, "\n1\nfrom claude\nr\nn\n5\n", true, "");
+    assert!(changed.contains("New collection name"), "{changed}");
+    assert!(!changed.contains("Skipped 1 already-collected"));
+    assert_eq!(
+        std::fs::read(a.join("collection/kitrove.toml")).unwrap(),
+        before
+    );
+}

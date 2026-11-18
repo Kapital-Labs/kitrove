@@ -307,7 +307,10 @@ fn bulk_preview_retains_partial_reasons_and_omits_executable_content() {
     let output = script(&a, "\n1\nall\nd\ny\nn\n5\n", true, "");
     assert!(output.contains("No skills ready to collect"));
     assert!(!output.contains("Adopt the previewed set"));
-    assert!(output.contains("contains executable files; trust must be reviewed separately"));
+    assert!(
+        output
+            .contains("contains executable content; collecting these skills is not supported yet")
+    );
     assert!(!output.contains("kitrove-synthetic-secret-canary-12345"));
     assert!(
         !manifest(&a)
@@ -569,7 +572,7 @@ fn empty_preview_explains_existing_names_and_each_blocker_without_exclusion_nois
     );
     assert!(
         output.contains(
-            "blocked (pi, User): contains executable files; trust must be reviewed separately"
+            "blocked (pi, User): contains executable content; collecting these skills is not supported yet"
         ),
         "{output}"
     );

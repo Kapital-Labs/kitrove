@@ -437,9 +437,9 @@ fn run<R: PromptInput, W: Write>(
     }
     loop {
         if !just_collected.is_empty() {
-            dialog.hint("Next: add the collected skills to a tool with option 2. Those skills will be suggested; installation still needs a separate preview and approval.")?;
+            dialog.hint("Collected skills stay in your collection. Use option 2: Add collected skills to a tool. Newly collected skills are suggested; preview and approval are separate.")?;
         }
-        match dialog.menu("What would you like to do?\n1. Add skills from this computer\n2. Choose skills to add to your AI tools\n3. Share this collection with another computer\n4. Copy selected items from another collection\n5. Finish for now\nChoose 1-5 [5]:", true)?.as_str() {
+        match dialog.menu("What would you like to do?\n1. Add skills from this computer\n2. Add collected skills to a tool\n3. Share this collection with another computer\n4. Copy selected items from another collection\n5. Finish for now\nChoose 1-5 [5]:", true)?.as_str() {
             "1" => just_collected = collect(dialog, &root, registry)?,
             "2" => application::apply(dialog, &root, &just_collected)?,
             "3" => synchronize(dialog, &root, true)?,
@@ -727,9 +727,7 @@ fn import_backend<R: PromptInput, W: Write, B: SyncBackend>(
     if !dialog.confirm(&format!("Import {chosen} and required pack members ({} verified objects)?\nNative content and provenance remain intact. Nothing is applied or trusted for execution.", objects.len()))? { return Ok(()); }
     commit_collection_import(&plan, &objects, root, CaptureLimits::default())
         .map_err(|error| CliError::new(error.code(), error.message()))?;
-    dialog.success(
-        "Selected items imported. Choose skills to add to your AI tools separately when ready.",
-    )
+    dialog.success("Selected items imported. Add collected skills to a tool separately when ready.")
 }
 
 fn human_summary(value: &serde_json::Value, indent: usize) -> String {
