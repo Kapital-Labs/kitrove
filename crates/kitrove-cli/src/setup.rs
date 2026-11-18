@@ -28,6 +28,7 @@ mod collection_status;
 mod initialization;
 mod inventory;
 mod menu_input;
+mod navigation;
 mod presentation;
 
 pub(crate) use inventory::browse_scan;

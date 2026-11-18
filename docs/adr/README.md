@@ -105,4 +105,6 @@ ADRs document foundational decisions and their consequences. Accepted ADRs are a
 | [0074](0074-scripted-skills-local-approval.md) | Inert text-helper collection and exact local approval | Accepted for implementation; validation pending | NS-01, NS-02, NS-03, NS-04, NS-05, NS-06, NS-07, NS-09, NS-10 |
 | [0075](0075-discoverable-pack-application.md) | Discoverable guided pack application | Accepted for implementation; validation pending | NS-01, NS-02, NS-03, NS-04, NS-05, NS-06, NS-07, NS-09, NS-10 |
 
+| [0076](0076-scan-results-and-folder-issues.md) | Scan results, folder issues and compact navigation | Accepted for implementation; validation pending | NS-01, NS-02, NS-03, NS-04, NS-05, NS-06, NS-07, NS-09, NS-10 |
+
 Use [`0000-template.md`](0000-template.md) for new records.

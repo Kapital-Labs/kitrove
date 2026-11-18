@@ -140,6 +140,28 @@ handoff itself never applies skills, executes them or synchronizes anything.
 The subsequent optional tool-first phase has its own selection and approval.
 A changed source, changed collection or pending recovery still refuses adoption.
 
+## Scan navigation update (not yet published)
+
+The compact summary separates actual skill candidates from **Scan issues**.
+An unreadable or unsafe folder is an issue, not a skill named `(missing)`.
+The source tier and logical folder ID distinguish your own folder from an
+administrator-managed one. An issue means the inventory may be incomplete.
+It does not prove there are no skills or that your personal folder is broken.
+
+Choose **View scan issues** (`i`) to see what needs checking and a scoped verbose
+command. Keep any explicit `--root` and `--project-root` options when using that
+command. Check the identified location without changing permissions or links on
+Kitrove's behalf, then choose **Scan again** (`r`). A retry keeps the same scan
+selection. You can quit without changing anything.
+
+Recognized Mac/Linux terminals of sufficient size support Up/Down and Enter.
+Displayed shortcuts work immediately too. Narrow, unrecognized and native Windows
+terminals use the same short action list with shortcuts and a marked Enter
+default. Browsing a group defaults to Back; an empty scan defaults to Quit.
+Adding skills still opens collection selection and a fresh preview before any
+approval. This navigation update requires a future separately authorized release;
+the published RC5.17 handoff described above remains available today.
+
 ## Content status and grouped copies (RC5.17)
 
 RC5.17 groups same-name source copies under one heading.
