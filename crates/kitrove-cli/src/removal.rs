@@ -357,7 +357,20 @@ fn build_pack_skill_transition(
     }
     let observation =
         observe_skill_destination(Path::new(destination.as_str()), CaptureLimits::default());
-    let plan = if retained {
+    let plan = if retained
+        && manifest.assets[&receipt.asset_id].content_class
+            == kitrove_model::ContentClass::Executable
+    {
+        kitrove_core::plan_skill_retention(
+            manifest,
+            &receipt.asset_id,
+            &object,
+            &policy,
+            Path::new(target_anchor.as_str()),
+            state_text,
+            observation,
+        )
+    } else if retained {
         plan_skill_apply(
             manifest,
             &receipt.asset_id,
@@ -520,8 +533,20 @@ fn build_removal(arguments: &RemoveArgs) -> Result<PlannedRemoval, CliError> {
     })?;
     let base_anchor =
         resolve_materialization_anchor(arguments.scope, arguments.project_root.as_deref())?;
-    let anchor = removal_policy_anchor(arguments, base_anchor);
+    let anchor = if asset.kind == AssetKind::Skill {
+        base_anchor
+    } else {
+        removal_policy_anchor(arguments, base_anchor)
+    };
     let batch = match asset.kind {
+        AssetKind::Skill => build_skill_removal(
+            arguments,
+            &manifest,
+            &state,
+            &state_text,
+            &environment_root,
+            &anchor,
+        )?,
         AssetKind::Instruction => {
             build_instruction_removal(arguments, &manifest, &state, &state_text, &anchor)?
         }
@@ -878,6 +903,20 @@ fn render_pack_removal_result(
 }
 
 fn render_plan(batch: &AtomicApplyBatchPlan, json_output: bool) -> Result<String, CliError> {
+    if let [AtomicApplyItem::Skill(plan)] = batch.items() {
+        return render_whole_target_removal_plan(
+            &WholeTargetRemovalRender {
+                batch_digest: batch.digest(),
+                asset_id: plan.asset_id().as_str(),
+                target: plan.harness().as_str(),
+                scope: plan.scope().as_str(),
+                relative_destination: plan.relative_destination().as_str(),
+                kind: "skill directory",
+                operation: "remove_skill",
+            },
+            json_output,
+        );
+    }
     if let [AtomicApplyItem::PromptCommandRemoval(plan)] = batch.items() {
         return render_whole_target_removal_plan(
             &WholeTargetRemovalRender {
@@ -968,6 +1007,21 @@ fn render_result(
     outcome: AtomicApplyBatchCommitOutcome,
     json_output: bool,
 ) -> Result<String, CliError> {
+    if let [AtomicApplyItem::Skill(plan)] = batch.items() {
+        return render_whole_target_removal_result(
+            &WholeTargetRemovalRender {
+                batch_digest: batch.digest(),
+                asset_id: plan.asset_id().as_str(),
+                target: plan.harness().as_str(),
+                scope: plan.scope().as_str(),
+                relative_destination: plan.relative_destination().as_str(),
+                kind: "skill directory",
+                operation: "remove_skill",
+            },
+            outcome,
+            json_output,
+        );
+    }
     if let [AtomicApplyItem::PromptCommandRemoval(plan)] = batch.items() {
         return render_whole_target_removal_result(
             &WholeTargetRemovalRender {
@@ -1064,7 +1118,7 @@ fn render_whole_target_removal_plan(
         }));
     }
     Ok(format!(
-        "{} removal plan: {}\nasset: {}\ntarget: {}\nscope: {}\nrelative destination: {}\nsemantics: exact receipt-backed whole-file removal; portable authority is retained\n",
+        "{} removal plan: {}\nasset: {}\ntarget: {}\nscope: {}\nrelative destination: {}\nsemantics: exact receipt-backed target removal; portable authority is retained\n",
         view.kind,
         view.batch_digest,
         view.asset_id,
@@ -1134,4 +1188,43 @@ const fn render_error() -> CliError {
         "remove.output_failed",
         "the removal result could not be rendered",
     )
+}
+
+fn build_skill_removal(
+    arguments: &RemoveArgs,
+    manifest: &EnvironmentManifest,
+    state: &LocalState,
+    state_text: &str,
+    environment_root: &Path,
+    anchor: &Path,
+) -> Result<AtomicApplyBatchPlan, CliError> {
+    let policy = target_policy(&arguments.target, arguments.scope)?;
+    let object = load_portable_skill_object(
+        manifest,
+        &arguments.asset_id,
+        environment_root,
+        CaptureLimits::default(),
+    )
+    .map_err(|e| CliError::new(e.code(), e.message()))?;
+    let rendered = render_portable_skill(&object, &policy)
+        .map_err(|e| CliError::new(e.code(), e.message()))?;
+    let destination = resolve_target_destination(anchor, &policy, rendered.package_name())
+        .map_err(|e| CliError::new(e.code(), e.message()))?;
+    let observation =
+        observe_skill_destination(Path::new(destination.as_str()), CaptureLimits::default());
+    let plan = plan_skill_removal(
+        manifest,
+        &arguments.asset_id,
+        &object,
+        &policy,
+        anchor,
+        state_text,
+        observation,
+    )
+    .map_err(|e| CliError::new(e.code(), e.message()))?;
+    AtomicApplyBatchPlan::new(
+        vec![AtomicApplyItem::Skill(plan)],
+        state.machine.active_profile.clone(),
+    )
+    .map_err(|e| CliError::new(e.code(), e.message()))
 }

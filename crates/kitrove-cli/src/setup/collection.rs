@@ -144,7 +144,7 @@ pub(super) fn collect_report<R: PromptInput, W: Write>(
         if items.is_empty() {
             dialog.say("No skills ready to collect. Nothing has changed.")?;
             if skipped.has_matching() {
-                dialog.hint("Matching skills are already in your collection. Use option 2 in setup: Add collected skills to a tool (kitrove configure). Individual review skips exact matches.")?;
+                dialog.hint("Matching skills are already in your collection. Use option 2 in setup: Add skills or packs to a tool (kitrove configure). Individual review skips exact matches.")?;
             } else if sources.is_empty() {
                 dialog.hint("Choose r to review or rename selected skills, or s to choose different skills.")?;
             } else {
@@ -482,8 +482,8 @@ fn block_reason(reason: AdoptionBlockReason) -> &'static str {
         AdoptionBlockReason::PortableProjectionUnavailable => {
             "cannot be converted to a portable skill"
         }
-        AdoptionBlockReason::ExecutableTrustRequired => {
-            "contains executable content; collecting these skills is not supported yet"
+        AdoptionBlockReason::ScriptBundleUnsupported => {
+            "contains unsupported executable content or native lifecycle directives"
         }
         AdoptionBlockReason::CredentialShapedNativeIdentity => {
             "the source identity looks like a credential; review it locally"

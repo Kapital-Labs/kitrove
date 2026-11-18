@@ -20,6 +20,7 @@ pub(crate) enum ApplyTargetMaterialization<'a> {
     Skill {
         tree: &'a CapturedTree,
         rendered_hash: &'a ContentHash,
+        approval: Option<&'a crate::materialization::ScriptedSkillApproval>,
     },
     Extension(&'a NativeExtensionObject),
     ExactText {
@@ -39,7 +40,17 @@ pub(crate) fn stage(
         ApplyTargetMaterialization::Skill {
             tree,
             rendered_hash,
-        } => store.stage_rendered_directory(staging_root, tree, rendered_hash, limits),
+            approval,
+        } => match approval {
+            Some(approval) => store.stage_approved_scripted_skill(
+                staging_root,
+                tree,
+                rendered_hash,
+                limits,
+                approval,
+            ),
+            None => store.stage_rendered_directory(staging_root, tree, rendered_hash, limits),
+        },
         ApplyTargetMaterialization::Extension(object) => {
             store.stage_extension_target(staging_root, object, limits)
         }

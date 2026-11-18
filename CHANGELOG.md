@@ -4,6 +4,22 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.5.17
+
+Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.
+
+### Added
+
+- Eligible text-helper skill bundles can be collected as data. Adding them to a
+  tool requires a separate machine-local approval for the exact complete bundle;
+  changes require review again and approvals do not sync. Kitrove does not run
+  helpers, install runtimes or grant tool permissions. Compiled payloads and
+  native lifecycle directives remain unsupported.
+- Bare interactive `kitrove apply` directly guides destination and saved-item
+  selection. Setup names skills and packs explicitly and lists packs first.
+- Exact receipt-backed skill removal remains available after local denial.
+
+
 ## 0.1.0-rc.5.16
 
 Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.

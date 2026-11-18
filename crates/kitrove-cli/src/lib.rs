@@ -37,7 +37,7 @@ pub use registry::tier_one_registry;
 
 use std::env;
 use std::ffi::OsString;
-use std::io::{self, Write as _};
+use std::io::{self, IsTerminal as _, Write as _};
 use std::process::ExitCode;
 
 use args::{
@@ -80,6 +80,8 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
     if json_errors {
         arguments.next();
     }
+    let arguments: Vec<_> = arguments.collect();
+    let guided_apply = !json_errors && bare_apply_requested(&arguments);
     let command = match parse_args(arguments) {
         Ok(command) => command,
         Err(error) => {
@@ -215,6 +217,11 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                 return 1;
             }
         },
+        Command::Apply(arguments)
+            if guided_apply && io::stdin().is_terminal() && io::stdout().is_terminal() =>
+        {
+            return setup::apply_entry(arguments.environment);
+        }
         Command::Apply(arguments) => match run_apply(arguments, confirm_apply) {
             Ok(completed) => {
                 out!("{}", completed.output);
@@ -466,4 +473,37 @@ fn confirm_operation(plan: &str, operation: &str) -> bool {
     }
     let mut response = String::new();
     io::stdin().read_line(&mut response).is_ok() && response.trim() == "yes"
+}
+
+/// Explicit selections, scope, probes and machine output keep the command path.
+fn bare_apply_requested(arguments: &[OsString]) -> bool {
+    matches!(arguments, [command] if command == "apply")
+        || matches!(arguments, [command, flag, _path] if command == "apply" && flag == "--environment")
+}
+
+#[cfg(test)]
+mod guided_apply_tests {
+    #[test]
+    fn only_bare_or_environment_only_apply_selects_guided_entry() {
+        for args in [
+            vec!["apply"],
+            vec!["apply", "--environment", "/synthetic/collection"],
+        ] {
+            assert!(super::bare_apply_requested(
+                &args.into_iter().map(Into::into).collect::<Vec<_>>()
+            ));
+        }
+        for args in [
+            vec!["plan"],
+            vec!["apply", "--json"],
+            vec!["apply", "--scope", "user"],
+            vec!["apply", "--pack", "review"],
+            vec!["apply", "--target", "opencode"],
+            vec!["apply", "--confirm", "digest"],
+        ] {
+            assert!(!super::bare_apply_requested(
+                &args.into_iter().map(Into::into).collect::<Vec<_>>()
+            ));
+        }
+    }
 }

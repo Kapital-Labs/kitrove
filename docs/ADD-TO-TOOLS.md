@@ -1,12 +1,10 @@
-# Add collected skills to your AI tools (RC5.16)
+# Add saved skills or packs to your AI tools
 
-This guided flow is included in RC5.16. It adds local files for a tool to
-discover; it does not install tools, start an agent session, grant trust, connect
-accounts or share a collection. Advanced items can require an explicit bounded
+This guided flow adds local files for a tool to discover. It does not install tools, start an agent session, connect accounts or share a collection. Script-containing skills require the separate local approval described below. Advanced items can require an explicit bounded
 version check.
 
 Run `kitrove configure --environment /absolute/path/to/collection` and choose
-**Add collected skills to a tool**. After collecting skills in setup,
+**Add skills or packs to a tool**. You can also go directly there with `kitrove apply` in an interactive terminal. Packs appear first: select a pack number to preview its members together. After collecting skills in setup,
 option 2 suggests the skills just collected. You can select different items.
 Adding from the scan browser offers **Choose a tool** after collection, without
 asking for the collection path again. Skipping this next step keeps the collection.
@@ -71,3 +69,14 @@ Official discovery references reviewed November 17, 2026:
 [Codex](https://developers.openai.com/codex/skills),
 [Pi](https://docs.pi.dev/latest/skills),
 [OpenCode](https://opencode.ai/docs/skills/).
+
+
+## Script-containing skills
+
+Kitrove can collect eligible text helper scripts alongside SKILL.md as data. Before adding such a skill to any tool, it offers a separate local review of the exact complete bundle. Inspect stored files with `f`, page the file inventory with `v`, and explicitly approve with `y`; Enter skips the selection. Tool placement then has its own preview and approval. A blocked member stops the selected pack; it is not silently dropped.
+
+The local approval covers the bundle revision, including supporting files and retained native variants. Changing the skill requires a new approval. Another computer must approve its own copy; trust is not synchronized. Kitrove neither runs helpers nor installs Python, shell runtimes or dependencies. The receiving tool's permissions and runtime requirements still apply. References specific to another tool are retained, not automatically translated.
+
+Compiled payloads, native lifecycle/install directives, credentials and executable principal documents remain unsupported. Unix helper mode classes are preserved; a platform that cannot preserve a recorded executable mode refuses before writing. Denial blocks future placement but does not remove already placed files or revoke tool permissions; use receipt-backed removal for that. Executable pack rollback is outside this feature.
+
+When packs share an already placed script, removing one pack retains the exact existing files and denied decision for the other owner. It grants no new approval or replacement; removing the last owner removes only its unchanged receipt-backed files.

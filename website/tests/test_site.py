@@ -89,12 +89,12 @@ class SiteTests(unittest.TestCase):
         home = (ROOT / "index.html").read_text()
         visible = " ".join(" ".join(Page(ROOT / "index.html").text).split())
         self.assertIn("brew install --cask kapital-labs/tap/kitrove</code>", home)
-        self.assertIn("v0.1.0-rc.5.16", home)
+        self.assertIn("v0.1.0-rc.5.17", home)
         self.assertNotIn("v0.1.0-rc.4.1", home)
         self.assertIn("Apple Silicon Macs only", home)
         for command in ("winget install", "choco install", "apt install", "dnf install"):
             self.assertNotIn(command, home)
-        self.assertIn("RC4.2 WinGet submission is not an RC5.16 install path", visible)
+        self.assertIn("RC4.2 WinGet submission is not an RC5.17 install path", visible)
         self.assertIn("No Chocolatey package is published", visible)
         self.assertIn("RC4.2 signed APT or DNF repository", visible)
         self.assertIn("docs/LINUX-INSTALL.md", home)
@@ -104,9 +104,9 @@ class SiteTests(unittest.TestCase):
             page = ROOT / relative
             source = page.read_text()
             visible = " ".join(" ".join(Page(page).text).split())
-            self.assertIn("RC5.16", visible)
+            self.assertIn("RC5.17", visible)
             self.assertIn("RC4.2", visible)
-            self.assertIn("RC4.2 WinGet submission is not an RC5.16 install path", visible)
+            self.assertIn("RC4.2 WinGet submission is not an RC5.17 install path", visible)
             self.assertIn("#ubuntu--apt", source)
             self.assertIn("#fedora--dnf", source)
             self.assertIn("fresh-install evaluation", visible)
@@ -122,17 +122,17 @@ class SiteTests(unittest.TestCase):
         self.assertIn("Cloud-provider sync is roadmap work", docs)
 
     def test_exact_preview_links_and_verification_before_execution(self):
-        release = "https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.16"
-        versioned = "https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.16/"
+        release = "https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.17"
+        versioned = "https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.17/"
         for relative in ("index.html", "docs/index.html"):
             page = Page(ROOT / relative)
             self.assertIn(release, page.refs)
             self.assertIn(versioned + "docs/INSTALLER.md", page.refs)
-            self.assertIn(versioned + "release/notes/v0.1.0-rc.5.16.md", page.refs)
+            self.assertIn(versioned + "release/notes/v0.1.0-rc.5.17.md", page.refs)
             visible = " ".join(" ".join(page.text).split())
             self.assertIn("Verify before running", visible)
             self.assertIn("Homebrew", visible)
-            self.assertIn("do not install RC5.16", visible)
+            self.assertIn("do not install RC5.17", visible)
             self.assertNotIn("Intel Mac and Windows", visible)
             self.assertNotIn("curl |", visible)
             self.assertNotIn("iex", visible)
@@ -179,7 +179,7 @@ class SiteTests(unittest.TestCase):
     def test_current_preview_links_select_rc511(self):
         for relative in ("index.html", "docs/index.html"):
             page = Page(ROOT / relative)
-            self.assertIn("https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.16", page.refs)
+            self.assertIn("https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.17", page.refs)
             self.assertNotIn("https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.6", page.refs)
 
     def test_scan_guide_explains_terminal_navigation_and_read_only_boundary(self):
@@ -188,11 +188,21 @@ class SiteTests(unittest.TestCase):
                          "inventory is read-only", "Adoption still captures fresh content"):
             self.assertIn(guidance, visible)
 
+    def test_saved_packs_have_a_direct_guided_apply_command(self):
+        guide = (ROOT.parent / "docs/ADD-TO-TOOLS.md").read_text()
+        docs = " ".join(" ".join(Page(ROOT / "docs/index.html").text).split())
+        for text in (guide, docs):
+            self.assertIn("kitrove apply", text)
+            self.assertIn("Packs", text)
+            self.assertIn("separate", text)
+        self.assertIn("exact complete bundle", guide)
+        self.assertIn("does not run helpers", docs)
+
     def test_setup_docs_use_current_goal_labels_and_optional_prompt_color(self):
         guide = (ROOT.parent / "docs/GETTING-STARTED.md").read_text()
         docs = " ".join(" ".join(Page(ROOT / "docs/index.html").text).split())
         for text in (guide, docs):
-            for label in ("Add collected skills to a tool", "Share this collection with another computer"):
+            for label in ("Add skills or packs to a tool", "Share this collection with another computer"):
                 self.assertIn(label, text)
             self.assertNotIn("Connect / sync the whole collection", text)
             self.assertIn("NO_COLOR", text)
@@ -216,9 +226,9 @@ class SiteTests(unittest.TestCase):
         self.assertIn("named blocker explanations", quick)
         self.assertIn("Ready to preview", quick)
         self.assertIn("**Add to collection**", quick)
-        self.assertIn("handoff is included in RC5.16", quick)
+        self.assertIn("handoff is included in RC5.17", quick)
         self.assertIn("11 names are already", quick)
-        self.assertIn("Quick skill collection (RC5.16)", quick)
+        self.assertIn("Quick skill collection (RC5.17)", quick)
         self.assertNotIn("Next-preview improvement", quick)
         self.assertNotIn("These improvements require a future release", quick)
 

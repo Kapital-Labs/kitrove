@@ -107,7 +107,7 @@ pub struct ExecutableTrustError {
 }
 
 impl ExecutableTrustError {
-    const fn new(code: &'static str, message: &'static str) -> Self {
+    pub(crate) const fn new(code: &'static str, message: &'static str) -> Self {
         Self { code, message }
     }
 
@@ -209,9 +209,27 @@ pub fn plan_executable_trust(
     object: &NativeExtensionObject,
     decision: ExecutableTrustDecision,
 ) -> Result<ExecutableTrustPlan, ExecutableTrustError> {
-    let (manifest_revision, mut proposed_local_state) =
+    let (manifest_revision, proposed_local_state) =
         validate_trust_authority(manifest_text, local_state_text, asset_id, object)?;
-    let current = proposed_local_state.trust.get(object.hash());
+    plan_trust_subject(
+        asset_id,
+        object.hash(),
+        decision,
+        manifest_revision,
+        proposed_local_state,
+        local_state_text,
+    )
+}
+
+pub(crate) fn plan_trust_subject(
+    asset_id: &AssetId,
+    subject: &ContentHash,
+    decision: ExecutableTrustDecision,
+    manifest_revision: Revision,
+    mut proposed_local_state: LocalState,
+    local_state_text: &str,
+) -> Result<ExecutableTrustPlan, ExecutableTrustError> {
+    let current = proposed_local_state.trust.get(subject);
     let disposition = match (current, decision) {
         (None, _) => ExecutableTrustDisposition::First,
         (Some(TrustDecision::Trusted { .. }), ExecutableTrustDecision::Trusted)
@@ -229,9 +247,7 @@ pub fn plan_executable_trust(
                 rationale: TRUST_RATIONALE.to_owned(),
             },
         };
-        proposed_local_state
-            .trust
-            .insert(object.hash().clone(), value);
+        proposed_local_state.trust.insert(subject.clone(), value);
     }
     let proposed_local_state_text = proposed_local_state.to_json().map_err(|_| {
         trust_error(
@@ -241,7 +257,7 @@ pub fn plan_executable_trust(
     })?;
     let digest = trust_plan_digest(
         asset_id,
-        object.hash(),
+        subject,
         decision,
         disposition,
         &manifest_revision,
@@ -250,7 +266,7 @@ pub fn plan_executable_trust(
     )?;
     Ok(ExecutableTrustPlan {
         asset_id: asset_id.clone(),
-        object_hash: object.hash().clone(),
+        object_hash: subject.clone(),
         decision,
         disposition,
         manifest_revision,

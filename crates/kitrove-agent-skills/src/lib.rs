@@ -28,6 +28,7 @@ pub use observed::{BoundedYamlValue, ObservedSkillDocument};
 pub use projection::{PortableProjection, project_skill_source};
 pub use risk::{
     assess_native_executable_tree_risk, assess_native_skill_object_risk, assess_portable_tree_risk,
+    validate_scripted_skill_tree,
 };
 pub use source::{
     CaptureMeter, CaptureUsage, CapturedSkillSource, SkillSource, SkillSourceLayout,

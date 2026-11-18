@@ -1,6 +1,6 @@
-# Quick skill collection (RC5.16)
+# Quick skill collection (RC5.17)
 
-These instructions assume RC5.16. Quick collection was introduced in RC5.6;
+These instructions assume RC5.17. Quick collection was introduced in RC5.6;
 RC5.5 has the older per-item prompts. Check
 `kitrove --version` before following these shortcuts. This guide does not itself
 establish publication or update an installed binary. Use the current download
@@ -101,9 +101,9 @@ separately. A matching name is not proof that the source is already collected or
 unchanged. Ready plans still show every source, fidelity result and loss reason,
 and adoption still needs a separate confirmation of that exact new preview.
 
-## Collect from the scan browser (RC5.16)
+## Collect from the scan browser (RC5.17)
 
-This handoff is included in RC5.16. In an interactive terminal,
+This handoff is included in RC5.17. In an interactive terminal,
 run `kitrove scan --harness claude --scope user`. The browser's **Ready to preview**
 count means readable source candidates, not a promise that all can be added to
 an existing collection.
@@ -125,8 +125,9 @@ The collection preview distinguishes:
 - **Names already in your collection:** skipped without overwriting. Verified
   native matches, different contents and unverified copies have distinct labels
   as described below. Use `r` to review individually and explicitly rename a copy.
-- **Blocked:** each skill's planner reason is shown directly, such as executable
-  content requiring separate trust review. Adding from scan grants no trust.
+- **Blocked:** each skill's planner reason is shown directly, such as unsupported
+  compiled payloads or native lifecycle directives. Eligible text helpers can be collected
+  as data; adding them to a tool requires a separate exact local approval. Adding from scan grants no trust.
 
 For example, 13 candidates can become zero ready items when 11 names are already
 in the collection and the other two have blocked plans. Those are different
@@ -139,9 +140,9 @@ handoff itself never applies skills, executes them or synchronizes anything.
 The subsequent optional tool-first phase has its own selection and approval.
 A changed source, changed collection or pending recovery still refuses adoption.
 
-## Content status and grouped copies (RC5.16)
+## Content status and grouped copies (RC5.17)
 
-RC5.16 groups same-name source copies under one heading.
+RC5.17 groups same-name source copies under one heading.
 The summary separates unique skill names, selected source copies and ready
 additions. Original inventory numbers, explicit exclusions and native variants remain
 separate; no tool wins automatically. Full inventory and skipped details remain

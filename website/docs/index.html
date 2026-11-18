@@ -37,7 +37,7 @@
         ><a href="#help">More documentation</a>
       </nav>
       <main id="main" class="docs-content">
-        <p class="eyebrow">Getting started · RC5.16</p>
+        <p class="eyebrow">Getting started · RC5.17</p>
         <h1>Your first collection.</h1>
         <p>
           Kitrove collects skills from your agent tools and helps you apply
@@ -46,8 +46,8 @@
         </p>
         <h2 id="install">Install the preview</h2>
         <p>
-          RC5.16 is a fresh-install evaluation preview for Apple Silicon macOS,
-          x86-64 Linux and x86-64 Windows. Intel Macs are unsupported in RC5.16.
+          RC5.17 is a fresh-install evaluation preview for Apple Silicon macOS,
+          x86-64 Linux and x86-64 Windows. Intel Macs are unsupported in RC5.17.
           Use a new isolated collection and empty destination with synthetic or
           disposable capabilities.
         </p>
@@ -58,7 +58,7 @@
         <pre><code>brew install --cask kapital-labs/tap/kitrove
 kitrove --version</code></pre>
         <p>
-          This installs the latest reviewed preview, currently RC5.16. The
+          This installs the latest reviewed preview, currently RC5.17. The
           shorter package name does not make it a stable release. Homebrew
           checks the pinned archive checksum; you trust Homebrew and the
           <a href="https://github.com/Kapital-Labs/homebrew-tap"
@@ -81,17 +81,17 @@ kitrove --version</code></pre>
         </p>
         <p>
           <a
-            href="https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.16"
-            >Download RC5.16</a
+            href="https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.17"
+            >Download RC5.17</a
           >
           and read its
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.16/release/notes/v0.1.0-rc.5.16.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.17/release/notes/v0.1.0-rc.5.17.md"
             >versioned release notes</a
           >. Verify before running a manual download on macOS, Linux or Windows:
           follow the
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.16/docs/INSTALLER.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.17/docs/INSTALLER.md"
             >versioned verification and staging guide</a
           >
           with an independently trusted or reviewed-source-built verifier. Match
@@ -103,9 +103,9 @@ kitrove --version</code></pre>
         <details>
           <summary>Older Linux package channels · RC4.2 only</summary>
           <p>
-            APT/DNF still distribute RC4.2 and do not install RC5.16. The RC4.2
-            WinGet submission is not an RC5.16 install path. No Chocolatey
-            package is published. These channels were not updated by RC5.16.
+            APT/DNF still distribute RC4.2 and do not install RC5.17. The RC4.2
+            WinGet submission is not an RC5.17 install path. No Chocolatey
+            package is published. These channels were not updated by RC5.17.
           </p>
           <p>
             Linux x86-64 users can choose
@@ -117,7 +117,7 @@ kitrove --version</code></pre>
             <a
               href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/LINUX-INSTALL.md#fedora--dnf"
               >Fedora / DNF</a
-            >. These are RC4.2 package instructions, not RC5.16 installation or
+            >. These are RC4.2 package instructions, not RC5.17 installation or
             upgrade instructions. Authenticate a download before its first
             execution.
           </p>
@@ -148,7 +148,7 @@ kitrove --version</code></pre>
             preview. Original source files stay in place.
           </li>
           <li>
-            Select <strong>Add collected skills to a tool</strong>.
+            Run <code>kitrove apply</code>, or select <strong>Add skills or packs to a tool</strong> in setup. Packs appear first in the picker.
             Choose Claude Code, Codex, Pi or OpenCode, then all projects or one
             project. Select saved skills, review destinations, and press
             <code>y</code> to approve the separate application plan.
@@ -193,6 +193,10 @@ kitrove --version</code></pre>
           state folder is <code>~/Library/Application Support/kitrove</code>.
           Setup shows both paths and does not edit your shell profile.
         </p>
+        <h2 id="apply">Add saved skills or packs to another tool</h2>
+        <pre><code>kitrove apply</code></pre>
+        <p>Choose Claude Code, Codex, Pi or OpenCode, then select a saved pack or individual skills. Packs are listed first. Preview the destination files and approve before they are added.</p>
+        <p>Skills with text helpers need a separate local review of that exact bundle first. Kitrove does not run helpers or install their runtimes. Changes require a new approval; approvals do not sync.</p>
         <h2 id="configure">Return when you want to change something</h2>
         <pre><code>kitrove configure</code></pre>
         <p>
@@ -209,7 +213,7 @@ kitrove --version</code></pre>
         </p>
         <p>
           Choose <strong>Add skills from this computer</strong> to collect,
-          <strong>Add collected skills to a tool</strong> to preview
+          <strong>Add skills or packs to a tool</strong> to preview
           local application,
           <strong>Share this collection with another computer</strong> to sync,
           or <strong>Copy selected items from another collection</strong>
@@ -276,7 +280,7 @@ kitrove --version</code></pre>
         </p>
         <p>
           Conflicting content under the same identity stops the operation for
-          review. RC5.16 does not choose an automatic winner or create a
+          review. RC5.17 does not choose an automatic winner or create a
           keep-both rewrite.
         </p>
         <h2 id="scan">Inspect skills and choose by name</h2>
@@ -316,8 +320,9 @@ kitrove scan --harness claude --scope user</code></pre>
             identical behavior in another tool.
           </li>
           <li>
-            Executable capabilities need separate local trust. Setup does not
-            grant it or install prerequisites. Ordinary skills need no tool
+            Script-containing skills need a separate exact local approval before
+            placement. Native extensions retain their existing explicit trust
+            workflow. Setup installs no prerequisites. Ordinary skills need no tool
             executable path. Selected Pi extensions or advanced OpenCode items
             can require an explicit trusted binary for a bounded version check.
           </li>
@@ -326,30 +331,30 @@ kitrove scan --harness claude --scope user</code></pre>
             overwriting existing files.
           </li>
           <li>
-            Keep RC5.16 collections separate from older previews. RC4.2 cannot
+            Keep RC5.17 collections separate from older previews. RC4.2 cannot
             read authored packs. Do not downgrade a collection or treat binary
             rollback as data recovery.
           </li>
         </ul>
         <p>
-          RC5.16 remains a prerelease. Publication and Homebrew promotion require
+          RC5.17 remains a prerelease. Publication and Homebrew promotion require
           independent inventory, provenance, notice-byte and native Mac image
           verification. Those checks do not establish first-launch acceptance. Prior
           bounded source-built Mac/Linux tests covered skill and authored-pack
           transfer, updates, conflict refusal and unmanaged-file protection.
-          They are not RC5.16 production-artifact fresh-install acceptance,
+          They are not RC5.17 production-artifact fresh-install acceptance,
           clean-Mac online/offline first launch, all capability types, live
           agent-tool execution, Git-provider acceptance or concurrent sync.
         </p>
         <p>
-          RC5.16 includes exact agent plan/approval workflows, locally authored
+          RC5.17 includes exact agent plan/approval workflows, locally authored
           packs and explicit partial-fidelity warnings for native-only skill
           fields. These features are not in the older RC4.2 package channels.
           Cloud-provider sync is roadmap work, not an available feature.
         </p>
         <h2 id="existing-installations">Existing installations</h2>
         <p>
-          These instructions assume a fresh install. RC5.16 is not a supported
+          These instructions assume a fresh install. RC5.17 is not a supported
           in-place upgrade from RC4.2; no rollback-compatible predecessor is
           declared. Binary rollback does not roll back collection data.
         </p>
@@ -370,11 +375,11 @@ kitrove scan --harness claude --scope user</code></pre>
             >full setup guide</a
           >,
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.16/docs/INSTALLER.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.17/docs/INSTALLER.md"
             >release verification instructions</a
           >, and
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.16/docs/RELEASE-ACCEPTANCE.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.17/docs/RELEASE-ACCEPTANCE.md"
             >acceptance checklist</a
           >.
         </p>

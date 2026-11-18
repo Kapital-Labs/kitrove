@@ -102,4 +102,7 @@ ADRs document foundational decisions and their consequences. Accepted ADRs are a
 
 | [0073](0073-tool-first-local-materialization.md) | Tool-first local materialization and explicit collection status | Accepted for implementation; validation pending | NS-01, NS-02, NS-03, NS-04, NS-05, NS-06, NS-07, NS-09, NS-10 |
 
+| [0074](0074-scripted-skills-local-approval.md) | Inert text-helper collection and exact local approval | Accepted for implementation; validation pending | NS-01, NS-02, NS-03, NS-04, NS-05, NS-06, NS-07, NS-09, NS-10 |
+| [0075](0075-discoverable-pack-application.md) | Discoverable guided pack application | Accepted for implementation; validation pending | NS-01, NS-02, NS-03, NS-04, NS-05, NS-06, NS-07, NS-09, NS-10 |
+
 Use [`0000-template.md`](0000-template.md) for new records.

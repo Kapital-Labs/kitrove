@@ -1197,7 +1197,7 @@ pub(crate) const fn fidelity(value: kitrove_model::Fidelity) -> &'static str {
 const fn adoption_block_tag(reason: AdoptionBlockReason) -> &'static str {
     match reason {
         AdoptionBlockReason::PortableProjectionUnavailable => "portable_projection_unavailable",
-        AdoptionBlockReason::ExecutableTrustRequired => "executable_trust_required",
+        AdoptionBlockReason::ScriptBundleUnsupported => "script_bundle_unsupported",
         AdoptionBlockReason::CredentialShapedNativeIdentity => "credential_shaped_native_identity",
         AdoptionBlockReason::AssetConflict => "asset_conflict",
     }
@@ -1208,8 +1208,8 @@ const fn adoption_block_message(reason: AdoptionBlockReason) -> &'static str {
         AdoptionBlockReason::PortableProjectionUnavailable => {
             "the selected observation has no authorized portable projection"
         }
-        AdoptionBlockReason::ExecutableTrustRequired => {
-            "this executable adoption path is unsupported; exact-content trust currently applies only to native Pi extensions"
+        AdoptionBlockReason::ScriptBundleUnsupported => {
+            "compiled payloads, executable principal documents and native lifecycle directives cannot be collected"
         }
         AdoptionBlockReason::CredentialShapedNativeIdentity => {
             "the selected native identity has a credential-shaped value"

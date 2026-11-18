@@ -322,6 +322,9 @@ fn render_pack_list(manifest: &EnvironmentManifest, json_output: bool) -> Result
         )
         .expect("writing to a string cannot fail");
     }
+    if !manifest.packs.is_empty() {
+        output.push_str("Next: kitrove apply — choose this collection, a tool, then a pack.\n");
+    }
     Ok(output)
 }
 
@@ -418,7 +421,7 @@ fn render_pack_adoption_result(
         }));
     }
     Ok(format!(
-        "pack adoption {outcome}\npack: {}\nrevision: {}\n",
+        "pack adoption {outcome}\npack: {}\nrevision: {}\nNext: kitrove apply — choose a tool, then select this pack.\n",
         plan.selection().pack_id(),
         plan.selection().target_revision(),
     ))
@@ -519,7 +522,7 @@ fn render_pack_mutation_result(
         }));
     }
     Ok(format!(
-        "pack {operation} {outcome}\npack: {}\nrevision: {}\n",
+        "pack {operation} {outcome}\npack: {}\nrevision: {}\nNext: kitrove apply — choose a tool, then select this pack.\n",
         plan.pack().id,
         plan.pack().content_hash,
     ))

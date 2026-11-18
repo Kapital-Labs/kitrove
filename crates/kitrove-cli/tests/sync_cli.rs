@@ -1241,7 +1241,9 @@ fn received_executable_is_blocked_before_apply_without_running_or_mutating() {
     let blocked = machine_b.apply_target("codex");
 
     assert!(!blocked.status.success());
-    assert!(String::from_utf8_lossy(&blocked.stderr).contains("error[apply.executable_blocked]"));
+    assert!(
+        String::from_utf8_lossy(&blocked.stderr).contains("error[apply.skill_bundle_unsupported]")
+    );
     assert!(!sentinel.exists());
     assert!(!machine_b.home.join(".agents/skills/review").exists());
     assert_eq!(regular_file_map(&machine_b.environment), environment_before);

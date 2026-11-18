@@ -123,7 +123,7 @@ fn newly_collected_items_can_go_directly_to_a_tool_with_separate_confirmation() 
         false,
         "",
     );
-    assert!(output.contains("Use option 2: Add collected skills to a tool"));
+    assert!(output.contains("use option 2: Add skills or packs to a tool"));
     assert!(output.contains("just collected"));
     assert!(output.contains("additional managed copies in the OpenCode destination"));
     assert!(output.contains("matching IDs may override"));
@@ -236,10 +236,10 @@ fn opencode_version_prompt_tracks_selected_asset_kinds_including_pack_leaves() {
     kitrove_core::commit_pack_creation(&pack, &a.join("collection"), CaptureLimits::default())
         .unwrap();
     // Skill-only selection ignores the unselected gated instruction and pack.
-    let skill = script(&a, "\n2\n4\n1\n1\nn\n5\n", true, "");
+    let skill = script(&a, "\n2\n4\n1\n2\nn\n5\n", true, "");
     assert!(!skill.contains("Absolute trusted"));
     // Both a direct instruction and the instruction reached through a pack need V2 evidence.
-    for selection in ["2", "3"] {
+    for selection in ["1", "3"] {
         let gated = script(&a, &format!("\n2\n4\n1\n{selection}\n\n5\n"), true, "");
         assert!(gated.contains("Absolute trusted opencode2 executable path"));
         assert!(!gated.contains("Add to tools — preview"));
@@ -340,4 +340,134 @@ fn core_recovery_guard_is_not_hidden_by_advisory_destination_readiness() {
         std::fs::read_to_string(target).unwrap(),
         "User-owned target.\n"
     );
+}
+
+#[test]
+fn saved_pack_is_first_and_applies_all_members_with_one_preview() {
+    let (_tmp, a) = prepared();
+    let pack = kitrove_core::plan_authored_pack_creation(
+        &super::tests::manifest(&a),
+        AssetId::parse("z-review-pack").unwrap(),
+        BTreeSet::from([AssetId::parse("alpha").unwrap()]),
+    )
+    .unwrap();
+    kitrove_core::commit_pack_creation(&pack, &a.join("collection"), CaptureLimits::default())
+        .unwrap();
+    let output = script(&a, "\n2\n4\n1\n1\ny\n5\n", true, "");
+    assert!(output.contains("2. Add skills or packs to a tool"));
+    assert!(
+        output.contains("1. z-review-pack [Pack · 1 item]"),
+        "{output}"
+    );
+    assert!(output.find("1. z-review-pack").unwrap() < output.find("2. alpha").unwrap());
+    assert!(output.contains("kitrove apply"));
+    assert!(
+        a.join("home/.config/opencode/skills/alpha/SKILL.md")
+            .is_file()
+    );
+    let state: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(a.join("state/state.json")).unwrap()).unwrap();
+    assert!(
+        !state["pack_applications"].as_object().unwrap().is_empty(),
+        "{state}"
+    );
+}
+
+fn prepared_scripted_skill() -> (tempfile::TempDir, PathBuf) {
+    prepared_scripted_skill_bytes(b"from pathlib import Path\nPath('KITROVE_SCRIPT_EXECUTED').write_text('bad')\nraise SystemExit('must never execute')\n")
+}
+fn prepared_scripted_skill_bytes(bytes: &[u8]) -> (tempfile::TempDir, PathBuf) {
+    let (temporary, a) = prepared();
+    super::tests::skill(
+        &a,
+        "rv",
+        "Use helper.py only when the tool user permits it.",
+    );
+    std::fs::write(a.join("home/.claude/skills/rv/helper.py"), bytes).unwrap();
+    let output = script(&a, "\n1\nfrom claude\ny\n5\n", true, "");
+    assert!(output.contains("Adopted 1 skills"), "{output}");
+    let state: kitrove_model::LocalState =
+        serde_json::from_slice(&std::fs::read(a.join("state/state.json")).unwrap()).unwrap();
+    assert!(state.trust.is_empty() && state.receipts.is_empty());
+    (temporary, a)
+}
+
+#[test]
+fn scripted_skill_needs_separate_exact_local_approval_for_each_tool() {
+    for (tool, folder) in [
+        ("1", ".claude/skills"),
+        ("2", ".agents/skills"),
+        ("3", ".pi/agent/skills"),
+        ("4", ".config/opencode/skills"),
+    ] {
+        let (_tmp, a) = prepared_scripted_skill();
+        let native = std::fs::read(a.join("home/.claude/skills/rv/helper.py")).unwrap();
+        // A managed destination must be empty; native evidence remains in collection.
+        std::fs::remove_dir_all(a.join("home/.claude/skills/rv")).unwrap();
+        let output = script(&a, &format!("\n2\n{tool}\n1\n2\ny\ny\n5\n"), true, "");
+        assert!(output.contains("Script-containing skill: rv"), "{output}");
+        assert!(
+            output.find("Exact bundle approved locally").unwrap()
+                < output.find("Add the previewed items?").unwrap()
+        );
+        assert_eq!(
+            std::fs::read(a.join("home").join(folder).join("rv/helper.py")).unwrap(),
+            native
+        );
+        let state: kitrove_model::LocalState =
+            serde_json::from_slice(&std::fs::read(a.join("state/state.json")).unwrap()).unwrap();
+        let id = AssetId::parse("rv").unwrap();
+        assert!(matches!(
+            state
+                .trust
+                .get(&super::tests::manifest(&a).assets[&id].content_hash),
+            Some(kitrove_model::TrustDecision::Trusted { .. })
+        ));
+        assert_eq!(state.receipts.len(), 1);
+        assert!(!a.join("working/KITROVE_SCRIPT_EXECUTED").exists());
+        assert!(!a.join("home/KITROVE_SCRIPT_EXECUTED").exists());
+    }
+}
+
+#[test]
+fn skipping_script_approval_keeps_entire_pack_unapplied_and_trust_empty() {
+    let (_tmp, a) = prepared_scripted_skill();
+    let pack = kitrove_core::plan_authored_pack_creation(
+        &super::tests::manifest(&a),
+        AssetId::parse("work-pack").unwrap(),
+        BTreeSet::from([
+            AssetId::parse("alpha").unwrap(),
+            AssetId::parse("rv").unwrap(),
+        ]),
+    )
+    .unwrap();
+    kitrove_core::commit_pack_creation(&pack, &a.join("collection"), CaptureLimits::default())
+        .unwrap();
+    let output = script(&a, "\n2\n4\n1\n1\n\n5\n", true, "");
+    assert!(output.contains("Selection was not applied"));
+    assert!(!a.join("home/.config/opencode/skills").exists());
+    let state: kitrove_model::LocalState =
+        serde_json::from_slice(&std::fs::read(a.join("state/state.json")).unwrap()).unwrap();
+    assert!(
+        state.trust.is_empty() && state.receipts.is_empty() && state.pack_applications.is_empty()
+    );
+}
+
+#[test]
+fn stored_script_file_inspection_escapes_controls_pages_long_lines_and_grants_no_trust() {
+    let bytes = format!("# stored source \u{1b}[2J{}\n", "a".repeat(300));
+    let (_tmp, a) = prepared_scripted_skill_bytes(bytes.as_bytes());
+    let output = script(&a, "\n2\n4\n1\n2\nf\n2\n\n\n5\n", true, "");
+    assert!(output.contains("Stored file:"));
+    assert!(output.contains("\\u{1b}[2J"));
+    assert!(!output.contains('\u{1b}'));
+    assert!(
+        !output.contains(&"a".repeat(200)),
+        "source lines must be wrapped into bounded rows"
+    );
+    assert!(output.contains("Selection was not applied"));
+    let state: kitrove_model::LocalState =
+        serde_json::from_slice(&std::fs::read(a.join("state/state.json")).unwrap()).unwrap();
+    assert!(state.trust.is_empty() && state.receipts.is_empty());
+    assert!(!a.join("home/.config/opencode/skills").exists());
 }

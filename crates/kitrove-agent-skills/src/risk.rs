@@ -18,9 +18,9 @@ const PRIVATE_KEY_MARKERS: [&[u8]; 5] = [
     b"BEGIN OPENSSH PRIVATE KEY",
 ];
 
-const EXECUTABLE_EXTENSIONS: [&str; 19] = [
+const EXECUTABLE_EXTENSIONS: [&str; 22] = [
     ".sh", ".bash", ".zsh", ".fish", ".ps1", ".bat", ".cmd", ".exe", ".dll", ".dylib", ".so",
-    ".wasm", ".bin", ".py", ".js", ".mjs", ".cjs", ".ts", ".jar",
+    ".wasm", ".bin", ".py", ".js", ".mjs", ".cjs", ".ts", ".jar", ".pyc", ".pyo", ".class",
 ];
 
 const EXECUTABLE_MAGICS: [&[u8]; 9] = [
@@ -194,4 +194,117 @@ fn executable_signature(bytes: &[u8]) -> bool {
         || EXECUTABLE_MAGICS
             .iter()
             .any(|magic| bytes.starts_with(magic))
+}
+
+/// Verifies the closed text-helper subset without interpreting or executing it.
+/// Executable classification is retained; this grants no placement authority.
+pub fn validate_scripted_skill_tree(
+    tree: &CapturedTree,
+    document_name: &str,
+) -> Result<(), SkillError> {
+    reject_credential_artifacts(Path::new("scripted-skill"), tree)?;
+    let principal = tree
+        .files
+        .iter()
+        .find(|(path, _)| path.as_str() == document_name)
+        .map(|(_, file)| file)
+        .ok_or_else(unsupported_script)?;
+    if principal.mode != FileMode::Regular {
+        return Err(unsupported_script());
+    }
+    let observed = parse_observed_skill_document(Path::new(document_name), &principal.bytes)?;
+    let empty = CapturedTree {
+        files: Default::default(),
+        hash: crate::hash_tree(&Default::default()),
+    };
+    if classify(&empty, &observed.native_fields) == ContentClass::Executable {
+        return Err(unsupported_script());
+    }
+    for (path, file) in &tree.files {
+        let lower = path.as_str().to_ascii_lowercase();
+        if [
+            ".exe", ".dll", ".dylib", ".so", ".wasm", ".bin", ".jar", ".pyc", ".pyo", ".class",
+        ]
+        .iter()
+        .any(|ext| lower.ends_with(ext))
+            || EXECUTABLE_MAGICS
+                .iter()
+                .any(|magic| file.bytes.starts_with(magic))
+        {
+            return Err(unsupported_script());
+        }
+        if (file.mode == FileMode::Executable
+            || path.as_str().starts_with("scripts/")
+            || executable_extension(path.as_str())
+            || file.bytes.starts_with(b"#!"))
+            && (file.bytes.contains(&0) || std::str::from_utf8(&file.bytes).is_err())
+        {
+            return Err(unsupported_script());
+        }
+    }
+    Ok(())
+}
+
+fn unsupported_script() -> SkillError {
+    SkillError::new(
+        "skill.script_bundle_unsupported",
+        Path::new("scripted-skill"),
+        "only text helper scripts with a regular principal document and no native lifecycle directives are eligible",
+    )
+}
+
+#[cfg(test)]
+mod scripted_tests {
+    use super::*;
+    use crate::{CapturedFile, hash_tree};
+    use kitrove_model::PortablePath;
+    fn tree(name: &str, mode: FileMode, bytes: &[u8]) -> CapturedTree {
+        let files = std::collections::BTreeMap::from([
+            (PortablePath::parse("SKILL.md").unwrap(), CapturedFile { mode: FileMode::Regular,
+             bytes: b"---\nname: review\ndescription: Review changes.\n---\nUse the adjacent helper.\n".to_vec() }),
+            (PortablePath::parse(name).unwrap(), CapturedFile { mode, bytes: bytes.to_vec() })]);
+        CapturedTree {
+            hash: hash_tree(&files),
+            files,
+        }
+    }
+    #[test]
+    fn text_scripts_keep_modes_and_executable_classification_without_execution() {
+        for mode in [FileMode::Regular, FileMode::Executable] {
+            let tree = tree("helper.py", mode, b"raise SystemExit('must not execute')\n");
+            validate_scripted_skill_tree(&tree, "SKILL.md").unwrap();
+            assert_eq!(
+                assess_portable_tree_risk(&tree).unwrap(),
+                ContentClass::Executable
+            );
+            assert_eq!(
+                tree.files[&PortablePath::parse("helper.py").unwrap()].mode,
+                mode
+            );
+        }
+    }
+    #[test]
+    fn binary_payloads_disguises_nontext_and_lifecycle_directives_are_refused() {
+        for (name, bytes) in [
+            ("helper.exe", b"text".as_slice()),
+            ("helper.py", b"\x7fELFfake"),
+            ("data/picture.png", b"MZfake"),
+            ("helper.py", b"a\0b"),
+            ("scripts/helper", b"\xff"),
+            ("helper.pyc", b"cached"),
+        ] {
+            assert!(
+                validate_scripted_skill_tree(&tree(name, FileMode::Regular, bytes), "SKILL.md")
+                    .is_err()
+            );
+        }
+        let mut tree = tree("helper.py", FileMode::Regular, b"pass\n");
+        tree.files
+            .get_mut(&PortablePath::parse("SKILL.md").unwrap())
+            .unwrap()
+            .bytes =
+            b"---\nname: review\ndescription: Review changes.\nhooks: dangerous\n---\nReview.\n"
+                .to_vec();
+        assert!(validate_scripted_skill_tree(&tree, "SKILL.md").is_err());
+    }
 }

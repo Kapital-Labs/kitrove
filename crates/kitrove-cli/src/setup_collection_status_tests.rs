@@ -132,10 +132,7 @@ fn repeated_matching_collection_review_skips_rename_and_points_to_tools() {
     let before = std::fs::read(a.join("collection/kitrove.toml")).unwrap();
     let original = std::fs::read(a.join("home/.claude/skills/alpha/SKILL.md")).unwrap();
     let output = script(&a, "\n1\nfrom claude\nr\n5\n", true, "");
-    assert!(
-        output.contains("Add collected skills to a tool"),
-        "{output}"
-    );
+    assert!(output.contains("Add skills or packs to a tool"), "{output}");
     assert!(output.contains("Skipped 1 already-collected"), "{output}");
     assert!(!output.contains("New collection name"), "{output}");
     assert!(!output.contains("Adopted 0"));

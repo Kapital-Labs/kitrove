@@ -460,7 +460,7 @@ fn executable_member_in_the_stress_pack_is_refused_by_real_apply_planning() {
         )
         .unwrap_err()
         .code(),
-        "apply.executable_blocked"
+        "apply.skill_bundle_unsupported"
     );
 }
 

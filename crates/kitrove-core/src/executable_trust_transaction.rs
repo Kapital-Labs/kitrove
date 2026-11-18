@@ -147,32 +147,54 @@ fn commit_executable_trust_inner(
                 "machine-local state authority is missing",
             )
         })?;
-    let native_root = manifest
+    let refreshed = if manifest
         .assets
         .get(plan.asset_id())
-        .and_then(|asset| asset.native_variants.get(&HarnessId::Pi))
-        .map(|variant| &variant.root)
-        .ok_or_else(|| {
-            transaction_error(
-                "trust.asset_invalid",
-                "the selected asset is not a closed verified native extension",
-            )
-        })?;
-    let object = environment
-        .load_native_extension_bounded(
-            native_root,
+        .is_some_and(|asset| asset.kind == kitrove_model::AssetKind::Skill)
+    {
+        let bundle = crate::scripted_skill_trust::load_locked_bundle(
+            &manifest,
+            plan.asset_id(),
+            &environment,
             limits,
-            crate::object_store::envelope_limits(limits).max_total_bytes,
         )
-        .map_err(mutation_error)?;
-    let refreshed = plan_executable_trust(
-        &manifest_text,
-        &current_state,
-        plan.asset_id(),
-        &object,
-        plan.decision(),
-    )
-    .map_err(|error| transaction_error(error.code(), error.message()))?;
+        .map_err(|error| transaction_error(error.code(), error.message()))?;
+        crate::plan_scripted_skill_trust(
+            &manifest_text,
+            &current_state,
+            plan.asset_id(),
+            &bundle,
+            plan.decision(),
+        )
+        .map_err(|error| transaction_error(error.code(), error.message()))?
+    } else {
+        let native_root = manifest
+            .assets
+            .get(plan.asset_id())
+            .and_then(|asset| asset.native_variants.get(&HarnessId::Pi))
+            .map(|variant| &variant.root)
+            .ok_or_else(|| {
+                transaction_error(
+                    "trust.asset_invalid",
+                    "the selected asset is not a closed verified native extension",
+                )
+            })?;
+        let object = environment
+            .load_native_extension_bounded(
+                native_root,
+                limits,
+                crate::object_store::envelope_limits(limits).max_total_bytes,
+            )
+            .map_err(mutation_error)?;
+        plan_executable_trust(
+            &manifest_text,
+            &current_state,
+            plan.asset_id(),
+            &object,
+            plan.decision(),
+        )
+        .map_err(|error| transaction_error(error.code(), error.message()))?
+    };
     if refreshed.digest() != plan.digest() {
         if recovered == ExecutableTrustRecoveryOutcome::Completed
             && refreshed.disposition() == ExecutableTrustDisposition::NoOp
@@ -725,7 +747,14 @@ mod tests {
             )
             .unwrap();
             let manifest_text = adoption.proposed_manifest().to_toml().unwrap();
-            fs::write(environment.join("kitrove.toml"), &manifest_text).unwrap();
+            ObjectStore::open(&environment)
+                .unwrap()
+                .stage_text(
+                    &PortablePath::parse("kitrove.toml").unwrap(),
+                    &manifest_text,
+                    MAX_CONTROL_BYTES,
+                )
+                .unwrap();
             let object = adoption.native_object().clone();
             let destination = adoption.proposed_manifest().assets
                 [&AssetId::parse("native-review").unwrap()]
@@ -786,6 +815,96 @@ mod tests {
                 decision,
             )
             .unwrap()
+        }
+    }
+
+    #[test]
+    fn scripted_skill_trust_recovers_both_journal_phases_without_touching_targets() {
+        use crate::adoption::tests::{capabilities, make_candidate_with_files};
+        use kitrove_model::PortablePath;
+        for (phase, trusted, expected) in [
+            (
+                TrustJournalPhase::Prepared,
+                false,
+                ExecutableTrustRecoveryOutcome::Aborted,
+            ),
+            (
+                TrustJournalPhase::StateCommitted,
+                true,
+                ExecutableTrustRecoveryOutcome::Completed,
+            ),
+        ] {
+            let fixture = Fixture::new();
+            let manifest = EnvironmentManifest::from_toml(&fixture.manifest_text).unwrap();
+            let candidate = make_candidate_with_files(
+                FileMode::Regular,
+                "script-review",
+                0,
+                BTreeMap::from([(
+                    PortablePath::parse("helper.py").unwrap(),
+                    CapturedFile {
+                        mode: FileMode::Regular,
+                        bytes: b"raise SystemExit('must never execute')\n".to_vec(),
+                    },
+                )]),
+            );
+            let id = AssetId::parse("script-review").unwrap();
+            let crate::AdoptionPlanOutcome::Ready(adoption) =
+                crate::plan_adoption(&candidate, Some(id.clone()), &manifest, &capabilities())
+                    .unwrap()
+            else {
+                panic!("fixture should collect");
+            };
+            crate::commit_adoption(
+                &adoption,
+                &candidate,
+                &fixture.environment,
+                CaptureLimits::default(),
+            )
+            .unwrap();
+            let manifest = adoption.proposed_manifest();
+            let bundle = crate::load_scripted_skill_bundle(
+                manifest,
+                &id,
+                &fixture.environment,
+                CaptureLimits::default(),
+            )
+            .unwrap();
+            let plan = crate::plan_scripted_skill_trust(
+                &manifest.to_toml().unwrap(),
+                &fixture.state_text,
+                &id,
+                &bundle,
+                ExecutableTrustDecision::Trusted,
+            )
+            .unwrap();
+            assert_eq!(
+                commit_executable_trust_inner(
+                    &plan,
+                    &fixture.environment,
+                    &fixture.state,
+                    CaptureLimits::default(),
+                    Some(phase)
+                )
+                .unwrap_err()
+                .code(),
+                "trust.test_interrupted"
+            );
+            assert_eq!(
+                recover_executable_trust(&fixture.environment, &fixture.state).unwrap(),
+                expected
+            );
+            let recovered =
+                LocalState::from_json(&fs::read_to_string(fixture.state.join(STATE_PATH)).unwrap())
+                    .unwrap();
+            assert_eq!(
+                recovered
+                    .trust
+                    .contains_key(&manifest.assets[&id].content_hash),
+                trusted
+            );
+            assert!(recovered.receipts.is_empty());
+            assert!(!fixture.state.join(JOURNAL_PATH).exists());
         }
     }
 

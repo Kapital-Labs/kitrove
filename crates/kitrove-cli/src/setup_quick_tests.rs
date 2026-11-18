@@ -254,7 +254,7 @@ fn individual_rename_preserves_both_exact_native_sources() {
 }
 
 #[test]
-fn bulk_preview_retains_partial_reasons_and_omits_executable_content() {
+fn bulk_preview_retains_partial_reasons_and_omits_unsupported_executable_content() {
     let tmp = kitrove_testkit::trusted_tempdir(".setup-warnings-");
     let root = std::fs::canonicalize(tmp.path()).unwrap();
     let a = machine(&root, "a");
@@ -300,16 +300,15 @@ fn bulk_preview_retains_partial_reasons_and_omits_executable_content() {
     )
     .unwrap();
     std::fs::write(
-        a.join("home/.pi/agent/skills/executable/run.sh"),
-        "#!/bin/sh\nexit 0\n",
+        a.join("home/.pi/agent/skills/executable/run.bin"),
+        "\x7fELFsynthetic-unsupported-binary\n",
     )
     .unwrap();
     let output = script(&a, "\n1\nall\nd\ny\nn\n5\n", true, "");
     assert!(output.contains("No skills ready to collect"));
     assert!(!output.contains("Adopt the previewed set"));
     assert!(
-        output
-            .contains("contains executable content; collecting these skills is not supported yet")
+        output.contains("contains unsupported executable content or native lifecycle directives")
     );
     assert!(!output.contains("kitrove-synthetic-secret-canary-12345"));
     assert!(
@@ -557,8 +556,8 @@ fn empty_preview_explains_existing_names_and_each_blocker_without_exclusion_nois
         "",
     );
     unique_skill(&a, "blocked");
-    let executable = a.join("home/.pi/agent/skills/blocked/run.sh");
-    std::fs::write(&executable, "#!/bin/sh\nexit 0\n").unwrap();
+    let executable = a.join("home/.pi/agent/skills/blocked/run.bin");
+    std::fs::write(&executable, "\x7fELFsynthetic-unsupported-binary\n").unwrap();
     std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
     skill(&a, "outside-selection", "Unselected source.");
     let output = script(&a, "\n1\nfrom pi\nn\n5\n", true, "");
@@ -572,7 +571,7 @@ fn empty_preview_explains_existing_names_and_each_blocker_without_exclusion_nois
     );
     assert!(
         output.contains(
-            "blocked (pi, User): contains executable content; collecting these skills is not supported yet"
+            "blocked (pi, User): contains unsupported executable content or native lifecycle directives"
         ),
         "{output}"
     );

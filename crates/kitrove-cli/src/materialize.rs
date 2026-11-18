@@ -498,6 +498,13 @@ fn build_skill_plan(
         CaptureLimits::default(),
     )
     .map_err(|error| CliError::new(error.code(), error.message()))?;
+    kitrove_core::authorize_scripted_skill_apply(
+        context.manifest,
+        asset_id,
+        &object,
+        context.state_text,
+    )
+    .map_err(|error| CliError::new(error.code(), error.message()))?;
     let rendered = render_portable_skill(&object, &policy)
         .map_err(|error| CliError::new(error.code(), error.message()))?;
     let destination = resolve_target_destination(&target_anchor, &policy, rendered.package_name())

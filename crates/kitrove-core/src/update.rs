@@ -383,7 +383,7 @@ pub fn plan_update_adoption(
                 AdoptionBlockReason::PortableProjectionUnavailable => {
                     "update.projection_unavailable"
                 }
-                AdoptionBlockReason::ExecutableTrustRequired => "update.executable_blocked",
+                AdoptionBlockReason::ScriptBundleUnsupported => "update.executable_blocked",
                 AdoptionBlockReason::CredentialShapedNativeIdentity => {
                     "update.credential_shaped_identity"
                 }
@@ -684,7 +684,7 @@ fn planning_error(code: &'static str) -> UpdatePlanningError {
         "update.expected_prior_mismatch" => "the expected prior asset revision is stale",
         "update.receipt_stale" => "the managed update receipt is stale",
         "update.projection_unavailable" => "the update has no portable projection",
-        "update.executable_blocked" => "executable update content requires later trust authority",
+        "update.executable_blocked" => "unsupported executable update content cannot be collected",
         "update.credential_shaped_identity" => "the update native identity is credential-shaped",
         "update.retained_object_invalid" => "a retained update object is missing or invalid",
         "update.object_catalog_invalid" => "update objects exceed limits or have invalid aliases",
