@@ -148,6 +148,35 @@ fn repeated_apply_reports_managed_current_content_without_rewriting_it() {
 }
 
 #[test]
+fn collecting_another_skill_keeps_existing_tool_copies_current() {
+    for (key, destination) in [
+        ("1", ".claude/skills"),
+        ("2", ".agents/skills"),
+        ("3", ".pi/agent/skills"),
+        ("4", ".config/opencode/skills"),
+    ] {
+        let (_tmp, a) = prepared();
+        script(&a, &format!("\n2\n{key}\n1\n1\ny\n5\n"), true, "");
+        let target = a.join("home").join(destination).join("alpha/SKILL.md");
+        let before = std::fs::read(&target).unwrap();
+        let modified = std::fs::metadata(&target).unwrap().modified().unwrap();
+        super::tests::skill(&a, "beta", "A newly collected unrelated skill.");
+        script(&a, "\n1\nfrom claude\ny\n5\n", true, "");
+        let beta_target = a.join("home").join(destination).join("beta/SKILL.md");
+        let beta_before = std::fs::read(&beta_target).ok();
+        let output = script(&a, &format!("\n2\n{key}\n1\n1\ny\n5\n"), true, "");
+        assert!(output.contains("Already current (managed)"));
+        assert!(!output.contains("bounded recovery authority"));
+        assert_eq!(std::fs::read(&target).unwrap(), before);
+        assert_eq!(
+            std::fs::metadata(&target).unwrap().modified().unwrap(),
+            modified
+        );
+        assert_eq!(std::fs::read(&beta_target).ok(), beta_before);
+    }
+}
+
+#[test]
 fn filtered_all_selects_only_filtered_items_and_preserves_original_numbers() {
     let (_tmp, a) = prepared();
     let beta = a.join("home/.pi/agent/skills/beta");
@@ -271,6 +300,40 @@ fn ready_shortcut_excludes_unmanaged_conflicts_without_touching_them() {
     assert_eq!(
         std::fs::read_to_string(conflict).unwrap(),
         "User-owned alpha.\n"
+    );
+}
+
+#[test]
+fn incompatible_bulk_selection_can_be_reselected_without_partial_application() {
+    let (_tmp, a) = prepared();
+    super::tests::skill(&a, "beta", "A separately selected compatible skill.");
+    std::fs::write(
+        a.join("home/.claude/skills/beta/SKILL.md"),
+        "---\nname: beta\n---\nA description inferred from Claude's first paragraph.\n",
+    )
+    .unwrap();
+    script(&a, "\n1\nfrom claude\ny\n5\n", true, "");
+    assert_eq!(
+        super::tests::manifest(&a).assets[&AssetId::parse("beta").unwrap()].compatibility
+            [&HarnessId::OpenCode]
+            .fidelity(),
+        kitrove_model::Fidelity::Partial
+    );
+    let output = script(&a, "\n2\n4\n1\nall\ns\n1\ny\n5\n", true, "");
+    assert!(output.contains("Selection not applied"));
+    assert!(output.contains("Choose different items"));
+    assert!(output.contains("Not compatible with the selected tools"));
+    assert!(!a.join("home/.config/opencode/skills/beta").exists());
+    assert!(
+        a.join("home/.config/opencode/skills/alpha/SKILL.md")
+            .is_file()
+    );
+    let state: kitrove_model::LocalState =
+        serde_json::from_slice(&std::fs::read(a.join("state/state.json")).unwrap()).unwrap();
+    assert_eq!(state.receipts.len(), 1);
+    assert_eq!(
+        state.receipts.values().next().unwrap().asset_id.as_str(),
+        "alpha"
     );
 }
 

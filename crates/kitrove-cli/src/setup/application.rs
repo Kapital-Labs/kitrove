@@ -44,7 +44,7 @@ pub(super) fn apply<R: PromptInput, W: Write>(
         }
         _ => return Ok(()),
     };
-    let mut args = MaterializeArgs {
+    let destination_args = MaterializeArgs {
         profile: None,
         assets: BTreeSet::new(),
         packs: BTreeSet::new(),
@@ -55,78 +55,92 @@ pub(super) fn apply<R: PromptInput, W: Write>(
         environment: Some(root.to_owned()),
         json: true,
     };
-    let ids = choose_items(dialog, root, &manifest, suggested, &args)?;
-    if ids.is_empty() {
-        return Ok(());
-    }
-    for id in ids {
-        if manifest.packs.contains_key(&id) {
-            args.packs.insert(id);
-        } else {
-            args.assets.insert(id);
-        }
-    }
-    let mut assets = args.assets.clone();
-    for leaves in kitrove_core::resolve_pack_asset_memberships(&manifest, &args.packs)
-        .map_err(|error| CliError::new(error.code(), error.message()))?
-        .into_values()
-    {
-        assets.extend(leaves);
-    }
-    if assets
-        .iter()
-        .any(|id| manifest.assets[id].kind == AssetKind::Extension)
-    {
-        dialog.warning("Extensions contain executable code and may run when the tool loads them. This flow does not grant trust; existing executable and project-trust gates still apply.")?;
-    }
-    let (pi, opencode) =
-        crate::materialize::required_version_probes(&manifest, &assets, &args.targets);
-    for (required, tool) in [(pi, "pi"), (opencode, "opencode2")] {
-        if !required {
-            continue;
-        }
-        dialog.hint("These selected items need verified tool-version evidence. Planning may run only the explicit local executable's bounded version probe; no tool or dependency is installed.")?;
-        let path = dialog.ask(&format!(
-            "Absolute trusted {tool} executable path (Enter skips):"
-        ))?;
-        if path.is_empty() {
+    loop {
+        let manifest = load_manifest(root)?;
+        let mut args = destination_args.clone();
+        let ids = choose_items(dialog, root, &manifest, suggested, &args)?;
+        if ids.is_empty() {
             return Ok(());
         }
-        args.version_binaries.push(PathBuf::from(path));
-    }
-    // Readiness is advisory. Only run_apply owns pending-batch recovery and the
-    // final fresh plan; a separate preflight must not hide its authoritative error
-    // or block recovery of a previously approved operation.
-    super::application_preview::discovery(dialog, root, &manifest, &assets, &args)?;
-    super::application_preview::compatibility(dialog, &manifest, &assets, &args.targets)?;
-    let mut prompt_error = None;
-    let mut result = apply_with_preview(dialog, root, &manifest, args.clone(), &mut prompt_error);
-    if result
-        .as_ref()
-        .is_err_and(|error| error.code == "apply.skill_trust_required")
-    {
-        if !review_scripted_skills(dialog, root, &assets)? {
-            return dialog
-                .say("Selection was not applied. Earlier explicit local approvals remain saved.");
+        for id in ids {
+            if manifest.packs.contains_key(&id) {
+                args.packs.insert(id);
+            } else {
+                args.assets.insert(id);
+            }
         }
-        result = apply_with_preview(dialog, root, &manifest, args, &mut prompt_error);
-    }
-    if let Some(error) = prompt_error {
-        return Err(error);
-    }
-    match result {
-        Ok(done) => {
-            dialog.success("Files added or already current at the previewed destinations.")?;
-            dialog.hint("Tool loading has not been verified. Start or refresh the selected tool and check its skills; project trust and tool permissions may still apply.")?;
-            let value: serde_json::Value =
-                serde_json::from_str(&done.output).map_err(|_| io_error())?;
-            let count = value["items"].as_array().map_or(0, Vec::len);
-            dialog.outcome(&serde_json::json!({"Destinations completed":count,"Inspect collection":"kitrove status"}).to_string())
+        let mut assets = args.assets.clone();
+        for leaves in kitrove_core::resolve_pack_asset_memberships(&manifest, &args.packs)
+            .map_err(|error| CliError::new(error.code(), error.message()))?
+            .into_values()
+        {
+            assets.extend(leaves);
         }
-        Err(error) if error.code == "apply.confirmation_required" => {
-            dialog.say("Application skipped.")
+        if assets
+            .iter()
+            .any(|id| manifest.assets[id].kind == AssetKind::Extension)
+        {
+            dialog.warning("Extensions contain executable code and may run when the tool loads them. This flow does not grant trust; existing executable and project-trust gates still apply.")?;
         }
-        Err(error) => Err(error),
+        let (pi, opencode) =
+            crate::materialize::required_version_probes(&manifest, &assets, &args.targets);
+        for (required, tool) in [(pi, "pi"), (opencode, "opencode2")] {
+            if !required {
+                continue;
+            }
+            dialog.hint("These selected items need verified tool-version evidence. Planning may run only the explicit local executable's bounded version probe; no tool or dependency is installed.")?;
+            let path = dialog.ask(&format!(
+                "Absolute trusted {tool} executable path (Enter skips):"
+            ))?;
+            if path.is_empty() {
+                return Ok(());
+            }
+            args.version_binaries.push(PathBuf::from(path));
+        }
+        // Readiness is advisory. Only run_apply owns pending-batch recovery and the
+        // final fresh plan; a separate preflight must not hide its authoritative error
+        // or block recovery of a previously approved operation.
+        super::application_preview::discovery(dialog, root, &manifest, &assets, &args)?;
+        super::application_preview::compatibility(dialog, &manifest, &assets, &args.targets)?;
+        let mut prompt_error = None;
+        let mut result =
+            apply_with_preview(dialog, root, &manifest, args.clone(), &mut prompt_error);
+        if result
+            .as_ref()
+            .is_err_and(|error| error.code == "apply.skill_trust_required")
+        {
+            if !review_scripted_skills(dialog, root, &assets)? {
+                return dialog.say(
+                    "Selection was not applied. Earlier explicit local approvals remain saved.",
+                );
+            }
+            result = apply_with_preview(dialog, root, &manifest, args, &mut prompt_error);
+        }
+        if let Some(error) = prompt_error {
+            return Err(error);
+        }
+        return match result {
+            Ok(done) => {
+                dialog.success("Files added or already current at the previewed destinations.")?;
+                dialog.hint("Tool loading has not been verified. Start or refresh the selected tool and check its skills; project trust and tool permissions may still apply.")?;
+                let value: serde_json::Value =
+                    serde_json::from_str(&done.output).map_err(|_| io_error())?;
+                let count = value["items"].as_array().map_or(0, Vec::len);
+                dialog.outcome(&serde_json::json!({"Destinations completed":count,"Inspect collection":"kitrove status"}).to_string())
+            }
+            Err(error) if error.code == "apply.confirmation_required" => {
+                dialog.say("Application skipped.")
+            }
+            Err(error) if error.code == "apply.compatibility_blocked" => {
+                dialog.warning("Selection not applied. Some selected skills cannot be transferred faithfully to these tools. Review the reasons above.")?;
+                dialog.hint("Choose ready to add compatible skills, or select specific numbers to review scripts separately. All includes incompatible items; it never skips them automatically.")?;
+                match dialog.decision("Choose different items?\nEnter/s  Choose different items\nn        Return to setup\nq        Quit", b"sn", true)?.as_str() {
+                    "" | "s" => continue,
+                    _ => Ok(()),
+                }
+            }
+            Err(error) => Err(error),
+        };
     }
 }
 
@@ -297,12 +311,28 @@ fn description(
         &document.bytes,
     )
     .ok()?;
-    Some(
-        safe(&parsed.manifest.description)
+    Some(description_excerpt(&parsed.manifest.description))
+}
+
+fn description_excerpt(value: &str) -> String {
+    let prose = value.split_whitespace().collect::<Vec<_>>().join(" ");
+    prose
+        .chars()
+        .flat_map(|character| {
+            if character.is_ascii_graphic()
+                || character == ' '
+                || character.is_alphanumeric()
+                || matches!(character, '—' | '–' | '…' | '‘' | '’' | '“' | '”')
+            {
+                character.to_string()
+            } else {
+                character.escape_default().to_string()
+            }
             .chars()
-            .take(180)
-            .collect(),
-    )
+            .collect::<Vec<_>>()
+        })
+        .take(180)
+        .collect()
 }
 
 pub(super) fn offer<R: PromptInput, W: Write>(
@@ -468,5 +498,27 @@ fn inspect_review_file<R: PromptInput, W: Write>(
             "n" => {},
             _ => return Ok(()),
         }
+    }
+}
+
+#[cfg(test)]
+mod description_tests {
+    use super::description_excerpt;
+
+    #[test]
+    fn readable_prose_preserves_quotes_and_accents_but_escapes_terminal_controls() {
+        assert_eq!(
+            description_excerpt("Brandon's \"café\" — review.\nNext\tline."),
+            "Brandon's \"café\" — review. Next line."
+        );
+        let hostile = description_excerpt("Skill\x1b[2J\u{202e}fake\u{200b}prompt\n? y");
+        assert!(
+            !hostile.contains('\x1b')
+                && !hostile.contains('\u{202e}')
+                && !hostile.contains('\u{200b}')
+                && !hostile.contains('\n')
+        );
+        assert!(hostile.contains(r"\u{1b}") && hostile.contains(r"\u{202e}"));
+        assert_eq!(description_excerpt(&"a".repeat(200)).chars().count(), 180);
     }
 }

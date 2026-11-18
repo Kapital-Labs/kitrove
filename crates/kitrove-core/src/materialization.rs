@@ -673,11 +673,12 @@ fn plan_skill_apply_inner(
                     "the managed destination changed after materialization",
                 ));
             }
-            let authority_unchanged = receipt.source_hash == asset.content_hash
+            // A collection-only revision refreshes the receipt under the batch's
+            // state authority; identical owned content needs no target replacement.
+            let content_authority_unchanged = receipt.source_hash == asset.content_hash
                 && receipt.rendered_hash == *rendered.rendered_hash()
-                && receipt.adapter_version == policy.adapter_version
-                && receipt.environment_revision == manifest_revision;
-            if authority_unchanged {
+                && receipt.adapter_version == policy.adapter_version;
+            if content_authority_unchanged {
                 (ApplyDisposition::NoOp, receipt.prior_hash.clone())
             } else {
                 (
@@ -1628,6 +1629,76 @@ mod tests {
         .unwrap();
         assert_eq!(noop.disposition(), ApplyDisposition::NoOp);
         assert_eq!(noop.receipt_id(), initial.receipt_id());
+    }
+
+    #[test]
+    fn unrelated_collection_revision_refreshes_receipt_without_a_target_update() {
+        let (manifest, object, asset_id) = adopted();
+        let installed = plan_skill_apply(
+            &manifest,
+            &asset_id,
+            &object,
+            &policy(),
+            test_anchor(),
+            &local_state_text(),
+            DestinationObservation::Absent,
+        )
+        .unwrap();
+        let candidate = make_candidate(FileMode::Regular, "unrelated");
+        let AdoptionPlanOutcome::Ready(addition) = plan_adoption(
+            &candidate,
+            Some(AssetId::parse("unrelated").unwrap()),
+            &manifest,
+            &capabilities(),
+        )
+        .unwrap() else {
+            panic!("fixture should collect");
+        };
+        let state = installed.proposed_local_state().to_json().unwrap();
+        let refreshed = plan_skill_apply(
+            addition.proposed_manifest(),
+            &asset_id,
+            &object,
+            &policy(),
+            test_anchor(),
+            &state,
+            DestinationObservation::Present {
+                layout: SkillSourceLayout::Directory,
+                rendered_hash: installed.rendered().rendered_hash().clone(),
+            },
+        )
+        .unwrap();
+        assert_eq!(refreshed.disposition(), ApplyDisposition::NoOp);
+        assert_eq!(refreshed.receipt_id(), installed.receipt_id());
+        assert_ne!(
+            refreshed.proposed_receipt().environment_revision,
+            installed.proposed_receipt().environment_revision
+        );
+        assert_eq!(
+            refreshed.proposed_receipt().source_hash,
+            installed.proposed_receipt().source_hash
+        );
+        assert_eq!(
+            refreshed.proposed_receipt().prior_hash,
+            installed.proposed_receipt().prior_hash
+        );
+        let modified = plan_skill_apply(
+            addition.proposed_manifest(),
+            &asset_id,
+            &object,
+            &policy(),
+            test_anchor(),
+            &state,
+            DestinationObservation::Present {
+                layout: SkillSourceLayout::Directory,
+                rendered_hash: ContentHash::digest(b"locally modified file"),
+            },
+        )
+        .unwrap_err();
+        assert_eq!(modified.code(), "apply.destination_modified");
+        let batch =
+            AtomicApplyBatchPlan::new(vec![AtomicApplyItem::Skill(refreshed)], None).unwrap();
+        assert_eq!(batch.proposed_local_state().receipts.len(), 1);
     }
 
     #[test]

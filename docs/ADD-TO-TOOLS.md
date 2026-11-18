@@ -18,7 +18,10 @@ asking for the collection path again. Skipping this next step keeps the collecti
    can add/update, excluding unmanaged conflicts and managed copies already current.
    `all` selects every matching item across pages, including already-current and
    needs-review items. It does not bypass checks; one blocked item can stop the
-   plan. `ready` checks the destination folder, not whether the tool can already
+   plan. An incompatible selection offers **Choose different items**, keeping the
+   tool and destination choices. Use `ready` for compatible additions or select
+   specific numbers to review scripts separately. Incompatible members are never
+   silently removed from a selected pack or batch. `ready` checks the destination folder, not whether the tool can already
    discover another copy elsewhere. Packs and version-gated kinds need an explicit selection.
    Twelve entries appear per page; `next` and `back` browse, `/word` filters names,
    and `/` clears the filter. `all,-3,-8` selects matching items except original
@@ -34,6 +37,11 @@ asking for the collection path again. Skipping this next step keeps the collecti
    Completed collection steps remain if apply fails. Readiness is advisory: an
    interrupted earlier apply may need recovery before a new plan. Select the
    intended items explicitly to enter the existing recovery/confirmation flow.
+
+Collecting another skill does not make previously added, unchanged skills need
+replacement. They remain **Already current (managed)**. Approving them can refresh
+the local receipt for the current collection revision without rewriting their
+files. A modified or unmanaged destination is still refused.
 
 Ordinary skills do not need an executable path. Selected Pi extensions still
 need an explicit trusted Pi version probe and existing trust. OpenCode
