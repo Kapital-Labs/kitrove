@@ -138,6 +138,7 @@ pub struct ApplyPlan {
     proposed_receipt: DeploymentReceipt,
     proposed_local_state: LocalState,
     observed_local_state_text: String,
+    script_approval: Option<ScriptedSkillApproval>,
     digest: ContentHash,
 }
 
@@ -197,6 +198,10 @@ impl ApplyPlan {
         &self.proposed_local_state
     }
 
+    pub(crate) fn script_approval(&self) -> Option<&ScriptedSkillApproval> {
+        self.script_approval.as_ref()
+    }
+
     pub(crate) fn observed_local_state_text(&self) -> &str {
         &self.observed_local_state_text
     }
@@ -230,6 +235,7 @@ impl ApplyPlan {
             && self.disposition == other.disposition
             && self.observed_receipt == other.observed_receipt
             && self.observed_destination == other.observed_destination
+            && self.script_approval == other.script_approval
             && self.rendered == other.rendered
             && self.proposed_receipt == other.proposed_receipt
     }
@@ -495,6 +501,35 @@ pub fn plan_skill_apply(
     local_state_text: &str,
     destination_observation: DestinationObservation,
 ) -> Result<ApplyPlan, MaterializationError> {
+    plan_skill_apply_inner(
+        manifest,
+        asset_id,
+        object,
+        policy,
+        anchor,
+        SkillPlanContext {
+            state_text: local_state_text,
+            destination: destination_observation,
+            placement_approval_required: true,
+        },
+    )
+}
+
+struct SkillPlanContext<'a> {
+    state_text: &'a str,
+    destination: DestinationObservation,
+    placement_approval_required: bool,
+}
+fn plan_skill_apply_inner(
+    manifest: &EnvironmentManifest,
+    asset_id: &AssetId,
+    object: &StoredSkillTree,
+    policy: &TargetPolicy,
+    anchor: &Path,
+    context: SkillPlanContext<'_>,
+) -> Result<ApplyPlan, MaterializationError> {
+    let local_state_text = context.state_text;
+    let destination_observation = context.destination;
     manifest.validate().map_err(|_| {
         MaterializationError::new("apply.manifest_invalid", "manifest authority is invalid")
     })?;
@@ -511,24 +546,13 @@ pub fn plan_skill_apply(
             "the selected asset is not present in manifest authority",
         )
     })?;
-    let observed_class = assess_portable_tree_risk(object.tree()).map_err(|_| {
-        MaterializationError::new(
-            "apply.credential_blocked",
-            "credential-like portable content cannot be materialized",
-        )
-    })?;
-    if observed_class == ContentClass::Executable {
-        return Err(MaterializationError::new(
-            "apply.executable_blocked",
-            "executable assets require a later trust workflow before materialization",
-        ));
-    }
-    if asset.content_class == ContentClass::Executable {
-        return Err(MaterializationError::new(
-            "apply.executable_blocked",
-            "executable assets require a later trust workflow before materialization",
-        ));
-    }
+    let script_approval = authorize_skill_content(
+        manifest,
+        asset_id,
+        object,
+        &local_state,
+        context.placement_approval_required,
+    )?;
     if !asset.required_bindings.is_empty() {
         return Err(MaterializationError::new(
             "apply.bindings_unresolved",
@@ -581,10 +605,10 @@ pub fn plan_skill_apply(
             "the selected relative destination is invalid",
         )
     })?;
-    if rendered.contains_executable_mode() {
+    if !cfg!(unix) && context.placement_approval_required && rendered.contains_executable_mode() {
         return Err(MaterializationError::new(
             "apply.executable_mode_blocked",
-            "portable output with executable mode requires a later trust workflow",
+            "this platform cannot preserve the recorded executable mode",
         ));
     }
     let manifest_revision = derive_manifest_revision(manifest).map_err(|_| {
@@ -721,8 +745,86 @@ pub fn plan_skill_apply(
         proposed_receipt,
         proposed_local_state,
         observed_local_state_text: local_state_text.to_owned(),
+        script_approval,
         digest,
     })
+}
+
+/// Retains an exact previously placed version while releasing another pack's claim.
+/// This plan can neither install, restore nor update a destination or grant trust.
+pub fn plan_skill_retention(
+    manifest: &EnvironmentManifest,
+    asset_id: &AssetId,
+    object: &StoredSkillTree,
+    policy: &TargetPolicy,
+    anchor: &Path,
+    local_state_text: &str,
+    destination_observation: DestinationObservation,
+) -> Result<ApplyPlan, MaterializationError> {
+    let mut plan = plan_skill_apply_inner(
+        manifest,
+        asset_id,
+        object,
+        policy,
+        anchor,
+        SkillPlanContext {
+            state_text: local_state_text,
+            destination: destination_observation,
+            placement_approval_required: false,
+        },
+    )?;
+    let receipt = plan.observed_receipt.clone().ok_or_else(|| {
+        MaterializationError::new(
+            "retain.skill_authority_unavailable",
+            "retention requires an exact present receipt-backed version",
+        )
+    })?;
+    if !matches!(
+        plan.disposition,
+        ApplyDisposition::NoOp | ApplyDisposition::ManagedUpdate
+    ) || !matches!(&plan.observed_destination, DestinationObservation::Present { rendered_hash, .. } if rendered_hash == &receipt.rendered_hash)
+        || receipt.rendered_hash != *plan.rendered.rendered_hash()
+        || receipt.source_hash != manifest.assets[asset_id].content_hash
+    {
+        return Err(MaterializationError::new(
+            "retain.skill_authority_unavailable",
+            "retention cannot restore, update or reassociate a changed skill",
+        ));
+    }
+    plan.proposed_local_state = LocalState::from_json(local_state_text).map_err(|_| {
+        MaterializationError::new(
+            "apply.local_state_invalid",
+            "machine-local state is invalid",
+        )
+    })?;
+    plan.proposed_receipt = receipt;
+    plan.disposition = ApplyDisposition::NoOp;
+    if manifest.assets[asset_id].content_class == ContentClass::Executable {
+        // No-op batches stage and discard an exact copy. The existing receipt
+        // binds the same complete approved version; denial is never replaced.
+        plan.script_approval = Some(ScriptedSkillApproval {
+            tree_hash: object.tree().hash.clone(),
+            asset_revision: manifest.assets[asset_id].content_hash.clone(),
+        });
+    }
+    plan.digest = apply_plan_digest(
+        asset_id,
+        policy,
+        &plan.destination,
+        &plan.manifest_revision,
+        plan.disposition,
+        plan.observed_receipt.as_ref(),
+        &plan.observed_destination,
+        &plan.proposed_receipt,
+        local_state_text,
+        &plan.proposed_local_state.to_json().map_err(|_| {
+            MaterializationError::new(
+                "apply.local_state_serialize",
+                "machine-local state could not be serialized",
+            )
+        })?,
+    )?;
+    Ok(plan)
 }
 
 /// Plans removal of one exact receipt-backed skill projection while retaining portable authority.
@@ -735,14 +837,17 @@ pub fn plan_skill_removal(
     local_state_text: &str,
     destination_observation: DestinationObservation,
 ) -> Result<ApplyPlan, MaterializationError> {
-    let mut plan = plan_skill_apply(
+    let mut plan = plan_skill_apply_inner(
         manifest,
         asset_id,
         object,
         policy,
         anchor,
-        local_state_text,
-        destination_observation,
+        SkillPlanContext {
+            state_text: local_state_text,
+            destination: destination_observation,
+            placement_approval_required: false,
+        },
     )?;
     if !matches!(
         plan.disposition,
@@ -1031,8 +1136,269 @@ pub(crate) fn hash_exact_file_target(
         .expect("a lowercase BLAKE3 digest is a valid content hash")
 }
 
+/// Sealed staging authority from local approval or exact owned no-op retention.
+#[derive(Clone, Eq, PartialEq)]
+pub(crate) struct ScriptedSkillApproval {
+    tree_hash: ContentHash,
+    asset_revision: ContentHash,
+}
+impl ScriptedSkillApproval {
+    pub(crate) fn permits(&self, tree: &CapturedTree) -> bool {
+        tree.hash == self.tree_hash
+            && kitrove_agent_skills::hash_tree(&tree.files) == self.tree_hash
+            && kitrove_agent_skills::validate_scripted_skill_tree(tree, "SKILL.md").is_ok()
+            && (cfg!(unix)
+                || tree
+                    .files
+                    .values()
+                    .all(|file| file.mode != FileMode::Executable))
+    }
+}
+
+/// Runs before destination observation; final planning repeats this local gate.
+pub fn authorize_scripted_skill_apply(
+    manifest: &EnvironmentManifest,
+    id: &AssetId,
+    object: &StoredSkillTree,
+    state_text: &str,
+) -> Result<(), MaterializationError> {
+    manifest.validate().map_err(|_| {
+        MaterializationError::new("apply.manifest_invalid", "manifest authority is invalid")
+    })?;
+    let state = LocalState::from_json(state_text).map_err(|_| {
+        MaterializationError::new(
+            "apply.local_state_invalid",
+            "machine-local state is invalid",
+        )
+    })?;
+    authorize_skill_content(manifest, id, object, &state, true).map(|_| ())
+}
+fn authorize_skill_content(
+    manifest: &EnvironmentManifest,
+    id: &AssetId,
+    object: &StoredSkillTree,
+    state: &LocalState,
+    placement_approval_required: bool,
+) -> Result<Option<ScriptedSkillApproval>, MaterializationError> {
+    let asset = manifest.assets.get(id).ok_or_else(|| {
+        MaterializationError::new(
+            "apply.asset_missing",
+            "the selected asset is not present in manifest authority",
+        )
+    })?;
+    if asset.kind != AssetKind::Skill
+        || asset
+            .portable
+            .as_ref()
+            .is_none_or(|p| p.format != "agent-skills/v1" || p.object_hash != object.tree().hash)
+    {
+        return Err(MaterializationError::new(
+            "apply.portable_mismatch",
+            "the supplied portable object does not match manifest authority",
+        ));
+    }
+    let observed = assess_portable_tree_risk(object.tree()).map_err(|_| {
+        MaterializationError::new(
+            "apply.credential_blocked",
+            "credential-like portable content cannot be materialized",
+        )
+    })?;
+    if observed == ContentClass::Executable && asset.content_class != ContentClass::Executable {
+        return Err(MaterializationError::new(
+            "apply.executable_blocked",
+            "executable content does not match manifest classification",
+        ));
+    }
+    if asset.content_class != ContentClass::Executable {
+        return Ok(None);
+    }
+    kitrove_agent_skills::validate_scripted_skill_tree(object.tree(), "SKILL.md").map_err(
+        |_| {
+            MaterializationError::new(
+                "apply.skill_bundle_unsupported",
+                "compiled payloads and native lifecycle directives are not supported",
+            )
+        },
+    )?;
+    if !placement_approval_required {
+        return Ok(None);
+    }
+    if !matches!(
+        state.trust.get(&asset.content_hash),
+        Some(kitrove_model::TrustDecision::Trusted { .. })
+    ) {
+        return Err(MaterializationError::new(
+            "apply.skill_trust_required",
+            "this exact script-containing skill needs a separate local review before adding it to a tool",
+        ));
+    }
+    if !cfg!(unix)
+        && object
+            .tree()
+            .files
+            .values()
+            .any(|file| file.mode == FileMode::Executable)
+    {
+        return Err(MaterializationError::new(
+            "apply.executable_mode_blocked",
+            "this platform cannot preserve the recorded executable mode",
+        ));
+    }
+    Ok(Some(ScriptedSkillApproval {
+        tree_hash: object.tree().hash.clone(),
+        asset_revision: asset.content_hash.clone(),
+    }))
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn exact_owned_skill_retention_cannot_restore_update_or_reassociate_denied_content() {
+        let candidate = crate::adoption::tests::make_candidate_with_files(
+            FileMode::Regular,
+            "review",
+            0,
+            BTreeMap::from([(
+                PortablePath::parse("helper.py").unwrap(),
+                CapturedFile {
+                    mode: FileMode::Regular,
+                    bytes: b"raise SystemExit('never execute')\n".to_vec(),
+                },
+            )]),
+        );
+        let AdoptionPlanOutcome::Ready(adoption) =
+            plan_adoption(&candidate, None, &empty_manifest(), &capabilities()).unwrap()
+        else {
+            panic!("fixture should collect");
+        };
+        let manifest = adoption.proposed_manifest();
+        let id = &adoption.asset().id;
+        let object = adoption.portable_object();
+        let mut approved = local_state();
+        approved.trust.insert(
+            adoption.asset().content_hash.clone(),
+            kitrove_model::TrustDecision::Trusted {
+                rationale: "fixture prior review".to_owned(),
+            },
+        );
+        let install = plan_skill_apply(
+            manifest,
+            id,
+            object,
+            &policy(),
+            test_anchor(),
+            &approved.to_json().unwrap(),
+            DestinationObservation::Absent,
+        )
+        .unwrap();
+        let mut denied = install.proposed_local_state().clone();
+        denied.trust.insert(
+            adoption.asset().content_hash.clone(),
+            kitrove_model::TrustDecision::Denied {
+                rationale: "fixture denial".to_owned(),
+            },
+        );
+        let state = denied.to_json().unwrap();
+        let present = DestinationObservation::Present {
+            layout: SkillSourceLayout::Directory,
+            rendered_hash: install.rendered().rendered_hash().clone(),
+        };
+        let retained = plan_skill_retention(
+            manifest,
+            id,
+            object,
+            &policy(),
+            test_anchor(),
+            &state,
+            present.clone(),
+        )
+        .unwrap();
+        assert_eq!(retained.disposition(), ApplyDisposition::NoOp);
+        assert_eq!(retained.proposed_local_state().trust, denied.trust);
+        assert_eq!(retained.proposed_local_state().receipts, denied.receipts);
+        for observation in [
+            DestinationObservation::Absent,
+            DestinationObservation::Unsafe,
+            DestinationObservation::Present {
+                layout: SkillSourceLayout::Directory,
+                rendered_hash: ContentHash::digest(b"changed target"),
+            },
+        ] {
+            assert!(
+                plan_skill_retention(
+                    manifest,
+                    id,
+                    object,
+                    &policy(),
+                    test_anchor(),
+                    &state,
+                    observation
+                )
+                .is_err()
+            );
+        }
+        let receipt_id = install.receipt_id().clone();
+        denied.receipts.get_mut(&receipt_id).unwrap().source_hash =
+            ContentHash::digest(b"different complete bundle");
+        assert_eq!(
+            plan_skill_retention(
+                manifest,
+                id,
+                object,
+                &policy(),
+                test_anchor(),
+                &denied.to_json().unwrap(),
+                present
+            )
+            .unwrap_err()
+            .code(),
+            "retain.skill_authority_unavailable"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn imported_unix_executable_mode_refuses_before_windows_placement() {
+        let candidate = crate::adoption::tests::make_candidate_with_files(
+            FileMode::Regular,
+            "review",
+            0,
+            BTreeMap::from([(
+                PortablePath::parse("helper.py").unwrap(),
+                CapturedFile {
+                    mode: FileMode::Executable,
+                    bytes: b"raise SystemExit('never execute')\n".to_vec(),
+                },
+            )]),
+        );
+        let AdoptionPlanOutcome::Ready(plan) =
+            plan_adoption(&candidate, None, &empty_manifest(), &capabilities()).unwrap()
+        else {
+            panic!("fixture should collect");
+        };
+        let mut state = local_state();
+        state.trust.insert(
+            plan.asset().content_hash.clone(),
+            kitrove_model::TrustDecision::Trusted {
+                rationale: "fixture exact review".to_owned(),
+            },
+        );
+        assert_eq!(
+            plan_skill_apply(
+                plan.proposed_manifest(),
+                &plan.asset().id,
+                plan.portable_object(),
+                &policy(),
+                test_anchor(),
+                &state.to_json().unwrap(),
+                DestinationObservation::Absent
+            )
+            .unwrap_err()
+            .code(),
+            "apply.executable_mode_blocked"
+        );
+    }
+
     use std::collections::{BTreeMap, BTreeSet};
 
     use kitrove_adapter_api::{EvidenceRef, TargetPolicy};
@@ -1538,7 +1904,7 @@ mod tests {
             )
             .unwrap_err()
             .code(),
-            "apply.executable_blocked"
+            "apply.skill_trust_required"
         );
 
         let (mut binding_manifest, object, asset_id) = adopted();

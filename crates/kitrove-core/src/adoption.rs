@@ -9,9 +9,9 @@ use kitrove_agent_skills::{
     NativeSkillObject, PortableProjection, StoredSkillTree, project_skill_source,
 };
 use kitrove_model::{
-    Asset, AssetId, AssetKind, ContentClass, ContentHash, EnvironmentManifest, Fidelity,
-    FidelityEvidence, FidelityResult, HarnessId, Lockfile, NativeVariant, PortableContent,
-    PortablePath, Revision, Source,
+    Asset, AssetId, AssetKind, ContentHash, EnvironmentManifest, Fidelity, FidelityEvidence,
+    FidelityResult, HarnessId, Lockfile, NativeVariant, PortableContent, PortablePath, Revision,
+    Source,
 };
 
 use crate::{AcceptedObservedCandidate, derive_lockfile, derive_manifest_revision};
@@ -230,7 +230,7 @@ pub(crate) fn content_addressed_update_root(
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AdoptionBlockReason {
     PortableProjectionUnavailable,
-    ExecutableTrustRequired,
+    ScriptBundleUnsupported,
     CredentialShapedNativeIdentity,
     AssetConflict,
 }
@@ -239,7 +239,7 @@ impl AdoptionBlockReason {
     const fn tag(self) -> &'static str {
         match self {
             Self::PortableProjectionUnavailable => "portable_projection_unavailable",
-            Self::ExecutableTrustRequired => "executable_trust_required",
+            Self::ScriptBundleUnsupported => "script_bundle_unsupported",
             Self::CredentialShapedNativeIdentity => "credential_shaped_native_identity",
             Self::AssetConflict => "asset_conflict",
         }
@@ -509,12 +509,17 @@ pub fn plan_adoption(
     };
     let asset_id = requested_id.unwrap_or_else(|| projected_name.clone());
 
-    if candidate.captured().content_class == ContentClass::Executable {
+    if kitrove_agent_skills::validate_scripted_skill_tree(
+        &candidate.captured().exact,
+        &candidate.captured().original_document_name,
+    )
+    .is_err()
+    {
         return Ok(blocked(
             candidate,
             Some(asset_id),
             id_choice,
-            AdoptionBlockReason::ExecutableTrustRequired,
+            AdoptionBlockReason::ScriptBundleUnsupported,
             &base_manifest_revision,
         ));
     }
@@ -995,6 +1000,15 @@ pub(crate) mod tests {
         native_id: &str,
         directory_count: usize,
     ) -> AcceptedObservedCandidate {
+        make_candidate_with_files(mode, native_id, directory_count, BTreeMap::new())
+    }
+
+    pub(crate) fn make_candidate_with_files(
+        mode: FileMode,
+        native_id: &str,
+        directory_count: usize,
+        extra_files: BTreeMap<PortablePath, CapturedFile>,
+    ) -> AcceptedObservedCandidate {
         let document_name = "SKILL.md".to_owned();
         let document = ObservedSkillDocument {
             frontmatter: BTreeMap::new(),
@@ -1024,21 +1038,19 @@ pub(crate) mod tests {
                 },
             );
         }
+        files.extend(extra_files);
         let exact = CapturedTree {
             hash: hash_tree(&files),
             files,
         };
+        let content_class = kitrove_agent_skills::assess_portable_tree_risk(&exact).unwrap();
         let captured = CapturedSkillSource {
             layout: SkillSourceLayout::Directory,
             original_document_name: document_name.clone(),
             document,
             exact,
             exact_source_hash: ContentHash::digest(b"placeholder"),
-            content_class: if mode == FileMode::Executable {
-                ContentClass::Executable
-            } else {
-                ContentClass::AgentActive
-            },
+            content_class,
         };
         let captured = CapturedSkillSource {
             exact_source_hash: hash_skill_source(
@@ -1287,6 +1299,30 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn text_script_bundle_is_collected_as_executable_data_without_local_trust() {
+        let candidate = make_candidate_with_files(
+            FileMode::Regular,
+            "review",
+            0,
+            BTreeMap::from([(
+                PortablePath::parse("ocr_delegate.py").unwrap(),
+                CapturedFile {
+                    mode: FileMode::Regular,
+                    bytes: b"raise SystemExit('fixture must never execute')\n".to_vec(),
+                },
+            )]),
+        );
+        let outcome = plan_adoption(&candidate, None, &empty_manifest(), &capabilities()).unwrap();
+        let AdoptionPlanOutcome::Ready(plan) = outcome else {
+            panic!("text scripts must be collectible as inert data: {outcome:?}");
+        };
+        assert_eq!(
+            plan.proposed_manifest().assets[&AssetId::parse("review").unwrap()].content_class,
+            ContentClass::Executable
+        );
+    }
+
+    #[test]
     fn executable_and_secret_shaped_native_identity_are_non_mutating_blocks() {
         let executable = plan_adoption(
             &make_candidate(FileMode::Executable, "review"),
@@ -1298,7 +1334,7 @@ pub(crate) mod tests {
         assert!(matches!(
             executable,
             AdoptionPlanOutcome::Blocked(AdoptionBlock {
-                reason: AdoptionBlockReason::ExecutableTrustRequired,
+                reason: AdoptionBlockReason::ScriptBundleUnsupported,
                 ..
             })
         ));

@@ -290,3 +290,12 @@ Filtered bulk selection is limited to visible matches. Paged summaries preserve
 full plan details, fidelity loss and connection effects before approval. Pending
 keystrokes cannot approve a later preview; source/destination/state revalidation
 and unmanaged ownership refusal are unchanged. See ADR-0073.
+
+
+## Text-helper skill placement
+
+Eligible scripts remain Executable even in regular mode. Collection stores only bounded verified objects; placement requires a private machine-local decision for the complete asset revision. Full portable/native risk and format validation precedes review, and locked commit reloads every component. No approval is copied through sync. A changed helper, native variant, principal document or recorded mode changes the subject and requires review again. Script inspection escapes terminal controls and never imports or executes payload code.
+
+Apply planning verifies the selected portable object and local decision before destination discovery; fresh confirmation and atomic commit bind source, destination and full local state. Executable-mode staging needs a sealed exact-tree approval. Ordinary staging still refuses executable modes, and platforms unable to preserve them fail before writes. Credential/native lifecycle/compiled payload guards remain. Receipt-backed removal can proceed after denial using exact ownership evidence; denial alone does not delete deployed files or revoke tool permissions. Existing rollback and provider credential boundaries remain unchanged.
+
+Claim-only retention of a denied shared script requires the exact previously placed complete asset revision and present rendered bytes/modes. Its sealed NoOp plan preserves the existing receipt and trust decision; temporary NoOp staging cannot authorize installation, restoration, update or reassociation. Removing the last owner still uses exact receipt-backed removal.

@@ -531,3 +531,60 @@ print("PASS: a pasted trailing Enter cannot confirm a not-yet-displayed preview"
 for key, adopt in ((b"1", False), (b"1", True), (b"1\r", False)):
     duplicate_source_decision(key, adopt)
 print("PASS: duplicate-source keys preview immediately; only separate approval adopts; read-ahead cannot approve")
+
+
+def bare_apply_pack(approve):
+    import json
+    import shutil
+    with tempfile.TemporaryDirectory(prefix="kitrove-bare-apply-", dir=FIXTURE_BASE) as tmp:
+        root = Path(tmp).resolve()
+        env = os.environ.copy()
+        for name in ("KITROVE_ENV", "XDG_DATA_HOME"):
+            env.pop(name, None)
+        env.update(HOME=str(root / "home"), USERPROFILE=str(root / "home"), KITROVE_STATE_HOME=str(root / "state"), NO_COLOR="1", TERM="xterm-256color")
+        source = root / "home/.pi/agent/skills/alpha/SKILL.md"
+        source.parent.mkdir(parents=True)
+        source.write_text("---\nname: alpha\ndescription: Synthetic pack member.\n---\nReview changes.\n")
+        def command(args, input=None):
+            done = subprocess.run([BINARY, *args, "--environment", str(root / "collection"), "--json"],
+                                  env=env, cwd=root, input=input, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
+            assert done.returncode == 0, done.stderr
+            return json.loads(done.stdout)
+        command(["init", "--machine-id", "pack-user"])
+        command(["adopt", "alpha", "--harness", "pi", "--scope", "user"], b"yes\n")
+        command(["pack", "create", "--authored", "--pack", "z-review", "--member", "alpha"], b"yes\n")
+        shutil.rmtree(source.parent)
+        before = (root / "state/state.json").read_bytes()
+        session = Session(root, ["apply", "--environment", str(root / "collection")])
+        try:
+            def answer(marker, value, immediate=False):
+                session.prompt(marker)
+                if immediate:
+                    session.menu_ready()
+                else:
+                    session.restored()
+                session.output = b""
+                session.send(value)
+            answer(b"Existing collection path", b"\n")
+            answer(b"Which AI tools", b"4", True)
+            answer(b"Where should these items", b"1", True)
+            session.prompt(b"Which saved items")
+            assert b"1. z-review [Pack" in session.output
+            assert b"2. alpha [Skill]" in session.output
+            session.send(b"1\n")
+            answer(b"Add the previewed items?", b"y" if approve else b"\r", True)
+            session.finish(0)
+            target = root / "home/.config/opencode/skills/alpha/SKILL.md"
+            assert target.exists() == approve
+            state = json.loads((root / "state/state.json").read_text())
+            assert bool(state["pack_applications"]) == approve
+            assert not state["trust"]
+            if not approve:
+                assert (root / "state/state.json").read_bytes() == before
+        finally:
+            session.close()
+
+
+bare_apply_pack(True)
+bare_apply_pack(False)
+print("PASS: bare interactive apply selects packs directly, keeps approval separate and restores terminal mode")

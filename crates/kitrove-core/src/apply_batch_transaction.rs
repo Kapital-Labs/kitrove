@@ -1067,6 +1067,7 @@ fn new_materialization<'a>(
         AtomicApplyItem::Skill(plan) => Ok(ApplyTargetMaterialization::Skill {
             tree: plan.rendered().tree(),
             rendered_hash: plan.rendered().rendered_hash(),
+            approval: plan.script_approval(),
         }),
         AtomicApplyItem::Extension(plan) => sources
             .extensions

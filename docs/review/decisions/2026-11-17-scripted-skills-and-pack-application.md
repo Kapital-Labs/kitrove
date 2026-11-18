@@ -1,0 +1,25 @@
+# Scripted skill portability and discoverable pack application
+
+Maintainer requested script-containing custom skills such as rv through the next protected publication, then separately requested a clearly visible command for applying packs to another tool. Work uses the owned scripted-skill-portability worktree from exact RC5.16 main. Personal installation, real skill contents/trust/collections and sync remain untouched; other readiness checks stay paused.
+
+## Product and architecture
+
+`kitrove apply` in a terminal opens the existing tool-first journey, while explicit options, machine output and confirmed digests keep their command paths. Menu labels name skills and packs; packs are listed first with bounded member summaries. All writes retain a separate exact destination preview. Pack membership is resolved as a whole; unsupported members are not silently skipped.
+
+Text helpers are captured as inert executable-class data. A closed eligibility check rejects compiled payloads/bytecode, binary helpers, credentials, executable principal documents and native lifecycle directives. Existing portable/native objects, provenance, capture limits, sync protocol and receipt schema remain. Complete asset revision is the local approval subject, covering every native variant and the portable tree. Existing Pi native-extension exact-object decisions and v1 journal/digest semantics remain unchanged.
+
+## Security review boundaries
+
+Local trust is separate from portable representation fidelity and never synchronized. Existing private-state transaction reloads full objects under locks before committing a decision. Apply repeats its local gate and binds the entire old/new state in its digest. Sealed staging authority permits only the exact validated tree; ordinary staging still refuses executable modes. Unix mode classes are preserved; other platforms refuse recorded executable modes. Receipt-backed skill removal bypasses only the future-placement trust gate, retaining exact target ownership and recovery checks. No collected code, interpreter, tool or installer is launched. No new workflow permission, provider credential, dependency or runtime is introduced.
+
+Standard skill bundles may contain helper scripts, but runtime availability and agent permission rules differ. Reviewed primary references: https://agentskills.io/specification , https://code.claude.com/docs/en/skills , https://opencode.ai/docs/skills , https://developers.openai.com/codex/skills , https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/skills.md . These support packaging semantics, not live-agent execution guarantees. Synthetic filesystem deployment tests do not claim live tool loading or arbitrary script portability.
+
+## Validation record
+
+New pack-first regression failed before navigation changes. New text-helper collection regression failed before policy changes. Focused guided and command-level tests exercise all four tools, whole-pack cancellation, unchanged native source bytes, no execution sentinel, exact review, changed-helper invalidation, recipient sync without approval, denial-safe removal, mode preservation and tampered/stale authority refusal. Original patch-selector, compile, mode-writer and missing removal/output failures are retained in evidence; fixes address their exact boundaries without weakening existing source-selection or ownership gates. Added trust-journal and atomic-placement recovery phase coverage; full stable/Rust1.89, manual complete source review, audits and exact public checks remain required before commit/merge/publication.
+
+This is a complete manual change review, not an independent-agent or exhaustive repository audit claim. No release has yet been started for this unit.
+
+Unsupported skill-bundle collection now has the closed `script_bundle_unsupported` planner/JSON reason rather than implying local trust could unlock compiled or lifecycle payloads. The persisted object, manifest, local-state and recovery journal schemas remain unchanged. Source-only inspection wraps escaped long lines into paged rows; raw payload bytes are never executed or emitted as terminal controls.
+
+A separate disposable real-CLI probe reproduced a claim-only removal blocker after denying a script shared by two packs. The first source candidate refused safely with no target/state/manifest change. The targeted repair adds exact owned retention, not a trust grant: the current complete asset revision must match its existing receipt and the entire rendered directory must be byte/mode identical. It produces only NoOp, preserves the original receipt and denied trust, and cannot install/restore/update or reattribute another version. Existing NoOp coordination stages then discards an exact copy, so its sealed staging proof is derived only after these receipt gates. Placement still requires current explicit local approval. A real-CLI regression checks both shared claim release with unchanged file mtime/bytes/receipts/trust and final-owner removal.

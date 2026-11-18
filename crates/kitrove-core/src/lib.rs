@@ -70,7 +70,12 @@ mod receipt;
 mod registry;
 mod render;
 mod report;
+mod scripted_skill_trust;
 mod snapshot;
+pub use scripted_skill_trust::{
+    ScriptedSkillBundle, ScriptedSkillFile, inspect_scripted_skill_trust,
+    load_scripted_skill_bundle, plan_scripted_skill_trust,
+};
 mod ssh_git_transport;
 mod ssh_known_hosts;
 mod sync_backend;
@@ -182,8 +187,9 @@ pub use instruction_update::{
 pub use limits::ScanBudget;
 pub use materialization::{
     ApplyDisposition, ApplyPlan, DestinationObservation, MaterializationError, RenderedSkill,
-    guard_asset_materialization, observe_skill_destination, plan_skill_apply, plan_skill_removal,
-    render_portable_skill, resolve_target_destination,
+    authorize_scripted_skill_apply, guard_asset_materialization, observe_skill_destination,
+    plan_skill_apply, plan_skill_removal, plan_skill_retention, render_portable_skill,
+    resolve_target_destination,
 };
 pub use mcp_adoption::{
     McpAdoptionBlock, McpAdoptionBlockReason, McpAdoptionError, McpAdoptionOutcome,

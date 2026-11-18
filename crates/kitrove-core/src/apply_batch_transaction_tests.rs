@@ -2218,6 +2218,10 @@ fn batch_fixture() -> BatchFixture {
 }
 
 fn batch_fixture_layout(nested_authority: bool) -> BatchFixture {
+    batch_fixture_content(nested_authority, None)
+}
+
+fn batch_fixture_content(nested_authority: bool, script_mode: Option<FileMode>) -> BatchFixture {
     let root = tempfile::tempdir().unwrap();
     let target = create_root(root.path(), "target");
     let authority_parent = if nested_authority {
@@ -2227,7 +2231,22 @@ fn batch_fixture_layout(nested_authority: bool) -> BatchFixture {
     };
     let environment = create_root(authority_parent, "environment");
     let state = environment.parent().unwrap().join("state");
-    let candidate = make_candidate(FileMode::Regular, "review");
+    let candidate = if let Some(mode) = script_mode {
+        crate::adoption::tests::make_candidate_with_files(
+            FileMode::Regular,
+            "review",
+            0,
+            BTreeMap::from([(
+                PortablePath::parse("helper.py").unwrap(),
+                CapturedFile {
+                    mode,
+                    bytes: b"raise SystemExit('must never execute')\n".to_vec(),
+                },
+            )]),
+        )
+    } else {
+        make_candidate(FileMode::Regular, "review")
+    };
     let AdoptionPlanOutcome::Ready(adoption) =
         plan_adoption(&candidate, None, &empty_manifest(), &capabilities()).unwrap()
     else {
@@ -2253,7 +2272,15 @@ fn batch_fixture_layout(nested_authority: bool) -> BatchFixture {
         )
         .unwrap();
     drop(environment_lock);
-    let local = empty_local_state();
+    let mut local = empty_local_state();
+    if script_mode.is_some() {
+        local.trust.insert(
+            manifest.assets[&asset_id].content_hash.clone(),
+            TrustDecision::Trusted {
+                rationale: "fixture exact review".to_owned(),
+            },
+        );
+    }
     let initial_state = local.to_json().unwrap();
     crate::test_authority::initialize_private_state(&state, &local).unwrap();
     let first = plan_skill_apply(
@@ -2359,5 +2386,133 @@ fn policy(relative_root: &str, harness: HarnessId) -> TargetPolicy {
         document_name: PortablePath::parse("SKILL.md").unwrap(),
         adapter_version: "test-agent-skills/1",
         evidence: EvidenceRef::parse(evidence).unwrap(),
+    }
+}
+
+#[test]
+fn approved_scripted_skill_batch_recovers_each_boundary_and_keeps_approval() {
+    #[cfg(not(unix))]
+    let modes = [FileMode::Regular];
+    #[cfg(unix)]
+    let modes = [FileMode::Regular, FileMode::Executable];
+    for mode in modes {
+        for cut in 0..3 {
+            let fixture = batch_fixture_content(false, Some(mode));
+            let old_state = fs::read(fixture.state.join(STATE_PATH)).unwrap();
+            let interrupted = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                with_locked_batch_authority(
+                    &fixture.batch,
+                    &fixture.environment,
+                    &fixture.state,
+                    CaptureLimits::default(),
+                    |environment, state, targets, sources| {
+                        commit_locked_batch(
+                            &fixture.batch,
+                            environment,
+                            state,
+                            targets,
+                            sources,
+                            CaptureLimits::default(),
+                            || {
+                                if cut == 0 {
+                                    panic!("script prepared");
+                                }
+                            },
+                            |_| {},
+                            |_| {
+                                if cut == 1 {
+                                    panic!("script target");
+                                }
+                            },
+                            || {
+                                if cut == 2 {
+                                    panic!("script state");
+                                }
+                            },
+                        )
+                    },
+                )
+                .unwrap();
+            }));
+            assert!(interrupted.is_err());
+            let expected = if cut == 2 {
+                AtomicApplyBatchRecoveryOutcome::Completed
+            } else {
+                AtomicApplyBatchRecoveryOutcome::RolledBack
+            };
+            assert_eq!(
+                recover_atomic_apply_batch(
+                    &fixture.environment,
+                    &fixture.state,
+                    CaptureLimits::default()
+                )
+                .unwrap(),
+                expected
+            );
+            for item in fixture.batch.items() {
+                let target = fixture.target.join(item.relative_destination().as_str());
+                assert_eq!(target.exists(), cut == 2);
+                if cut == 2 {
+                    assert_eq!(
+                        fs::read(target.join("helper.py")).unwrap(),
+                        b"raise SystemExit('must never execute')\n"
+                    );
+                    #[cfg(unix)]
+                    assert_eq!(
+                        fs::metadata(target.join("helper.py"))
+                            .unwrap()
+                            .permissions()
+                            .mode()
+                            & 0o111
+                            != 0,
+                        mode == FileMode::Executable
+                    );
+                }
+            }
+            let current = fs::read(fixture.state.join(STATE_PATH)).unwrap();
+            if cut != 2 {
+                assert_eq!(current, old_state);
+            }
+            let local = LocalState::from_json(std::str::from_utf8(&current).unwrap()).unwrap();
+            assert!(matches!(
+                local
+                    .trust
+                    .get(&fixture.manifest.assets[&fixture.asset_id].content_hash),
+                Some(TrustDecision::Trusted { .. })
+            ));
+            assert!(!fixture.target.join("SCRIPT_EXECUTED").exists());
+        }
+    }
+}
+
+#[test]
+fn revoking_script_approval_after_planning_refuses_batch_before_targets_change() {
+    let fixture = batch_fixture_content(false, Some(FileMode::Regular));
+    let mut local =
+        LocalState::from_json(&fs::read_to_string(fixture.state.join(STATE_PATH)).unwrap())
+            .unwrap();
+    local.trust.clear();
+    let revoked = local.to_json().unwrap();
+    fs::write(fixture.state.join(STATE_PATH), &revoked).unwrap();
+    assert!(
+        commit_atomic_apply_batch(
+            &fixture.batch,
+            &fixture.environment,
+            &fixture.state,
+            CaptureLimits::default()
+        )
+        .is_err()
+    );
+    assert_eq!(
+        fs::read_to_string(fixture.state.join(STATE_PATH)).unwrap(),
+        revoked
+    );
+    for item in fixture.batch.items() {
+        assert!(
+            !fixture
+                .target
+                .join(item.relative_destination().as_str())
+                .exists()
+        );
     }
 }

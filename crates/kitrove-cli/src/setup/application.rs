@@ -20,7 +20,7 @@ pub(super) fn apply<R: PromptInput, W: Write>(
         return dialog.say("Your collection is empty. Add skills from this computer first.");
     }
     dialog.hint(
-        "Add collection items to tools on this computer. This does not run collected items or synchronize your collection.",
+        "Run kitrove apply to return here directly. Add skills or packs to tools on this computer. This does not run collected items or synchronize your collection.",
     )?;
     let targets = choose_tools(dialog)?;
     if targets.is_empty() {
@@ -100,24 +100,17 @@ pub(super) fn apply<R: PromptInput, W: Write>(
     super::application_preview::discovery(dialog, root, &manifest, &assets, &args)?;
     super::application_preview::compatibility(dialog, &manifest, &assets, &args.targets)?;
     let mut prompt_error = None;
-    let result = crate::materialize::run_apply(args, |plan| {
-        let decision = load_manifest(root).and_then(|current| {
-            if current != manifest {
-                return Err(CliError::new(
-                    "apply.plan_stale",
-                    "the collection changed during selection; choose items again",
-                ));
-            }
-            super::application_preview::confirm(dialog, plan)
-        });
-        match decision {
-            Ok(yes) => yes,
-            Err(error) => {
-                prompt_error = Some(error);
-                false
-            }
+    let mut result = apply_with_preview(dialog, root, &manifest, args.clone(), &mut prompt_error);
+    if result
+        .as_ref()
+        .is_err_and(|error| error.code == "apply.skill_trust_required")
+    {
+        if !review_scripted_skills(dialog, root, &assets)? {
+            return dialog
+                .say("Selection was not applied. Earlier explicit local approvals remain saved.");
         }
-    });
+        result = apply_with_preview(dialog, root, &manifest, args, &mut prompt_error);
+    }
     if let Some(error) = prompt_error {
         return Err(error);
     }
@@ -145,9 +138,9 @@ fn choose_items<R: PromptInput, W: Write>(
     args: &MaterializeArgs,
 ) -> Result<Vec<AssetId>, CliError> {
     let ids: Vec<_> = manifest
-        .assets
+        .packs
         .keys()
-        .chain(manifest.packs.keys())
+        .chain(manifest.assets.keys())
         .cloned()
         .collect();
     let mut start = 0;
@@ -163,16 +156,21 @@ fn choose_items<R: PromptInput, W: Write>(
         }
         let end = (start + PAGE_SIZE).min(shown.len());
         dialog.heading(&format!(
-            "Saved items · {}–{} of {}",
+            "Skills and packs · {}–{} of {}",
             if shown.is_empty() { 0 } else { start + 1 },
             end,
             shown.len()
         ))?;
         for &(index, id) in &shown[start..end] {
-            let kind = manifest
-                .assets
-                .get(id)
-                .map_or("Pack".to_owned(), |asset| format!("{:?}", asset.kind));
+            let kind = if let Some(pack) = manifest.packs.get(id) {
+                format!(
+                    "Pack · {} item{}",
+                    pack.members.len(),
+                    if pack.members.len() == 1 { "" } else { "s" }
+                )
+            } else {
+                format!("{:?}", manifest.assets[id].kind)
+            };
             dialog.say(&format!(
                 "  {}. {} [{}]{}",
                 index + 1,
@@ -193,7 +191,7 @@ fn choose_items<R: PromptInput, W: Write>(
                 dialog.hint(&format!("     {description}"))?;
             }
         }
-        dialog.hint("Selections use all matching pages. Ready checks this destination folder; the tool may already find another copy elsewhere. All does not bypass checks; a blocked item can stop the plan.")?;
+        dialog.hint("Packs are listed first. Select a pack number to preview its items together. Selections use all matching pages. Ready checks this destination folder; the tool may already find another copy elsewhere. All does not bypass checks; a blocked item can stop the plan.")?;
         let enter = if suggested.is_empty() {
             "Skip"
         } else {
@@ -271,6 +269,19 @@ fn description(
     manifest: &EnvironmentManifest,
     id: &AssetId,
 ) -> Option<String> {
+    if let Some(pack) = manifest.packs.get(id) {
+        let names: Vec<_> = pack
+            .members
+            .keys()
+            .take(4)
+            .map(|member| safe(member.as_str()))
+            .collect();
+        return Some(format!(
+            "Includes: {}{}",
+            names.join(", "),
+            if pack.members.len() > 4 { ", …" } else { "" }
+        ));
+    }
     if manifest.assets.get(id)?.kind != AssetKind::Skill {
         return None;
     }
@@ -325,6 +336,137 @@ fn choose_tools<R: PromptInput, W: Write>(
                 return Ok(BTreeSet::from([TOOLS[usize::from(index)].clone()]));
             }
             _ => dialog.say("Choose a displayed tool, m for several, or n to skip.")?,
+        }
+    }
+}
+
+fn apply_with_preview<R: PromptInput, W: Write>(
+    dialog: &mut Dialog<R, W>,
+    root: &std::path::Path,
+    manifest: &EnvironmentManifest,
+    args: MaterializeArgs,
+    prompt_error: &mut Option<CliError>,
+) -> Result<crate::portable::CompletedCommand, CliError> {
+    crate::materialize::run_apply(args, |plan| {
+        let decision = load_manifest(root).and_then(|current| {
+            if &current != manifest {
+                return Err(CliError::new(
+                    "apply.plan_stale",
+                    "the collection changed during selection; choose items again",
+                ));
+            }
+            super::application_preview::confirm(dialog, plan)
+        });
+        match decision {
+            Ok(yes) => yes,
+            Err(error) => {
+                *prompt_error = Some(error);
+                false
+            }
+        }
+    })
+}
+
+fn review_scripted_skills<R: PromptInput, W: Write>(
+    dialog: &mut Dialog<R, W>,
+    root: &std::path::Path,
+    assets: &BTreeSet<AssetId>,
+) -> Result<bool, CliError> {
+    let mut changed = false;
+    for id in assets {
+        let Some(review) = crate::trust::prepare_skill_review(root, id)? else {
+            continue;
+        };
+        dialog.heading(&format!("Script-containing skill: {}", safe(id.as_str())))?;
+        dialog.warning("The selected AI tool may run these helpers with its own permissions. Kitrove stores and copies files; it does not run them or install their runtimes. Review and approve this exact bundle separately.")?;
+        dialog.hint(&format!(
+            "Bundle revision:\n  {}\n{} component files",
+            review.revision(),
+            review.files.len()
+        ))?;
+        let mut start = 0;
+        loop {
+            let end = (start + PAGE_SIZE).min(review.files.len());
+            for (offset, file) in review.files[start..end].iter().enumerate() {
+                dialog.say(&format!(
+                    "  {}. {} / {}\n     {:?} · {} bytes",
+                    start + offset + 1,
+                    safe(&file.component),
+                    safe(&file.path),
+                    file.mode,
+                    file.bytes
+                ))?;
+            }
+            match dialog.decision("Approve this exact bundle on this computer?\ny        Approve local placement of this version\nv        Next file page\nf        Inspect a stored file\nEnter/n  Skip this selection\nq        Quit", b"yvfn", true)?.as_str() {
+                "y" => { review.commit()?; changed = true; dialog.success("Exact bundle approved locally. File placement still needs its own preview and approval.")?; break; }
+                "f" => inspect_review_file(dialog, &review)?,
+                "v" => start = if end == review.files.len() { 0 } else { end },
+                _ => return Ok(false),
+            }
+        }
+    }
+    Ok(changed)
+}
+
+fn inspect_review_file<R: PromptInput, W: Write>(
+    dialog: &mut Dialog<R, W>,
+    review: &crate::trust::SkillReview,
+) -> Result<(), CliError> {
+    let number = dialog.ask("Stored file number (Enter returns):")?;
+    if number.is_empty() {
+        return Ok(());
+    }
+    let Some(index) = number
+        .parse::<usize>()
+        .ok()
+        .and_then(|n| n.checked_sub(1))
+        .filter(|n| *n < review.files.len())
+    else {
+        return dialog.say("Choose a displayed file number. Nothing has changed.");
+    };
+    let Some(text) = review
+        .file_bytes(index)
+        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+    else {
+        return dialog
+            .say("This file is not UTF-8 text. Its byte count and hash are listed above.");
+    };
+    let lines: Vec<String> = text
+        .lines()
+        .flat_map(|line| {
+            let escaped = safe(line);
+            if escaped.is_empty() {
+                return vec![String::new()];
+            }
+            escaped
+                .as_bytes()
+                .chunks(76)
+                .map(|chunk| String::from_utf8(chunk.to_vec()).expect("escaped source is ASCII"))
+                .collect()
+        })
+        .collect();
+    let mut start = 0;
+    loop {
+        dialog.hint(&format!(
+            "Exact stored file hash:\n  {}",
+            review.files[index].hash
+        ))?;
+        let end = (start + 20).min(lines.len());
+        dialog.heading(&format!(
+            "Stored file: {} / {} · view rows {}–{}",
+            safe(&review.files[index].component),
+            safe(&review.files[index].path),
+            if lines.is_empty() { 0 } else { start + 1 },
+            end
+        ))?;
+        for line in &lines[start..end] {
+            dialog.say(&format!("  | {line}"))?;
+        }
+        match dialog.decision("Inspect file\nn        Next page\nb        Previous page\nEnter    Back to approval\nq        Quit", b"nb", true)?.as_str() {
+            "n" if end < lines.len() => start = end,
+            "b" => start = start.saturating_sub(20),
+            "n" => {},
+            _ => return Ok(()),
         }
     }
 }

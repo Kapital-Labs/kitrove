@@ -2755,10 +2755,42 @@ impl ObjectStore {
         {
             return Err(invalid_stage());
         }
+        self.write_rendered_staging(staging_root, tree, expected_hash, limits, write_tree)
+    }
+
+    pub(crate) fn stage_approved_scripted_skill(
+        &self,
+        staging_root: &PortablePath,
+        tree: &CapturedTree,
+        expected_hash: &ContentHash,
+        limits: CaptureLimits,
+        approval: &crate::materialization::ScriptedSkillApproval,
+    ) -> Result<(), ObjectMutationError> {
+        if !approval.permits(tree) {
+            return Err(invalid_stage());
+        }
+        self.clear_rendered_staging(staging_root, expected_hash, limits)?;
+        self.write_rendered_staging(
+            staging_root,
+            tree,
+            expected_hash,
+            limits,
+            write_extension_tree,
+        )
+    }
+
+    fn write_rendered_staging(
+        &self,
+        staging_root: &PortablePath,
+        tree: &CapturedTree,
+        expected_hash: &ContentHash,
+        limits: CaptureLimits,
+        write: fn(&Dir, &CapturedTree) -> Result<(), ObjectMutationError>,
+    ) -> Result<(), ObjectMutationError> {
         let (parent, name) = self.open_or_create_parent(staging_root)?;
         let staging = create_new_directory_with_security(&parent, &name, StoreSecurity::Portable)
             .map_err(|_| mutation_io())?;
-        write_tree(&staging, tree)?;
+        write(&staging, tree)?;
         sync_directory(&staging)?;
         sync_directory(&parent)?;
         if self.inspect_rendered_directory(staging_root, expected_hash, limits)?

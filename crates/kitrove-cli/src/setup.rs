@@ -306,6 +306,58 @@ fn selection(value: &str, length: usize) -> Option<Vec<usize>> {
     })
 }
 
+fn existing_collection<R: PromptInput, W: Write>(
+    dialog: &mut Dialog<R, W>,
+    environment: Option<PathBuf>,
+) -> Result<PathBuf, CliError> {
+    let suggested = match environment {
+        Some(root) => resolve_required_environment_root(Some(&root))?,
+        None => match resolve_required_environment_root(None) {
+            Ok(root) => root,
+            Err(error) if error.code == "cli.environment_missing" => default_collection()?,
+            Err(error) => return Err(error),
+        },
+    };
+    let response = dialog.ask(&format!(
+        "Existing collection path [{}]:",
+        safe(&suggested.display().to_string())
+    ))?;
+    resolve_required_environment_root(Some(&if response.is_empty() {
+        suggested
+    } else {
+        PathBuf::from(response)
+    }))
+}
+
+fn check_collection<R: PromptInput, W: Write>(
+    dialog: &mut Dialog<R, W>,
+    root: &std::path::Path,
+) -> Result<(), CliError> {
+    let status = run_status(EnvironmentArgs {
+        environment: Some(root.to_owned()),
+        json: false,
+    })?;
+    if status.status != 0 {
+        dialog.report(&status.output)?;
+        return Err(CliError::new(
+            "setup.collection_attention",
+            "collection needs attention; use status before continuing",
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn apply_entry(environment: Option<PathBuf>) -> u8 {
+    let mut dialog = Dialog::terminal();
+    let result = (|| {
+        dialog.heading("Add skills or packs to a tool")?;
+        let root = existing_collection(&mut dialog, environment)?;
+        check_collection(&mut dialog, &root)?;
+        application::apply(&mut dialog, &root, &[])
+    })();
+    report_result(result)
+}
+
 pub(crate) fn entry(environment: Option<PathBuf>, configure: bool) -> u8 {
     if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
         eprintln!(
@@ -317,6 +369,10 @@ pub(crate) fn entry(environment: Option<PathBuf>, configure: bool) -> u8 {
     let result = crate::registry::try_tier_one_registry()
         .map_err(|_| io_error())
         .and_then(|registry| run(&mut dialog, environment, configure, &registry));
+    report_result(result)
+}
+
+fn report_result(result: Result<(), CliError>) -> u8 {
     match result {
         Ok(()) => 0,
         Err(error) => {
@@ -381,23 +437,7 @@ fn run<R: PromptInput, W: Write>(
         return dialog.report(&crate::scan_display::render(&report));
     }
     let root = if configure {
-        let suggested = match environment {
-            Some(root) => resolve_required_environment_root(Some(&root))?,
-            None => match resolve_required_environment_root(None) {
-                Ok(root) => root,
-                Err(error) if error.code == "cli.environment_missing" => default_collection()?,
-                Err(error) => return Err(error),
-            },
-        };
-        let response = dialog.ask(&format!(
-            "Existing collection path [{}]:",
-            safe(&suggested.display().to_string())
-        ))?;
-        resolve_required_environment_root(Some(&if response.is_empty() {
-            suggested
-        } else {
-            PathBuf::from(response)
-        }))?
+        existing_collection(dialog, environment)?
     } else {
         let Some((root, resumed)) = initialization::select(dialog, registry)? else {
             return Ok(());
@@ -408,17 +448,7 @@ fn run<R: PromptInput, W: Write>(
         }
         root
     };
-    let status = run_status(EnvironmentArgs {
-        environment: Some(root.clone()),
-        json: false,
-    })?;
-    if status.status != 0 {
-        dialog.report(&status.output)?;
-        return Err(CliError::new(
-            "setup.collection_attention",
-            "collection needs attention; use status before continuing",
-        ));
-    }
+    check_collection(dialog, &root)?;
     let mut just_collected = Vec::new();
     match start.as_str() {
         "1" => just_collected = collect(dialog, &root, registry)?,
@@ -437,9 +467,9 @@ fn run<R: PromptInput, W: Write>(
     }
     loop {
         if !just_collected.is_empty() {
-            dialog.hint("Collected skills stay in your collection. Use option 2: Add collected skills to a tool. Newly collected skills are suggested; preview and approval are separate.")?;
+            dialog.hint("Collected skills stay in your collection. Run kitrove apply, or use option 2: Add skills or packs to a tool. Newly collected skills are suggested; preview and approval are separate.")?;
         }
-        match dialog.menu("What would you like to do?\n1. Add skills from this computer\n2. Add collected skills to a tool\n3. Share this collection with another computer\n4. Copy selected items from another collection\n5. Finish for now\nChoose 1-5 [5]:", true)?.as_str() {
+        match dialog.menu("What would you like to do?\n1. Add skills from this computer\n2. Add skills or packs to a tool\n3. Share this collection with another computer\n4. Copy selected items from another collection\n5. Finish for now\nChoose 1-5 [5]:", true)?.as_str() {
             "1" => just_collected = collect(dialog, &root, registry)?,
             "2" => application::apply(dialog, &root, &just_collected)?,
             "3" => synchronize(dialog, &root, true)?,
@@ -727,7 +757,7 @@ fn import_backend<R: PromptInput, W: Write, B: SyncBackend>(
     if !dialog.confirm(&format!("Import {chosen} and required pack members ({} verified objects)?\nNative content and provenance remain intact. Nothing is applied or trusted for execution.", objects.len()))? { return Ok(()); }
     commit_collection_import(&plan, &objects, root, CaptureLimits::default())
         .map_err(|error| CliError::new(error.code(), error.message()))?;
-    dialog.success("Selected items imported. Add collected skills to a tool separately when ready.")
+    dialog.success("Selected items imported. Add skills or packs to a tool separately when ready.")
 }
 
 fn human_summary(value: &serde_json::Value, indent: usize) -> String {

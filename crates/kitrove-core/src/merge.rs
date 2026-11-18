@@ -298,65 +298,86 @@ pub(crate) fn validate_manifest_object_risk(
             validate_document_snapshot_asset(asset, objects)?;
             continue;
         }
-        let mut class = ContentClass::DataOnly;
-        if let Some(portable) = &asset.portable {
-            let object = objects.portable(&portable.object_hash)?;
-            let skill_path = kitrove_model::PortablePath::parse("SKILL.md")
-                .expect("SKILL.md is a portable path");
-            let document = object.tree().files.get(&skill_path).ok_or_else(|| {
-                merge_error(
-                    "sync_merge.portable_document_missing",
-                    "snapshot portable skill object is missing SKILL.md",
-                )
-            })?;
-            let parsed = parse_skill_document(
-                std::path::Path::new("portable-object/SKILL.md"),
-                &document.bytes,
+        validate_skill_snapshot_asset(asset, objects)?;
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_skill_snapshot_asset(
+    asset: &Asset,
+    objects: &VerifiedSkillObjectCatalog,
+) -> Result<(), SemanticMergeError> {
+    if asset.kind != AssetKind::Skill
+        || asset
+            .portable
+            .as_ref()
+            .is_some_and(|p| p.format != "agent-skills/v1")
+        || asset
+            .native_variants
+            .values()
+            .any(|n| n.format != "kitrove-native-skill-object/v1")
+    {
+        return Err(merge_error(
+            "sync_merge.skill_format_invalid",
+            "skill object format authority is invalid",
+        ));
+    }
+    let mut class = ContentClass::DataOnly;
+    if let Some(portable) = &asset.portable {
+        let object = objects.portable(&portable.object_hash)?;
+        let skill_path =
+            kitrove_model::PortablePath::parse("SKILL.md").expect("SKILL.md is a portable path");
+        let document = object.tree().files.get(&skill_path).ok_or_else(|| {
+            merge_error(
+                "sync_merge.portable_document_missing",
+                "snapshot portable skill object is missing SKILL.md",
             )
-            .map_err(|_| {
-                merge_error(
-                    "sync_merge.portable_document_invalid",
-                    "snapshot portable skill document is invalid",
-                )
-            })?;
-            if !parsed.native_fields.is_empty() {
-                return Err(merge_error(
-                    "sync_merge.portable_document_invalid",
-                    "snapshot portable skill document contains native-only fields",
-                ));
-            }
-            class = class.max(assess_portable_tree_risk(object.tree()).map_err(|_| {
-                merge_error(
-                    "sync_merge.derived_risk_invalid",
-                    "snapshot portable object risk could not be recomputed",
-                )
-            })?);
+        })?;
+        let parsed = parse_skill_document(
+            std::path::Path::new("portable-object/SKILL.md"),
+            &document.bytes,
+        )
+        .map_err(|_| {
+            merge_error(
+                "sync_merge.portable_document_invalid",
+                "snapshot portable skill document is invalid",
+            )
+        })?;
+        if !parsed.native_fields.is_empty() {
+            return Err(merge_error(
+                "sync_merge.portable_document_invalid",
+                "snapshot portable skill document contains native-only fields",
+            ));
         }
-        for (harness, native) in &asset.native_variants {
-            let native_class = assess_native_skill_object_risk(
-                objects.native(&native.object_hash)?,
+        class = class.max(assess_portable_tree_risk(object.tree()).map_err(|_| {
+            merge_error(
+                "sync_merge.derived_risk_invalid",
+                "snapshot portable object risk could not be recomputed",
             )
+        })?);
+    }
+    for (harness, native) in &asset.native_variants {
+        let native_class = assess_native_skill_object_risk(objects.native(&native.object_hash)?)
             .map_err(|_| {
                 merge_error(
                     "sync_merge.derived_risk_invalid",
                     "snapshot native object risk could not be recomputed",
                 )
             })?;
-            if native.content_class != native_class {
-                return Err(merge_error(
-                    "sync_merge.derived_risk_mismatch",
-                    "snapshot native object risk does not match manifest authority",
-                ));
-            }
-            let _ = harness;
-            class = class.max(native_class);
-        }
-        if asset.content_class != class {
+        if native.content_class != native_class {
             return Err(merge_error(
                 "sync_merge.derived_risk_mismatch",
-                "snapshot asset risk does not match verified objects",
+                "snapshot native object risk does not match manifest authority",
             ));
         }
+        let _ = harness;
+        class = class.max(native_class);
+    }
+    if asset.content_class != class {
+        return Err(merge_error(
+            "sync_merge.derived_risk_mismatch",
+            "snapshot asset risk does not match verified objects",
+        ));
     }
     Ok(())
 }
