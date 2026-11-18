@@ -1,5 +1,7 @@
 """Exercise only the supplied source-built CLI in disposable synthetic homes."""
 import os
+import fcntl
+import struct
 from pathlib import Path
 import pty
 import select
@@ -16,16 +18,17 @@ FIXTURE_BASE = Path(sys.argv[2]).resolve(strict=True)
 
 
 class Session:
-    def __init__(self, root, args, cwd=None):
+    def __init__(self, root, args, cwd=None, term="xterm-256color", columns=100):
         self.root = root
         self.env = os.environ.copy()
         for name in ("KITROVE_ENV", "XDG_DATA_HOME"):
             self.env.pop(name, None)
         self.env.update(HOME=str(root / "home"), USERPROFILE=str(root / "home"),
                         KITROVE_STATE_HOME=str(root / "state"), NO_COLOR="1",
-                        TERM="xterm-256color")
+                        TERM=term)
         (root / "home").mkdir(exist_ok=True)
         self.master, self.slave = pty.openpty()
+        fcntl.ioctl(self.slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, columns, 0, 0))
         self.original = termios.tcgetattr(self.slave)
         self.process = subprocess.Popen([BINARY, *args], cwd=cwd or root, env=self.env,
                                         stdin=self.slave, stdout=self.slave,
@@ -267,10 +270,10 @@ def scan_inventory_menu():
         before = {p.relative_to(root): p.read_bytes() for p in skills.glob("*/SKILL.md")}
         session = Session(root, ["scan", "--harness", "claude", "--scope", "user"])
         try:
-            session.prompt(b"Explore the inventory")
-            assert b"15 skills in the inventory" in session.output
+            session.prompt(b"Next action")
+            assert b"15 skills listed" in session.output
             assert b"Ready to preview (14)" in session.output, session.output
-            assert b"Needs review (1)" in session.output, session.output
+            assert b"Skills needing review (1)" in session.output, session.output
             assert b"ready-01" not in session.output
             assert b"skill metadata could not be read" not in session.output
             session.menu_ready()
@@ -287,7 +290,7 @@ def scan_inventory_menu():
             session.menu_ready()
             session.output = b""
             session.send(b"\r")
-            session.prompt(b"Explore the inventory")
+            session.prompt(b"Next action")
             session.menu_ready()
             session.output = b""
             session.send(b"2")
@@ -297,11 +300,11 @@ def scan_inventory_menu():
             session.menu_ready()
             session.output = b""
             session.send(b"b")
-            session.prompt(b"Explore the inventory")
+            session.prompt(b"Next action")
             session.menu_ready()
             session.output = b""
             session.send(b"d")
-            session.prompt(b"Explore the inventory")
+            session.prompt(b"Next action")
             assert b"Findings (grouped)" in session.output
             session.menu_ready()
             session.send(b"q")
@@ -312,6 +315,112 @@ def scan_inventory_menu():
         finally:
             session.close()
 
+
+
+def scan_arrow_navigation(quit_from_group=False):
+    with tempfile.TemporaryDirectory(prefix="kitrove-scan-arrows-", dir=FIXTURE_BASE) as tmp:
+        root = Path(tmp).resolve()
+        skills = root / "home/.pi/agent/skills"
+        for name, contents in [("good", "---\nname: good\ndescription: Fixture.\n---\nSkill.\n"),
+                               ("broken", "---\nname: [bad\n---\n")]:
+            p = skills / name / "SKILL.md"
+            p.parent.mkdir(parents=True)
+            p.write_text(contents)
+        session = Session(root, ["scan", "--harness", "pi", "--scope", "user"])
+        try:
+            session.prompt(b"Next action")
+            session.menu_ready()
+            assert b"Up/Down to move" in session.output
+            assert b"\x1b[1;" not in session.output, "NO_COLOR must suppress color"
+            session.output = b""
+            # Terminal escape sequences may arrive in separate reads.
+            for fragment in [b"\x1b", b"[", b"B"]:
+                session.send(fragment)
+                time.sleep(0.02)
+            session.until(b"> [2] Skills needing review")
+            session.send(b"\r")
+            session.prompt(b"Browse skills")
+            assert b"broken" in session.output
+            session.menu_ready()
+            if quit_from_group:
+                session.output = b""
+                session.send(b"\x1b[A")
+                session.until(b"> [q] Quit")
+                session.send(b"\r")
+                session.finish(3)
+                assert not (root / "state").exists()
+                return
+            session.output = b""
+            session.send(b"b")
+            session.prompt(b"Next action")
+            session.menu_ready()
+            # An uncompleted Escape exits promptly and restores exact terminal flags.
+            session.send(b"\x1b")
+            session.finish(3)
+            assert not (root / "state").exists()
+        finally:
+            session.close()
+
+
+def scan_issues_and_rescan():
+    with tempfile.TemporaryDirectory(prefix="kitrove-scan-issues-", dir=FIXTURE_BASE) as tmp:
+        root = Path(tmp).resolve()
+        supplied = root / "supplied"
+        skill = supplied / "broken/SKILL.md"
+        skill.parent.mkdir(parents=True)
+        skill.write_text("---\nname: [bad\n---\n")
+        # A filtered-out tool must never appear after retry.
+        other = root / "home/.claude/skills/unselected/SKILL.md"
+        other.parent.mkdir(parents=True)
+        other.write_text("---\nname: unselected\ndescription: Excluded.\n---\nSkill.\n")
+        session = Session(root, ["scan", "--harness", "pi", "--scope", "user", "--root", "pi:user:" + str(supplied)])
+        try:
+            session.prompt(b"Next action")
+            session.menu_ready()
+            skill.unlink()
+            skill.parent.rmdir()
+            session.output = b""
+            session.send(b"r")
+            session.prompt(b"Next action")
+            assert b"0 skills listed" in session.output, session.output
+            assert b"unselected" not in session.output
+            assert b"[a]" not in session.output
+            session.menu_ready()
+            session.send(b"\r")  # empty scan defaults to Quit, never another scan
+            session.finish(0)
+            assert not (root / "state").exists()
+        finally:
+            session.close()
+    with tempfile.TemporaryDirectory(prefix="kitrove-folder-issue-", dir=FIXTURE_BASE) as tmp:
+        root = Path(tmp).resolve()
+        (root / "home/.pi/agent").mkdir(parents=True)
+        target = root / "regular"
+        target.mkdir()
+        linked = root / "home/.pi/agent/skills"
+        linked.symlink_to(target, target_is_directory=True)
+        session = Session(root, ["scan", "--harness", "pi", "--scope", "user"])
+        try:
+            session.prompt(b"Next action")
+            session.menu_ready()
+            assert b"0 skills listed" in session.output
+            assert b"(missing)" not in session.output
+            session.send(b"i")
+            session.prompt(b"After checking the folder")
+            session.menu_ready()
+            assert b"folder could not be scanned" in session.output
+            assert b"kitrove scan --harness pi --scope user --verbose" in session.output
+            linked.unlink()
+            linked.mkdir()
+            session.output = b""
+            session.send(b"r")
+            session.prompt(b"Next action")
+            session.menu_ready()
+            assert b"scan issues" not in session.output
+            session.send(b"q")
+            session.finish(0)
+            assert not (root / "state").exists()
+        finally:
+            session.close()
 
 
 def scan_collect_menu(adopt, context="user", fresh=False, stale=False, cancel=False):
@@ -345,17 +454,18 @@ def scan_collect_menu(adopt, context="user", fresh=False, stale=False, cancel=Fa
         before = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
         session = Session(root, scan_args, cwd=root / "project" if context == "project" else root)
         try:
-            session.prompt(b"Explore the inventory")
+            session.prompt(b"Next action")
             session.menu_ready()
-            assert b"a        Add to collection" in session.output, (context, session.output)
+            assert b"[a] Add skills to collection" in session.output, (context, session.output)
             if context == "user":
                 session.send(b"1")
                 session.prompt(b"Browse skills")
-                assert b"a        Add to collection" in session.output, "scan must offer a direct collection handoff"
+                assert b"[a] Add skills to collection" in session.output, "scan must offer a direct collection handoff"
                 session.menu_ready()
             session.output = b""
-            session.send(b"a")
+            session.send(b"a\nyes\n" if cancel else b"a")
             session.prompt(b"Where should your portable collection live?")
+            assert not (root / "yes").exists(), "queued input escaped the scan menu"
             if cancel:
                 session.send(b"q\n")
                 session.finish(3)
@@ -588,3 +698,28 @@ def bare_apply_pack(approve):
 bare_apply_pack(True)
 bare_apply_pack(False)
 print("PASS: bare interactive apply selects packs directly, keeps approval separate and restores terminal mode")
+
+scan_arrow_navigation()
+scan_arrow_navigation(quit_from_group=True)
+scan_issues_and_rescan()
+
+
+def scan_plain_fallback():
+    for term, columns in [("dumb", 100), ("xterm-256color", 40)]:
+        with tempfile.TemporaryDirectory(prefix="kitrove-scan-plain-", dir=FIXTURE_BASE) as tmp:
+            root = Path(tmp).resolve()
+            session = Session(root, ["scan", "--harness", "pi", "--scope", "user"], term=term, columns=columns)
+            try:
+                session.prompt(b"Next action")
+                session.menu_ready()
+                assert b"Up/Down" not in session.output
+                assert b"\x1b" not in session.output
+                assert b"> [q] Quit" in session.output
+                session.send(b"\r")
+                session.finish(0)
+                assert not (root / "state").exists()
+            finally:
+                session.close()
+
+
+scan_plain_fallback()

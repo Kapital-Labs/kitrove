@@ -47,8 +47,7 @@ pub(crate) fn run_scan(arguments: ScanArgs, registry: &PolicyRegistry) -> Result
         0
     };
     if let Some(selection) = selection {
-        crate::setup::browse_scan(&report, &selection, registry)?;
-        return Ok(status);
+        return crate::setup::browse_scan(&report, &selection, registry);
     }
     let output = if json {
         render_scan_json(&report).map_err(|_| {
@@ -1003,7 +1002,7 @@ fn context_unavailable() -> CliError {
     )
 }
 
-fn report_needs_attention(report: &ScanReport) -> bool {
+pub(crate) fn report_needs_attention(report: &ScanReport) -> bool {
     report
         .entries
         .iter()

@@ -78,6 +78,16 @@ impl Mode {
         })
     }
 
+    // Only the scan arrow decoder uses this two-byte, bounded continuation mode.
+    pub(super) fn timed_continuation(&mut self, timed: bool) -> io::Result<()> {
+        use rustix::termios::SpecialCodeIndex;
+        let mut mode = rustix::termios::tcgetattr(&self.input)?;
+        mode.special_codes[SpecialCodeIndex::VMIN] = if timed { 0 } else { 1 };
+        mode.special_codes[SpecialCodeIndex::VTIME] = u8::from(timed);
+        rustix::termios::tcsetattr(&self.input, rustix::termios::OptionalActions::Now, &mode)?;
+        Ok(())
+    }
+
     pub(super) fn restore(&mut self) -> io::Result<()> {
         if self.active {
             rustix::termios::tcsetattr(

@@ -36,7 +36,10 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
-        let root = tempfile::tempdir().unwrap();
+        Self::with_root(tempfile::tempdir().unwrap())
+    }
+
+    fn with_root(root: TempDir) -> Self {
         let root_path = fs::canonicalize(root.path()).unwrap();
         let home = root_path.join("home");
         let working = root_path.join("working");
@@ -840,4 +843,88 @@ fn existing_information_commands_remain_available() {
     assert_eq!(help.status.code(), Some(0));
     assert!(stdout(&help).contains("scan"));
     assert!(stdout(&help).contains("north-star"));
+}
+
+#[cfg(unix)]
+#[test]
+fn unreadable_root_is_a_scan_issue_not_a_phantom_skill() {
+    use std::os::unix::fs::symlink;
+    let fixture = Fixture::with_root(kitrove_testkit::trusted_tempdir(".scan-issues-"));
+    let source = fixture.root.join("regular-root");
+    fs::create_dir(&source).unwrap();
+    let linked = fixture.home.join(".agents/skills");
+    fs::remove_dir(&linked).unwrap();
+    symlink(&source, &linked).unwrap();
+    let run = |extra: &[&str]| {
+        fixture
+            .command()
+            .args(["scan", "--harness", "codex", "--scope", "user"])
+            .args(extra)
+            .output()
+            .unwrap()
+    };
+    let human = run(&[]);
+    assert_eq!(human.status.code(), Some(3), "{}", stderr(&human));
+    let text = stdout(&human);
+    assert!(text.contains("0 skills listed"), "{text}");
+    assert!(text.contains("Scan issues ("), "{text}");
+    assert!(text.contains("folder could not be scanned"), "{text}");
+    assert!(
+        text.contains("kitrove scan --harness codex --scope user --verbose"),
+        "{text}"
+    );
+    assert!(!text.contains("(missing)"), "{text}");
+    assert!(
+        !text.contains(&fixture.root.to_string_lossy().to_string()),
+        "private path leaked: {text}"
+    );
+    let canonical = run(&["--json"]);
+    let value = json(&canonical);
+    assert_eq!(canonical.status.code(), Some(3));
+    assert!(!value["entries"].as_array().unwrap().is_empty());
+    assert!(stdout(&canonical).contains("scan.root_unreadable"));
+    assert!(
+        fs::symlink_metadata(&linked)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    assert!(!fixture.state_home.exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn malformed_skill_still_counts_as_a_skill_alongside_a_folder_issue() {
+    use std::os::unix::fs::symlink;
+    let fixture = Fixture::with_root(kitrove_testkit::trusted_tempdir(".scan-issues-"));
+    let normal = fixture.home.join(".claude/skills");
+    fixture.skill(&normal, "good", "good");
+    fs::create_dir_all(normal.join("broken")).unwrap();
+    fs::write(normal.join("broken/SKILL.md"), "---\nname: [invalid\n---\n").unwrap();
+    let linked = fixture.home.join(".agents/skills");
+    fs::remove_dir(&linked).unwrap();
+    symlink(&normal, &linked).unwrap();
+    let output = fixture
+        .command()
+        .args([
+            "scan",
+            "--harness",
+            "codex",
+            "--harness",
+            "claude",
+            "--scope",
+            "user",
+        ])
+        .output()
+        .unwrap();
+    let text = stdout(&output);
+    assert_eq!(output.status.code(), Some(3));
+    assert!(
+        text.contains("2 skills listed; 1 ready to preview"),
+        "{text}"
+    );
+    assert!(text.contains("broken"), "{text}");
+    assert!(text.contains("Scan issues ("), "{text}");
+    assert!(!text.contains("(missing)"), "{text}");
+    assert!(!fixture.state_home.exists());
 }

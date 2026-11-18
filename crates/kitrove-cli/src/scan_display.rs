@@ -2,6 +2,7 @@
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
+use kitrove_adapter_api::{FindingSubject, RootTier};
 use kitrove_core::{ScanClassification, ScanEntry, ScanReport};
 
 use crate::args::CliError;
@@ -62,18 +63,102 @@ pub(crate) fn resolve_skill_name(report: &ScanReport, selection: &str) -> Result
         })
 }
 
+/// A failed folder has no candidate identity; keep it out of human skill lists only.
+pub(crate) fn folder_issue(entry: &ScanEntry) -> bool {
+    entry.observation_id.is_none()
+        && entry.native_id.is_none()
+        && entry.source_relative_path.is_none()
+        && entry.asset_id.is_none()
+        && entry.receipt_id.is_none()
+        && entry.findings.iter().any(|finding| {
+            finding.code == "scan.root_unreadable"
+                && matches!(finding.subject, FindingSubject::Root(_))
+        })
+}
+
+pub(crate) fn write_folder_issue(out: &mut String, entry: &ScanEntry) {
+    let scope = match entry.scope {
+        kitrove_model::HarnessScope::User => "user",
+        kitrove_model::HarnessScope::Project => "project",
+    };
+    let location = match entry.root_tier {
+        Some(RootTier::Admin) => "administrator skills folder",
+        Some(RootTier::System) => "bundled skills folder",
+        Some(RootTier::Explicit) => "explicit skills folder",
+        Some(RootTier::Compatibility) => "compatibility skills folder",
+        _ => match entry.scope {
+            kitrove_model::HarnessScope::User => "user skills folder",
+            kitrove_model::HarnessScope::Project => "project skills folder",
+        },
+    };
+    writeln!(
+        out,
+        "  {} / {location}: folder could not be scanned",
+        entry.harness.as_str()
+    )
+    .expect("string write");
+    if let Some(root) = &entry.logical_root {
+        // These are compiled path hints, never resolved private absolute paths.
+        let hint = match (entry.harness.as_str(), root.as_str()) {
+            ("codex", "codex.admin.skills") => Some("/etc/codex/skills"),
+            ("codex", "codex.user.skills") => Some("~/.agents/skills"),
+            ("claude", "claude.user.skills") => Some("~/.claude/skills"),
+            ("pi", "pi.user.native.skills") => Some("~/.pi/agent/skills"),
+            ("pi", "pi.user.compatibility.skills") => Some("~/.agents/skills"),
+            ("opencode", "opencode.user.native.skills") => Some("~/.config/opencode/skills"),
+            ("opencode", "opencode.user.claude.skills") => Some("~/.claude/skills"),
+            ("opencode", "opencode.user.agents.skills") => Some("~/.agents/skills"),
+            _ => None,
+        };
+        match hint {
+            Some(hint) => writeln!(out, "    Location: {hint}"),
+            None => writeln!(out, "    Folder ID: {}", safe(root.as_str())),
+        }
+        .expect("string write");
+    }
+    out.push_str("    Kitrove could not safely read this skills folder.\n");
+    out.push_str("    It may be unreadable or reached through a linked folder.\n");
+    if matches!(entry.root_tier, Some(RootTier::Admin | RootTier::System)) {
+        out.push_str(
+            "    You can leave this optional folder alone and use other readable skills.\n",
+        );
+    } else {
+        out.push_str(
+            "    Inspect the location, then scan again; existing links need not be removed.\n",
+        );
+    }
+    writeln!(
+        out,
+        "    Details: kitrove scan --harness {} --scope {scope} --verbose",
+        entry.harness.as_str()
+    )
+    .expect("string write");
+}
+
 pub(crate) fn render(report: &ScanReport) -> String {
     let mut out = String::from("Kitrove inventory (read-only)\n\n");
-    for entry in &report.entries {
+    for entry in report.entries.iter().filter(|entry| !folder_issue(entry)) {
         write_entry(&mut out, entry, true);
     }
     writeln!(
         out,
-        "\n{} skills observed; {} ready to preview. Existing collection names and adoption blockers are checked in the preview.",
-        report.entries.len(),
+        "\n{} skills listed; {} ready to preview. Existing collection names and adoption blockers are checked in the preview.",
+        report.entries.iter().filter(|e| !folder_issue(e)).count(),
         report.entries.iter().filter(|e| selectable(e)).count()
     )
     .expect("string write");
+    let issues: Vec<_> = report
+        .entries
+        .iter()
+        .filter(|entry| folder_issue(entry))
+        .collect();
+    if !issues.is_empty() {
+        writeln!(out, "\nScan issues ({})", issues.len()).expect("string write");
+        for entry in issues {
+            write_folder_issue(&mut out, entry);
+        }
+        out.push_str("The inventory is incomplete. Keep any --root or --project-root options when checking details.\n");
+    }
     out.push_str(&diagnostics(report));
     out.push_str("\nNo files changed. Use scan --verbose or scan --json for full diagnostics.\nNext: kitrove init (new collection), or kitrove configure (existing collection).\nYou can also adopt a unique skill name: kitrove adopt NAME --harness TOOL\n");
     out
@@ -149,6 +234,7 @@ pub(crate) fn diagnostics(report: &ScanReport) -> String {
 
 fn description(code: &str) -> &str {
     match code {
+        "scan.root_unreadable" => "a skills folder could not be safely read; check Scan issues",
         "scan.discovery_unsafe_path" => {
             "linked or special entries skipped; existing links need not be removed"
         }

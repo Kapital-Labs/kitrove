@@ -1,47 +1,63 @@
 //! Read-only inventory navigation with an explicit handoff to guided collection.
-use std::fmt::Write as _;
 use std::io;
 
 use kitrove_core::{PolicyRegistry, ScanClassification, ScanEntry, ScanReport};
 
-use super::{Dialog, PromptInput, cancelled, collection, default_collection, initialization};
+use super::{
+    Dialog, PromptInput, cancelled, collection, default_collection, initialization, navigation,
+};
 use crate::args::{CliError, ScanArgs};
-use crate::scan::resolve_required_environment_root;
-use crate::scan_display::{diagnostics, selectable, write_entry};
+use crate::scan::{report_needs_attention, resolve_required_environment_root, scan_report};
+use crate::scan_display::{diagnostics, folder_issue, selectable, write_entry, write_folder_issue};
 
 const PAGE_SIZE: usize = 12;
 
 pub(crate) fn browse_scan(
-    report: &ScanReport,
+    initial: &ScanReport,
     selection: &ScanArgs,
     registry: &PolicyRegistry,
-) -> Result<(), CliError> {
+) -> Result<u8, CliError> {
     let mut dialog = Dialog::terminal();
-    let collect = match browse(&mut dialog, report) {
-        Ok(collect) => collect,
-        Err(error) if error.code == cancelled().code => false,
-        Err(_) => return Err(terminal_error()),
-    };
-    if !collect {
-        return dialog
-            .say("No files changed.")
-            .map_err(|_| terminal_error());
-    }
-    dialog.hint("Add copies to your Kitrove collection. Your tool files stay in place; apply and sync are separate.")?;
-    let result = collect_scanned(&mut dialog, report, selection, registry);
-    match result {
-        Ok(()) => dialog.hint(
-            "Collection step finished. Tool installation and sync require separate approvals.",
-        ),
-        Err(error) => {
-            dialog.hint("Previously confirmed steps are retained. No later step ran.")?;
-            if error.code == cancelled().code {
-                Ok(())
-            } else {
-                Err(error)
+    let mut refreshed = None;
+    loop {
+        let report = refreshed.as_ref().unwrap_or(initial);
+        let status = if report_needs_attention(report) { 3 } else { 0 };
+        let action = match browse(&mut dialog, report) {
+            Ok(action) => action,
+            Err(error) if error.code == cancelled().code => Action::Finish,
+            Err(_) => return Err(terminal_error()),
+        };
+        match action {
+            Action::Retry => {
+                dialog.hint("Scanning again with the same folders and filters...")?;
+                refreshed = Some(scan_report(selection.clone(), registry)?);
+            }
+            Action::Finish => {
+                dialog
+                    .say("No files changed.")
+                    .map_err(|_| terminal_error())?;
+                return Ok(status);
+            }
+            Action::Collect => {
+                dialog.hint("Add copies to your Kitrove collection. Your tool files stay in place; apply and sync are separate.")?;
+                match collect_scanned(&mut dialog, report, selection, registry) {
+                    Ok(()) => dialog.hint("Collection step finished. Tool installation and sync require separate approvals.")?,
+                    Err(error) => {
+                        dialog.hint("Previously confirmed steps are retained. No later step ran.")?;
+                        if error.code != cancelled().code { return Err(error); }
+                    }
+                }
+                return Ok(status);
             }
         }
     }
+}
+
+#[derive(Clone, Copy)]
+enum Action {
+    Finish,
+    Retry,
+    Collect,
 }
 
 fn collect_scanned(
@@ -76,12 +92,15 @@ fn terminal_error() -> CliError {
 fn browse(
     dialog: &mut Dialog<impl PromptInput, impl io::Write>,
     report: &ScanReport,
-) -> Result<bool, CliError> {
+) -> Result<Action, CliError> {
     let mut available = Vec::new();
     let mut review = Vec::new();
     let mut managed = Vec::new();
+    let mut issues = Vec::new();
     for entry in &report.entries {
-        if selectable(entry) {
+        if folder_issue(entry) {
+            issues.push(entry);
+        } else if selectable(entry) {
             available.push(entry);
         } else if entry.classification == ScanClassification::ManagedUnchanged
             && entry.shadowed_by.is_none()
@@ -94,53 +113,88 @@ fn browse(
     let can_collect = !available.is_empty();
     let groups = [
         (b'1', "Ready to preview", available),
-        (b'2', "Needs review", review),
+        (b'2', "Skills needing review", review),
         (b'3', "Managed, unchanged", managed),
     ];
     dialog.heading("Kitrove inventory")?;
-    dialog.hint(
-        "Browsing makes no changes. Adding skills requires a collection preview and confirmation.",
-    )?;
-    let count = report.entries.len();
+    let count = report.entries.len() - issues.len();
     let noun = if count == 1 { "skill" } else { "skills" };
-    dialog.say(&format!("{count} {noun} in the inventory"))?;
-
-    let mut menu = String::from("Explore the inventory");
-    let mut keys = vec![b'd'];
-    for (key, label, entries) in &groups {
-        if !entries.is_empty() {
-            keys.push(*key);
-            write!(
-                menu,
-                "\n{}        {label} ({})",
-                char::from(*key),
-                entries.len()
-            )
-            .expect("string write");
+    dialog.say(&format!("{count} {noun} listed"))?;
+    if !issues.is_empty() {
+        dialog.warning(&format!(
+            "{} folder scan issues. The inventory is incomplete.",
+            issues.len()
+        ))?;
+        if count == 0 {
+            dialog.hint("No skills could be listed. View scan issues for the next step.")?;
         }
     }
-    if can_collect {
-        keys.push(b'a');
-        menu.push_str("\na        Add to collection");
-    }
-    menu.push_str("\nd        Scan diagnostics\nEnter/q  Finish");
+    dialog.hint("Browsing makes no changes. Adding skills requires a preview and confirmation.")?;
 
+    let mut choices = Vec::new();
+    for (key, label, entries) in &groups {
+        if !entries.is_empty() {
+            choices.push((*key, format!("{label} ({})", entries.len())));
+        }
+    }
+    if !issues.is_empty() {
+        choices.push((b'i', format!("View scan issues ({})", issues.len())));
+    }
+    if can_collect {
+        choices.push((b'a', "Add skills to collection".to_owned()));
+    }
+    choices.extend([
+        (b'r', "Scan again".to_owned()),
+        (b'd', "View diagnostics".to_owned()),
+        (b'q', "Quit".to_owned()),
+    ]);
+    let default = if count == 0 && issues.is_empty() {
+        choices.len() - 1
+    } else {
+        0
+    };
     loop {
-        let answer = dialog.decision(&menu, &keys, true)?;
-        match answer.as_bytes() {
-            [] => return Ok(false),
-            [b'a'] => return Ok(true),
-            [b'd'] => {
+        match navigation::choose(dialog, "Next action", &choices, default)? {
+            b'q' => return Ok(Action::Finish),
+            b'a' => return Ok(Action::Collect),
+            b'r' => return Ok(Action::Retry),
+            b'i' => {
+                dialog.heading("Scan issues")?;
+                for entry in &issues {
+                    let mut text = String::new();
+                    write_folder_issue(&mut text, entry);
+                    dialog.say(text.trim_end())?;
+                }
+                dialog.hint("Keep any --root or --project-root options when checking details.")?;
+                dialog.hint("For another location, use --root TOOL:SCOPE:/absolute/path/to/skills. Kitrove will not change permissions or follow links.")?;
+                match navigation::choose(
+                    dialog,
+                    "After checking the folder",
+                    &[
+                        (b'b', "Back".to_owned()),
+                        (b'r', "Scan again".to_owned()),
+                        (b'q', "Quit".to_owned()),
+                    ],
+                    0,
+                )? {
+                    b'r' => return Ok(Action::Retry),
+                    b'q' => return Ok(Action::Finish),
+                    _ => {}
+                }
+            }
+            b'd' => {
                 dialog.heading("Scan diagnostics")?;
                 dialog.say(diagnostics(report).trim_end())?;
-                dialog.hint("For the full report, run scan --verbose or scan --json.")?;
+                dialog.hint(
+                    "For the full report, run kitrove scan --verbose or kitrove scan --json.",
+                )?;
             }
             choice => {
                 if let Some((key, label, entries)) =
-                    groups.iter().find(|(key, _, _)| choice == [*key])
+                    groups.iter().find(|(key, _, _)| choice == *key)
                     && browse_group(dialog, label, entries, *key == b'2', *key == b'1')?
                 {
-                    return Ok(true);
+                    return Ok(Action::Collect);
                 }
             }
         }
@@ -169,26 +223,25 @@ fn browse_group(
         dialog.say(rows.trim_end())?;
         if can_collect {
             dialog.hint("These sources can be previewed. Existing collection names and blockers are checked next.")?;
+        } else if show_status {
+            dialog.hint("These skills need attention before they can be collected. View diagnostics for details.")?;
         }
-        let mut menu = String::from("Browse skills");
-        let mut keys = vec![b'b'];
+        let mut choices = vec![(b'b', "Back".to_owned())];
         if end < entries.len() {
-            menu.push_str("\nn        Next page");
-            keys.push(b'n');
+            choices.push((b'n', "Next page".to_owned()));
         }
         if start > 0 {
-            menu.push_str("\np        Previous page");
-            keys.push(b'p');
+            choices.push((b'p', "Previous page".to_owned()));
         }
         if can_collect {
-            keys.push(b'a');
-            menu.push_str("\na        Add to collection");
+            choices.push((b'a', "Add skills to collection".to_owned()));
         }
-        menu.push_str("\nEnter/b  Back\nq        Finish");
-        match dialog.decision(&menu, &keys, true)?.as_str() {
-            "n" => start = end,
-            "p" => start -= PAGE_SIZE,
-            "a" => return Ok(true),
+        choices.push((b'q', "Quit".to_owned()));
+        match navigation::choose(dialog, "Browse skills", &choices, 0)? {
+            b'n' => start = end,
+            b'p' => start -= PAGE_SIZE,
+            b'a' => return Ok(true),
+            b'q' => return Err(cancelled()),
             _ => return Ok(false),
         }
     }
