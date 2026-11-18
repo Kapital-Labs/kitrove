@@ -747,7 +747,14 @@ mod tests {
             )
             .unwrap();
             let manifest_text = adoption.proposed_manifest().to_toml().unwrap();
-            fs::write(environment.join("kitrove.toml"), &manifest_text).unwrap();
+            ObjectStore::open(&environment)
+                .unwrap()
+                .stage_text(
+                    &PortablePath::parse("kitrove.toml").unwrap(),
+                    &manifest_text,
+                    MAX_CONTROL_BYTES,
+                )
+                .unwrap();
             let object = adoption.native_object().clone();
             let destination = adoption.proposed_manifest().assets
                 [&AssetId::parse("native-review").unwrap()]
