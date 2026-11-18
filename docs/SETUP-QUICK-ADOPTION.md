@@ -1,6 +1,6 @@
-# Quick skill collection (RC5.17)
+# Quick skill collection (RC5.18)
 
-These instructions assume RC5.17. Quick collection was introduced in RC5.6;
+These instructions assume RC5.18. Quick collection was introduced in RC5.6;
 RC5.5 has the older per-item prompts. Check
 `kitrove --version` before following these shortcuts. This guide does not itself
 establish publication or update an installed binary. Use the current download
@@ -108,7 +108,7 @@ run `kitrove scan --harness claude --scope user`. The browser's **Ready to previ
 count means readable source candidates, not a promise that all can be added to
 an existing collection.
 
-Press `a` for **Add to collection**, either from the main inventory menu or while
+Press `a` for **Add skills to collection**, either from the main inventory menu or while
 browsing that group. Choose the collection path, then use the normal skill
 selection and preview. An existing setup is validated and confirmed; a new
 collection requires its own machine name and initialization confirmation. Enter
@@ -140,7 +140,7 @@ handoff itself never applies skills, executes them or synchronizes anything.
 The subsequent optional tool-first phase has its own selection and approval.
 A changed source, changed collection or pending recovery still refuses adoption.
 
-## Scan navigation update (not yet published)
+## Compact scan navigation (RC5.18)
 
 The compact summary separates actual skill candidates from **Scan issues**.
 An unreadable or unsafe folder is an issue, not a skill named `(missing)`.
@@ -159,8 +159,8 @@ Displayed shortcuts work immediately too. Narrow, unrecognized and native Window
 terminals use the same short action list with shortcuts and a marked Enter
 default. Browsing a group defaults to Back; an empty scan defaults to Quit.
 Adding skills still opens collection selection and a fresh preview before any
-approval. This navigation update requires a future separately authorized release;
-the published RC5.17 handoff described above remains available today.
+approval. This navigation update is included in RC5.18; the scan-to-collection
+handoff introduced in RC5.17 remains available.
 
 ## Content status and grouped copies (RC5.17)
 
