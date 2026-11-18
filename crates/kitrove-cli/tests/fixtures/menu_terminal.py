@@ -360,10 +360,8 @@ def scan_arrow_navigation(quit_from_group=False):
             assert b"Up/Down to move" in session.output
             assert b"\x1b[1;" not in session.output, "NO_COLOR must suppress color"
             session.output = b""
-            # Terminal escape sequences may arrive in separate reads.
-            for fragment in [b"\x1b", b"[", b"B"]:
-                session.send(fragment)
-                time.sleep(0.02)
+            # Deliver one key event; fragmented decoder reads are covered by Rust unit tests.
+            session.send(b"\x1b[B")
             session.until(b"> [2] Skills needing review")
             session.send(b"\r")
             session.prompt(b"Browse skills")

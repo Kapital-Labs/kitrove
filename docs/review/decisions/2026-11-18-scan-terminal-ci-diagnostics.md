@@ -29,9 +29,23 @@ numeric codes only. Closed streams fail with context instead of spinning. Four
 mock regressions cover bounds/escaping, read errors, closure and native terminal
 error handling; only Session is AST-loaded, never fixture CLI invocations.
 
-The CLI decoder, 100ms continuation limit, fixture 5s deadline, 20ms fragment sleeps,
-navigation/restoration/write-boundary assertions, workflows and permissions stay
-unchanged. Require full stable/Rust1.89 and complete manual review before commit,
-exact normal PR checks and one new normal full-platform check in sequence before
-any remediation merge. Preserve failures and choose further repair from evidence.
-Signing/publication remains held; no failed-run rerun or safety-check weakening.
+The new exact-source Mac job 135081126423 in full run 44383275096 retained the
+missing evidence: requested 20ms sleeps became 166.152ms and 139.271ms inter-write
+gaps. The child exited 3 with exact restored flags and late literal [B output,
+matching the controlled delayed-continuation cancellation. A sleep is a minimum,
+not an upper-bound input delivery guarantee; the precise VM scheduling cause is
+not inferred. This establishes this new hosted failure's test-driver mechanism;
+the original marker-only main log cannot establish its own historical timing.
+
+The real terminal driver now submits one arrow key in a single write. The Rust
+fragmented-reader unit cases still cover separate decoder reads, while native
+lone-Escape cancellation and terminal restoration assertions remain. A synthetic
+160ms pacing control fails before and passes after this driver-only correction
+using the same source-built binary. No test is skipped and no assertion is removed.
+
+The CLI decoder, 100ms continuation limit, fixture 5s deadline, all navigation,
+restoration/write assertions, workflows and permissions remain unchanged. Full
+stable/Rust1.89 and complete manual review precede an append commit. Exact normal
+PR checks and a new full-platform check on the changed source, serialized after
+the prior run finishes, precede any remediation merge. Preserve all failed runs
+and successful independent jobs; no failed-run rerun or signing/publication.
