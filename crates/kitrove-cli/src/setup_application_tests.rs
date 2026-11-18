@@ -40,6 +40,9 @@ fn all_four_tools_choose_destination_first_and_install_skills_without_version_pr
         assert!(!output.contains("Absolute trusted"));
         assert!(output.contains("Review changes carefully."));
         assert!(output.contains("Files added"));
+        assert!(output.contains("ready        Skills ready to add or update (recommended)"));
+        assert!(output.contains("all          Every matching item, including needs-review items"));
+        assert!(output.contains("All does not bypass checks"));
         assert!(
             a.join("home")
                 .join(destination)
@@ -120,8 +123,10 @@ fn newly_collected_items_can_go_directly_to_a_tool_with_separate_confirmation() 
         false,
         "",
     );
-    assert!(output.contains("Next: add the collected skills to a tool"));
+    assert!(output.contains("Use option 2: Add collected skills to a tool"));
     assert!(output.contains("just collected"));
+    assert!(output.contains("additional managed copies in the OpenCode destination"));
+    assert!(output.contains("matching IDs may override"));
     assert!(
         a.join("home/.config/opencode/skills/alpha/SKILL.md")
             .is_file()

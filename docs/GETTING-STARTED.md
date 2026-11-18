@@ -6,7 +6,7 @@ capabilities elsewhere. It does not install those tools or copy their accounts.
 ## Install the latest preview
 
 These instructions start with a fresh installation of the latest reviewed
-preview, currently **RC5.15**. On an Apple Silicon Mac with
+preview, currently **RC5.16**. On an Apple Silicon Mac with
 [Homebrew](https://brew.sh/) already installed:
 
 ```sh
@@ -15,7 +15,7 @@ kitrove --version
 ```
 
 The package is named `kitrove`; the installed version still identifies itself as
-`0.1.0-rc.5.15`. This is an evaluation preview, not stable support. Use a new isolated
+`0.1.0-rc.5.16`. This is an evaluation preview, not stable support. Use a new isolated
 collection and empty destinations with synthetic or disposable capabilities.
 Homebrew checks the pinned archive checksum; you trust Homebrew and the reviewed
 [tap](https://github.com/Kapital-Labs/homebrew-tap) to select the package. It does
@@ -23,7 +23,7 @@ not initialize Kitrove, scan skills, or grant execution trust during installatio
 Leave quarantine and Gatekeeper enabled.
 
 For Linux x86-64 and Windows x86-64, use the exact
-[RC5.15 downloads](https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.15)
+[RC5.16 downloads](https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.16)
 and follow the [verification guide](INSTALLER.md) with an independently trusted
 or reviewed-source-built verifier **before execution**. A checksum alone is not
 provenance. Intel Macs are unsupported in this preview.
@@ -89,9 +89,11 @@ pending recovery or failed commit stops later items; completed items remain and
 are reported. See the [quick collection flow](SETUP-QUICK-ADOPTION.md) for omitted
 items, naming conflicts and exact confirmation semantics.
 
-Select **Choose skills to add to your AI tools**. Choose Claude Code, Codex, Pi
+Select **Add collected skills to a tool**. Choose Claude Code, Codex, Pi
 or OpenCode, then all projects or one project. Select saved items by number,
 filter names with `/word`, or use `ready` for skills the planner can add/update.
+`all` includes needs-review and already-current items; it does not bypass checks.
+Ready refers to the destination folder, not whether a tool already discovers a copy.
 After collecting, Enter selects the just-collected suggestions. Review the exact
 destinations and press `y` to approve; Enter skips tool changes. The
 [tool-first guide](ADD-TO-TOOLS.md) explains shared folders and advanced items.
@@ -109,6 +111,16 @@ Apply and sync keep separate confirmations; Enter skips those writes.
 remain completed if you stop later. Setup is not a single transaction covering
 all earlier choices, and nothing starts running in the background.
 
+Skills containing executable content cannot currently be collected through this
+flow. This is a support limit, not a finding that the files are malicious. Local
+trust commands currently cover native Pi extensions and do not unlock import of
+script-containing skills. Originals remain unchanged in their existing tool.
+
+On a repeated collection scan, exact native matches are already collected. Return
+to setup and use option 2 to add saved skills to a tool; individual review skips
+those exact matches instead of asking you to rename them. Changed or unverified
+copies still require explicit review.
+
 ## Revisit setup
 
 ```sh
@@ -118,7 +130,7 @@ kitrove configure
 The walkthrough asks for your existing collection. The menu separates these goals:
 
 1. **Add skills from this computer** copies selected skills into your collection.
-2. **Choose skills to add to your AI tools** previews applying a selection locally.
+2. **Add collected skills to a tool** previews applying a selection locally.
 3. **Share this collection with another computer** reviews bidirectional sync.
 4. **Copy selected items from another collection** performs a one-time import.
 5. **Finish for now** leaves setup.
@@ -253,7 +265,7 @@ is not recognized. Its second menu choice is “Choose skills to add to your AI
 tools”; sharing and one-time copying have their own choices. RC5.6 still has the
 older menu labels/numbers. Do not use RC5.7 menu numbers with that binary.
 
-The fresh-install instructions do not migrate an older collection. RC5.15 has no
+The fresh-install instructions do not migrate an older collection. RC5.16 has no
 rollback-compatible predecessor; RC4.2 cannot read authored-pack collections.
 Keep older collections and local state separate. Binary rollback is not data
 rollback.
@@ -266,5 +278,5 @@ state, or use `--zap` to bypass a conflict. Never point `kitrove-installer` at a
 Homebrew-managed binary. Normal cask removal preserves Kitrove collections and
 local state; use the token that actually owns your installed binary.
 
-The older APT/DNF package channels remain RC4.2, not an RC5.15 install or upgrade
+The older APT/DNF package channels remain RC4.2, not an RC5.16 install or upgrade
 path. See the [Linux package guide](LINUX-INSTALL.md) for their exact scope.

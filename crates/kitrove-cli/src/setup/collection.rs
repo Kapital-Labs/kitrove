@@ -143,7 +143,9 @@ pub(super) fn collect_report<R: PromptInput, W: Write>(
         let source_prompt = collection_selection::source_prompt(&sources);
         if items.is_empty() {
             dialog.say("No skills ready to collect. Nothing has changed.")?;
-            if sources.is_empty() {
+            if skipped.has_matching() {
+                dialog.hint("Matching skills are already in your collection. Use option 2 in setup: Add collected skills to a tool (kitrove configure). Individual review skips exact matches.")?;
+            } else if sources.is_empty() {
                 dialog.hint("Choose r to review or rename selected skills, or s to choose different skills.")?;
             } else {
                 dialog.say("The same skill names were found in more than one tool.")?;
@@ -400,12 +402,21 @@ fn individually<R: PromptInput, W: Write>(
     selection: &ScanArgs,
 ) -> Result<Vec<AssetId>, CliError> {
     let mut adopted = Vec::new();
+    let mut matching = 0;
     for &index in selected {
         let entry = candidates[index];
         let mut proposed_name = name(entry).to_owned();
         loop {
             let manifest = load_manifest(root)?;
             let id = AssetId::parse(proposed_name.clone());
+            if proposed_name == name(entry)
+                && let Ok(id) = &id
+                && super::collection_status::existing(root, &manifest, id, entry)
+                    == super::collection_status::MATCHING
+            {
+                matching += 1;
+                break;
+            }
             if id.as_ref().map_or(true, |id| occupied(&manifest, id)) {
                 dialog.warning(&format!(
                     "{}: name invalid or already in use. Nothing is overwritten.",
@@ -458,6 +469,11 @@ fn individually<R: PromptInput, W: Write>(
             }
         }
     }
+    if matching > 0 {
+        dialog.say(&format!(
+            "Skipped {matching} already-collected skill copies; exact native content matches."
+        ))?;
+    }
     Ok(adopted)
 }
 
@@ -467,7 +483,7 @@ fn block_reason(reason: AdoptionBlockReason) -> &'static str {
             "cannot be converted to a portable skill"
         }
         AdoptionBlockReason::ExecutableTrustRequired => {
-            "contains executable files; trust must be reviewed separately"
+            "contains executable content; collecting these skills is not supported yet"
         }
         AdoptionBlockReason::CredentialShapedNativeIdentity => {
             "the source identity looks like a credential; review it locally"

@@ -193,12 +193,13 @@ fn choose_items<R: PromptInput, W: Write>(
                 dialog.hint(&format!("     {description}"))?;
             }
         }
+        dialog.hint("Selections use all matching pages. Ready checks this destination folder; the tool may already find another copy elsewhere. All does not bypass checks; a blocked item can stop the plan.")?;
         let enter = if suggested.is_empty() {
             "Skip"
         } else {
-            "Select just-collected items"
+            "Select just-collected items (may need review)"
         };
-        let response = dialog.ask(&format!("Which saved items would you like to add?\n1,4,7        Select original numbers\nall,-3,-8    All listed items except these\nready        Only skills ready to add/update\n/word        Filter names (/ clears)\nnext/back    Browse pages\nEnter        {enter}\nn            Skip\nq            Quit"))?;
+        let response = dialog.ask(&format!("Which saved items would you like to add?\n1,4,7        Select original numbers\nready        Skills ready to add or update (recommended)\n             Skips needs-review and already-current items\nall          Every matching item, including needs-review items\nall,-3,-8    Every matching item except these numbers\n/word        Filter names (/ clears)\nnext/back    Browse pages\nEnter        {enter}\nn            Skip\nq            Quit"))?;
         match response.as_str() {
             "next" => {
                 if end < shown.len() {

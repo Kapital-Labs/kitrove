@@ -49,7 +49,7 @@ fn goal_menu_keeps_apply_distinct_from_sharing_and_copying() {
         false,
         "",
     );
-    assert!(output.contains("2. Choose skills to add to your AI tools"));
+    assert!(output.contains("2. Add collected skills to a tool"));
     assert!(output.contains("3. Share this collection with another computer"));
     assert!(output.contains("4. Copy selected items from another collection"));
     assert!(!output.contains("Backend 1-3"));

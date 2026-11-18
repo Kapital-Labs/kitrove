@@ -1,12 +1,12 @@
-# Add collected skills to your AI tools (RC5.15)
+# Add collected skills to your AI tools (RC5.16)
 
-This guided flow is included in RC5.15. It adds local files for a tool to
+This guided flow is included in RC5.16. It adds local files for a tool to
 discover; it does not install tools, start an agent session, grant trust, connect
 accounts or share a collection. Advanced items can require an explicit bounded
 version check.
 
 Run `kitrove configure --environment /absolute/path/to/collection` and choose
-**Choose skills to add to your AI tools**. After collecting skills in setup,
+**Add collected skills to a tool**. After collecting skills in setup,
 option 2 suggests the skills just collected. You can select different items.
 Adding from the scan browser offers **Choose a tool** after collection, without
 asking for the collection path again. Skipping this next step keeps the collection.
@@ -18,7 +18,10 @@ asking for the collection path again. Skipping this next step keeps the collecti
 3. Choose saved items by their original numbers. Descriptions and a current
    destination check appear under skills. `ready` selects only skills the planner
    can add/update, excluding unmanaged conflicts and managed copies already current.
-   Packs and version-gated kinds need an explicit selection.
+   `all` selects every matching item across pages, including already-current and
+   needs-review items. It does not bypass checks; one blocked item can stop the
+   plan. `ready` checks the destination folder, not whether the tool can already
+   discover another copy elsewhere. Packs and version-gated kinds need an explicit selection.
    Twelve entries appear per page; `next` and `back` browse, `/word` filters names,
    and `/` clears the filter. `all,-3,-8` selects matching items except original
    numbers 3 and 8. A filter narrows bulk selection; it never renumbers entries.
@@ -55,6 +58,8 @@ chosen destination; this table does not authorize writes to a different root.
 
 The preview warns about observed same-name copies in the selected tools' search
 locations. A name match proves neither matching contents nor Kitrove ownership.
+An OpenCode destination copy can override a copy discovered through Claude or
+shared folders; it is an additional managed copy, not required merely for discovery.
 Choosing a destination controls where files go, not which tools exclusively see
 them. Observation is not proof that a tool loaded the skill: settings, permissions,
 project context, precedence and trust can affect availability. Setup does not

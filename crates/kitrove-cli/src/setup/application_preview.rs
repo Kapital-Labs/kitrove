@@ -186,6 +186,9 @@ pub(super) fn discovery<R: PromptInput, W: Write>(
         .collect();
     if !observations.is_empty() {
         dialog.warning(&format!("{} selected skill names were also observed in the selected tools' search locations. New copies may shadow or coexist with another copy; names do not prove equal contents or Kitrove ownership.", observations.len()))?;
+        if args.targets.contains(&HarnessId::OpenCode) {
+            dialog.hint("OpenCode may already discover Claude and shared skills. Adding additional managed copies in the OpenCode destination creates separate definitions; matching IDs may override the existing ones. Skip approval to keep those files unchanged.")?;
+        }
         for (id, count) in observations.iter().take(12) {
             dialog.say(&format!(
                 "  {}: {count} same-name observations",
