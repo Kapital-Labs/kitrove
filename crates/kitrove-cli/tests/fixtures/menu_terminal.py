@@ -34,6 +34,8 @@ class Session:
                                         stdin=self.slave, stdout=self.slave,
                                         stderr=self.slave, start_new_session=True)
         self.output = b""
+        self.started = time.monotonic()
+        self.inputs = []
 
     def until(self, marker):
         self.wait_for(lambda: marker in self.output, marker)
@@ -48,12 +50,37 @@ class Session:
         deadline = time.monotonic() + 5
         while not complete():
             if time.monotonic() >= deadline:
-                raise AssertionError("menu did not advance without Enter: " + repr(marker))
+                raise AssertionError(self.failure(marker, "deadline"))
             ready, _, _ = select.select([self.master], [], [], 0.1)
             if ready:
-                self.output += os.read(self.master, 65536)
+                try:
+                    chunk = os.read(self.master, 65536)
+                except OSError as error:
+                    raise AssertionError(self.failure(marker, "terminal read errno=" + str(error.errno))) from None
+                if not chunk:
+                    raise AssertionError(self.failure(marker, "terminal closed"))
+                self.output += chunk
+
+    def failure(self, marker, reason):
+        # Only synthetic fixture output, bounded and escaped so ANSI cannot run in logs.
+        try:
+            attrs = termios.tcgetattr(self.slave)
+            def cc(index):
+                value = attrs[6][index]
+                return value if isinstance(value, int) else value[0]
+            mode = dict(lflag=attrs[3], vmin=cc(termios.VMIN), vtime=cc(termios.VTIME))
+        except (OSError, termios.error) as error:
+            code = getattr(error, "errno", None)
+            if code is None and error.args and isinstance(error.args[0], int):
+                code = error.args[0]
+            mode = dict(mode_errno=code)
+        context = dict(child_exit=self.process.poll(), mode=mode, inputs=self.inputs,
+                       output_tail=self.output[-4096:])
+        return "menu did not advance without Enter: " + repr(marker[:160]) + "; " + reason + "; " + repr(context)
 
     def send(self, value):
+        self.inputs.append((round(time.monotonic() - self.started, 6), value[:16].hex(), len(value)))
+        self.inputs = self.inputs[-16:]
         os.write(self.master, value)
 
     def restored(self):
