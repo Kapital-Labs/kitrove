@@ -33,8 +33,8 @@ kitrove --version
 kitrove init
 ```
 
-The Homebrew cask installs the latest reviewed preview, currently RC5.13, not a
-stable release. Start with a new isolated collection and empty destinations using
+The Homebrew cask installs the latest reviewed preview, not a stable release.
+Start with a new isolated collection and empty destinations using
 disposable capabilities. Preview recommended skills, exclude entries by number,
 and approve the displayed ready set once or review individually. Application
 remains separately confirmed. Existing-install conflicts are not overwritten.
