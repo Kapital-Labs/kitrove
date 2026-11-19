@@ -4,6 +4,20 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+### Added
+
+- Add a read-only `kitrove doctor` storage report with a redacted JSON form. It
+  reuses native private-storage and retained-recovery validators without
+  creating locks, changing permissions or attempting repairs.
+
+### Changed
+
+- Shorten saved-item selection to one row per item, with direct script review,
+  read-only bundle comparison and compatibility explanations. Placement still
+  requires a fresh preview and confirmation.
+- Identify failed batch-storage boundaries with static, redacted stage messages.
+  Existing error codes and transaction protections remain unchanged.
+
 ## 0.1.0-rc.5.17
 
 Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.

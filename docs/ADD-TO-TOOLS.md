@@ -13,16 +13,35 @@ asking for the collection path again. Skipping this next step keeps the collecti
    without Enter. Choose `m` to select several tools.
 2. Choose **All projects on this computer** or **This project only**. Project
    scope asks for an absolute project folder.
-3. Choose saved items by their original numbers. Descriptions and a current
-   destination check appear under skills. `ready` selects only skills the planner
+3. Choose saved items by their original numbers. Each row shows the current
+   destination check and its next action. Use `why N` for the selected item's
+   description and destination details. `ready` selects only skills the planner
    can add/update, excluding unmanaged conflicts and managed copies already current.
+   The picker counts ready, current and blocked items for the current page.
+   `ready` checks all matching pages when you select it.
+   Each blocked skill offers a next action:
+
+   - **Review scripts:** `review N` opens the exact local bundle review, then a
+     separate placement preview. Selecting its number follows the same checks.
+   - **Compare existing copy:** `compare N` compares the complete rendered bundle
+     with the chosen destination, including supporting files and recorded modes.
+     It reports matching, different or unverified contents and changes no files.
+     Matching contents do not grant ownership. Keep an unmanaged copy and leave
+     the item out, or return to setup to choose another destination.
+   - **Explain incompatibility:** `why N` shows the stored target fidelity and
+     reasons. Choose another tool or leave the item out. Script approval cannot
+     resolve a fidelity refusal. `why N` also explains other destination checks.
+
    `all` selects every matching item across pages, including already-current and
-   needs-review items. It does not bypass checks; one blocked item can stop the
-   plan. An incompatible selection offers **Choose different items**, keeping the
-   tool and destination choices. Use `ready` for compatible additions or select
-   specific numbers to review scripts separately. Incompatible members are never
-   silently removed from a selected pack or batch. `ready` checks the destination folder, not whether the tool can already
-   discover another copy elsewhere. Packs and version-gated kinds need an explicit selection.
+   blocked items. It does not bypass checks; one blocked item can stop the
+   complete selection before placement approval. An incompatible selection offers
+   **Choose different items**, keeping the tool and destination choices. `ready`
+   selects compatible additions and still requires the full preview and your
+   placement approval. Readiness describes the plan; the result after approval
+   reports completion or a separate apply failure. Incompatible members are never
+   silently removed from a selected pack or batch. `ready` checks
+   the destination folder, not whether the tool can already discover another copy
+   elsewhere. Packs and version-gated kinds need an explicit selection.
    Twelve entries appear per page; `next` and `back` browse, `/word` filters names,
    and `/` clears the filter. `all,-3,-8` selects matching items except original
    numbers 3 and 8. A filter narrows bulk selection; it never renumbers entries.
@@ -49,6 +68,13 @@ instructions, commands, agents and MCP entries still require the reviewed
 OpenCode V2 probe (`opencode2`). Selecting an unrelated ordinary skill does not
 probe an unselected instruction or pack. Required probes are explicit, bounded
 local operations; setup does not discover or launch an executable on its own.
+
+## If applying fails
+
+Use [`kitrove doctor`](DOCTOR.md) for a read-only storage report. Select the same
+collection with `--environment` if it differs from `~/Kitrove`. The report can
+identify private-storage or retained-state checks that a portable status summary
+does not cover. It makes no repairs and does not replace a fresh apply preview.
 
 ## Tool destinations and discovery
 

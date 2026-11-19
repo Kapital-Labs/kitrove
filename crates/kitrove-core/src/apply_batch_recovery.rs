@@ -23,14 +23,14 @@ pub(super) fn recover_atomic_apply_batch_inner(
     limits: CaptureLimits,
     after_preliminary_unlock: impl FnOnce(),
 ) -> Result<AtomicApplyBatchRecoveryOutcome, AtomicApplyBatchTransactionError> {
-    let environment = ObjectStore::open(environment_root).map_err(|_| storage_failed())?;
-    let state =
-        ObjectStore::open_private_state_for_mutation(state_root).map_err(|_| storage_failed())?;
+    let environment = ObjectStore::open(environment_root).map_err(|_| environment_open_failed())?;
+    let state = ObjectStore::open_private_state_for_mutation(state_root)
+        .map_err(|_| private_state_open_failed())?;
     environment
         .require_non_overlapping_root(&state)
         .map_err(|_| root_overlap())?;
-    let preliminary_roots =
-        ObjectStore::try_lock_distinct_roots(&[&environment, &state]).map_err(root_lock_error)?;
+    let preliminary_roots = ObjectStore::try_lock_distinct_roots(&[&environment, &state])
+        .map_err(root_lock_acquisition_error)?;
     ensure_no_foreign_recovery(&environment, &state)?;
     let Some(journal) = AtomicApplyBatchJournalCursor::load(&state).map_err(journal_error)? else {
         drop(preliminary_roots);

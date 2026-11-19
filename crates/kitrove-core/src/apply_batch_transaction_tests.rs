@@ -49,6 +49,228 @@ fn errors_are_path_and_content_redacted() {
 }
 
 #[test]
+fn storage_failure_identifies_environment_open_boundary() {
+    let fixture = batch_fixture();
+    let before = fs::read(fixture.state.join(STATE_PATH)).unwrap();
+    let error = commit_atomic_apply_batch(
+        &fixture.batch,
+        &fixture.environment.join("missing-collection"),
+        &fixture.state,
+        CaptureLimits::default(),
+    )
+    .unwrap_err();
+    assert_storage_failure_before_batch_mutation(&fixture, &before, &error, "environment_open");
+}
+
+#[test]
+fn storage_failure_identifies_private_state_open_boundary() {
+    let fixture = batch_fixture();
+    let before = fs::read(fixture.state.join(STATE_PATH)).unwrap();
+    let error = commit_atomic_apply_batch(
+        &fixture.batch,
+        &fixture.environment,
+        &fixture.state.join("missing-private-state"),
+        CaptureLimits::default(),
+    )
+    .unwrap_err();
+    assert_storage_failure_before_batch_mutation(&fixture, &before, &error, "private_state_open");
+}
+
+#[cfg(unix)]
+#[test]
+fn storage_failure_identifies_root_lock_io_for_unprivileged_user() {
+    // Canonical runners use unprivileged accounts; root can bypass this filesystem denial.
+    let fixture = batch_fixture();
+    let before = fs::read(fixture.state.join(STATE_PATH)).unwrap();
+    let lock = fixture.environment.join(".kitrove/environment.lock");
+    fs::set_permissions(&lock, fs::Permissions::from_mode(0o400)).unwrap();
+    let error = commit_atomic_apply_batch(
+        &fixture.batch,
+        &fixture.environment,
+        &fixture.state,
+        CaptureLimits::default(),
+    )
+    .unwrap_err();
+    assert_storage_failure_before_batch_mutation(&fixture, &before, &error, "root_lock");
+}
+
+#[test]
+fn storage_failure_identifies_recovery_control_read_boundary() {
+    let fixture = batch_fixture();
+    let before = fs::read(fixture.state.join(STATE_PATH)).unwrap();
+    let control = fixture
+        .state
+        .join(local_state_authority::TRUST_JOURNAL_PATH);
+    fs::create_dir_all(&control).unwrap();
+    let error = commit_atomic_apply_batch(
+        &fixture.batch,
+        &fixture.environment,
+        &fixture.state,
+        CaptureLimits::default(),
+    )
+    .unwrap_err();
+    assert_storage_failure_before_batch_mutation(
+        &fixture,
+        &before,
+        &error,
+        "recovery_control_read",
+    );
+    assert!(control.is_dir());
+}
+
+#[test]
+fn storage_failure_identifies_manifest_authority_read_boundary() {
+    let fixture = batch_fixture();
+    let before = fs::read(fixture.state.join(STATE_PATH)).unwrap();
+    let manifest = b"collection-content-must-stay-redacted\xff";
+    fs::write(fixture.environment.join(MANIFEST_PATH), manifest).unwrap();
+    let error = commit_atomic_apply_batch(
+        &fixture.batch,
+        &fixture.environment,
+        &fixture.state,
+        CaptureLimits::default(),
+    )
+    .unwrap_err();
+    assert_storage_failure_before_batch_mutation(
+        &fixture,
+        &before,
+        &error,
+        "manifest_authority_read",
+    );
+    assert_eq!(
+        fs::read(fixture.environment.join(MANIFEST_PATH)).unwrap(),
+        manifest
+    );
+    assert!(
+        !error
+            .to_string()
+            .contains("collection-content-must-stay-redacted")
+    );
+}
+
+#[test]
+fn storage_failure_identifies_state_authority_read_boundary() {
+    let fixture = batch_fixture();
+    let before = b"private-content-must-stay-redacted\xff";
+    fs::write(fixture.state.join(STATE_PATH), before).unwrap();
+    let error = commit_atomic_apply_batch(
+        &fixture.batch,
+        &fixture.environment,
+        &fixture.state,
+        CaptureLimits::default(),
+    )
+    .unwrap_err();
+    assert_storage_failure_before_batch_mutation(&fixture, before, &error, "state_authority_read");
+    assert!(
+        !error
+            .to_string()
+            .contains("private-content-must-stay-redacted")
+    );
+}
+
+#[test]
+fn recovery_storage_failure_identifies_open_boundaries() {
+    let fixture = batch_fixture();
+    let before = fs::read(fixture.state.join(STATE_PATH)).unwrap();
+    let missing_environment = fixture.environment.join("missing-collection");
+    let missing_state = fixture.state.join("missing-private-state");
+    for (environment, state, stage) in [
+        (&missing_environment, &fixture.state, "environment_open"),
+        (&fixture.environment, &missing_state, "private_state_open"),
+    ] {
+        let error =
+            recover_atomic_apply_batch(environment, state, CaptureLimits::default()).unwrap_err();
+        assert_storage_failure_before_batch_mutation(&fixture, &before, &error, stage);
+    }
+}
+
+#[test]
+fn recovery_storage_failure_identifies_foreign_control_read_boundary() {
+    let fixture = batch_fixture();
+    let before = fs::read(fixture.state.join(STATE_PATH)).unwrap();
+    let control = fixture
+        .state
+        .join(local_state_authority::TRUST_JOURNAL_PATH);
+    fs::create_dir_all(&control).unwrap();
+    let error = recover_atomic_apply_batch(
+        &fixture.environment,
+        &fixture.state,
+        CaptureLimits::default(),
+    )
+    .unwrap_err();
+    assert_storage_failure_before_batch_mutation(
+        &fixture,
+        &before,
+        &error,
+        "recovery_control_read",
+    );
+    assert!(control.is_dir());
+}
+
+#[test]
+fn storage_diagnostics_preserve_lock_contention_refusal() {
+    let fixture = batch_fixture();
+    let before = fs::read(fixture.state.join(STATE_PATH)).unwrap();
+    let store = ObjectStore::open(&fixture.environment).unwrap();
+    let _lock = store.try_lock_environment().unwrap();
+    let commit = commit_atomic_apply_batch(
+        &fixture.batch,
+        &fixture.environment,
+        &fixture.state,
+        CaptureLimits::default(),
+    )
+    .unwrap_err();
+    let recovery = recover_atomic_apply_batch(
+        &fixture.environment,
+        &fixture.state,
+        CaptureLimits::default(),
+    )
+    .unwrap_err();
+    assert_eq!(commit.code(), "apply.batch_lock_unavailable");
+    assert_eq!(recovery.code(), "apply.batch_lock_unavailable");
+    assert_eq!(fs::read(fixture.state.join(STATE_PATH)).unwrap(), before);
+    assert!(
+        !fixture
+            .state
+            .join(local_state_authority::ATOMIC_APPLY_JOURNAL_PATH)
+            .exists()
+    );
+}
+
+fn assert_storage_failure_before_batch_mutation(
+    fixture: &BatchFixture,
+    before: &[u8],
+    error: &AtomicApplyBatchTransactionError,
+    stage: &str,
+) {
+    assert_eq!(error.code(), "apply.batch_storage_failed");
+    assert!(
+        error.message().contains(&format!("stage: {stage}")),
+        "{error}"
+    );
+    assert!(
+        !error
+            .to_string()
+            .contains(fixture._root.path().to_str().unwrap())
+    );
+    assert_eq!(fs::read(fixture.state.join(STATE_PATH)).unwrap(), before);
+    assert!(
+        !fixture
+            .state
+            .join(local_state_authority::ATOMIC_APPLY_JOURNAL_PATH)
+            .exists()
+    );
+    for item in fixture.batch.items() {
+        assert!(
+            !fixture
+                .target
+                .join(item.relative_destination().as_str())
+                .exists()
+        );
+    }
+}
+
+#[test]
 fn nested_batch_target_is_invalid_not_a_retryable_lock_failure() {
     let temporary = tempfile::tempdir().unwrap();
     let environment_path = temporary.path().join("environment");
@@ -1021,6 +1243,10 @@ fn unsafe_quarantine_blocks_commit_before_journal_target_or_state_mutation() {
     .unwrap_err();
 
     assert_eq!(error.code(), "apply.batch_storage_failed");
+    assert!(
+        error.message().contains("stage: retained_cleanup"),
+        "{error}"
+    );
     assert_eq!(fs::read(fixture.state.join(STATE_PATH)).unwrap(), old_state);
     assert!(
         !fixture
@@ -1924,8 +2150,7 @@ impl ExtensionBatchFixture {
     fn plan(&self) -> ExtensionApplyPlan {
         let version_root = tempfile::tempdir().unwrap();
         let binary = version_root.path().join("pi");
-        fs::write(&binary, "#!/bin/sh\nprintf '0.83.0\\n'\n").unwrap();
-        fs::set_permissions(&binary, fs::Permissions::from_mode(0o700)).unwrap();
+        crate::probe_fixture::write_pi(version_root.path(), "0.83.0");
         let version = probe_pi_version(&binary).unwrap();
         let policy = PiAdapter
             .extension_target_policy(
@@ -2513,6 +2738,84 @@ fn revoking_script_approval_after_planning_refuses_batch_before_targets_change()
                 .target
                 .join(item.relative_destination().as_str())
                 .exists()
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn isolated_core_probe_writer_preserves_bytes_mode_and_verified_evidence() {
+    for observed in ["0.83.0", "0.84.0"] {
+        let root = tempfile::tempdir().unwrap();
+        crate::probe_fixture::write_pi(root.path(), observed);
+        let binary = root.path().join("pi");
+        assert_eq!(
+            fs::read(&binary).unwrap(),
+            format!("#!/bin/sh\nprintf '{observed}\\n'\n").as_bytes()
+        );
+        assert_eq!(
+            fs::metadata(&binary).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        let version = probe_pi_version(&binary).unwrap();
+        assert_eq!(version.evidence().observed().as_str(), observed);
+        assert!(
+            version.evidence().evidence().as_str().ends_with(
+                version
+                    .executable_hash()
+                    .as_str()
+                    .trim_start_matches("blake3:")
+            )
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn parallel_core_probe_writers_publish_before_real_verified_probes() {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let workers = (0..4)
+        .map(|_| {
+            let sender = sender.clone();
+            std::thread::spawn(move || {
+                for _ in 0..10 {
+                    let root = tempfile::tempdir().unwrap();
+                    crate::probe_fixture::write_pi(root.path(), "0.83.0");
+                    sender.send(root).unwrap();
+                }
+            })
+        })
+        .collect::<Vec<_>>();
+    drop(sender);
+    // Overlap concurrent writers with one real consumer, preserving the probe deadline.
+    let outcomes = receiver
+        .into_iter()
+        .map(|root| {
+            let binary = root.path().join("pi");
+            let version = probe_pi_version(&binary);
+            let bytes = fs::read(binary);
+            (root, version, bytes)
+        })
+        .collect::<Vec<_>>();
+    let joined = workers
+        .into_iter()
+        .map(|worker| worker.join())
+        .collect::<Vec<_>>();
+    for worker in joined {
+        worker.unwrap();
+    }
+    assert_eq!(outcomes.len(), 40);
+    for (_root, version, bytes) in outcomes {
+        let version = version.unwrap();
+        assert_eq!(bytes.unwrap(), b"#!/bin/sh\nprintf '0.83.0\\n'\n");
+        assert_eq!(version.evidence().observed().as_str(), "0.83.0");
+        assert!(
+            version.evidence().evidence().as_str().ends_with(
+                version
+                    .executable_hash()
+                    .as_str()
+                    .trim_start_matches("blake3:")
+            )
         );
     }
 }

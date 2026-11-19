@@ -15,6 +15,7 @@ pub(crate) enum Command {
     Adopt(AdoptArgs),
     Remove(RemoveArgs),
     Status(EnvironmentArgs),
+    Doctor(EnvironmentArgs),
     Lock(EnvironmentArgs),
     Plan(MaterializeArgs),
     Apply(MaterializeArgs),
@@ -37,6 +38,7 @@ pub(crate) enum Command {
     NorthStar,
     Invariants,
     Help,
+    DoctorHelp,
     Version,
 }
 
@@ -385,6 +387,7 @@ pub(crate) fn parse_args(
         "adopt" => parse_adopt(arguments).map(Command::Adopt),
         "remove" => parse_remove(arguments).map(Command::Remove),
         "status" => parse_environment(arguments, "status").map(Command::Status),
+        "doctor" => parse_doctor(arguments),
         "lock" => parse_environment(arguments, "lock").map(Command::Lock),
         "plan" => parse_materialize(arguments, "plan").map(|(args, _)| Command::Plan(args)),
         "apply" => parse_materialize(arguments, "apply").map(|(args, confirm)| match confirm {
@@ -1044,6 +1047,19 @@ fn parse_init(mut arguments: impl Iterator<Item = OsString>) -> Result<InitArgs,
     })
 }
 
+fn parse_doctor(arguments: impl Iterator<Item = OsString>) -> Result<Command, CliError> {
+    let mut arguments = arguments.peekable();
+    if arguments
+        .peek()
+        .is_some_and(|argument| argument == "--help" || argument == "-h")
+    {
+        arguments.next();
+        finish_information(arguments, Command::DoctorHelp)
+    } else {
+        parse_environment(arguments, "doctor").map(Command::Doctor)
+    }
+}
+
 fn parse_environment(
     mut arguments: impl Iterator<Item = OsString>,
     command: &'static str,
@@ -1060,6 +1076,7 @@ fn parse_environment(
                     "cli.command_argument_unknown",
                     match command {
                         "status" => "the status argument is not recognized",
+                        "doctor" => "the doctor argument is not recognized",
                         "pack list" => "the pack list argument is not recognized",
                         _ => "the lock argument is not recognized",
                     },
@@ -1434,7 +1451,9 @@ fn parse_root(value: &str) -> Result<ExplicitRoot, CliError> {
     }
 }
 
-pub(crate) const HELP: &str = "Kitrove agent capability portability\n\nADD TO A TOOL:\n    kitrove apply    Choose a tool, then select saved skills or packs (interactive).\n\nUSAGE:\n    kitrove <COMMAND>\n    kitrove init [OPTIONS]\n    kitrove scan [OPTIONS]\n    kitrove adopt [OPTIONS] <observation-id>\n    kitrove adopt --update <asset-id> --expected-prior <content-hash> [OPTIONS] <observation-id>\n    kitrove remove --asset <asset-id> --target <harness> [OPTIONS]\n    kitrove plan [--profile <profile-id> | --asset <asset-id> | --pack <pack-id>]... [--target <harness>]... [OPTIONS]\n    kitrove apply [--profile <profile-id> | --asset <asset-id> | --pack <pack-id>]... [--target <harness>]... [OPTIONS]\n    kitrove sync plan (--filesystem <path> | --git <https-url>) [OPTIONS]\n    kitrove sync apply (--filesystem <path> | --git <https-url>) --confirm <plan-digest> [OPTIONS]\n    kitrove trust plan --asset <asset-id> --decision <trusted|denied> [OPTIONS]\n    kitrove trust apply --asset <asset-id> --decision <trusted|denied> --confirm <plan-digest> [OPTIONS]\n    kitrove trust audit [--asset <asset-id>] [OPTIONS]\n    kitrove versions probe --harness <pi|opencode> --binary <absolute-path> [--json]\n    kitrove status [--environment <path>] [--json]\n    kitrove lock [--environment <path>] [--json]\n\nCOMMANDS:\n    init         Create empty portable and machine-local authority after a read-only scan\n    scan         Inspect local harness capabilities without making changes\n    adopt        Adopt or explicitly update one current accepted observation\n    remove       Remove one exact receipt-backed local projection\n    plan         Plan receipt-backed materialization without writing\n    apply        Add saved skills or packs to a tool; run bare for guided selection\n    sync         Plan or apply conditional cross-machine synchronization\n    trust        Plan, apply, or audit machine-local exact-content executable trust\n    versions     Explicitly probe reviewed harness version evidence\n    status       Verify manifest, generated lock, objects, and recovery state\n    lock         Regenerate only the manifest-derived lock\n    about        Show the product description\n    north-star   Print the durable product invariants\n    invariants   Print the architectural invariants\n    help         Show this help\n\nSCAN AND ADOPT SELECTION OPTIONS:\n    --harness <claude|codex|pi|opencode>    Select a harness; may repeat\n    --scope <user|project|all>              Select one scope\n    --root <harness>:<user|project>:<path>  Add an explicit root; may repeat\n\nPLAN, APPLY, AND REMOVE SELECTION OPTIONS:\n    --profile <profile-id>                  Select one inherited portable profile\n    --asset <asset-id>                      Select an asset; may repeat for plan/apply\n    --pack <pack-id>                        Select a pack; may repeat for plan/apply\n    --target <claude|codex|pi|opencode>     Select a target; may repeat for plan/apply\n    --scope <user|project>                  Select destination scope (default: user)\n    --version-binary <absolute-path>        Supply a required harness binary; may repeat\n\nINIT OPTIONS:\n    --machine-id <machine-id>               Set the local machine identity\n\nSYNC OPTIONS:\n    --filesystem <path>                     Select an existing filesystem remote\n    --git <https-url>                       Select a canonical HTTPS Git remote\n    --confirm <plan-digest>                 Confirm the exact recomputed sync plan\n\nTRUST OPTIONS:\n    --asset <asset-id>                      Select a script-containing skill or native executable asset\n    --decision <trusted|denied>             Select the planned local decision\n    --confirm <plan-digest>                 Confirm the exact recomputed trust plan\n\nSHARED OPTIONS:\n    --project-root <path>                   Supply the project boundary\n    --environment <path>                    Select a Kitrove environment\n    --json                                  Emit canonical JSON\n\nADOPT OPTIONS:\n    --id <asset-id>                         Choose an ID for first adoption\n    --update <asset-id>                     Explicitly update an existing asset\n    --expected-prior <content-hash>         Require the exact prior asset revision\n";
+pub(crate) const HELP: &str = "Kitrove agent capability portability\n\nADD TO A TOOL:\n    kitrove apply    Choose a tool, then select saved skills or packs (interactive).\n\nUSAGE:\n    kitrove <COMMAND>\n    kitrove init [OPTIONS]\n    kitrove scan [OPTIONS]\n    kitrove adopt [OPTIONS] <observation-id>\n    kitrove adopt --update <asset-id> --expected-prior <content-hash> [OPTIONS] <observation-id>\n    kitrove remove --asset <asset-id> --target <harness> [OPTIONS]\n    kitrove plan [--profile <profile-id> | --asset <asset-id> | --pack <pack-id>]... [--target <harness>]... [OPTIONS]\n    kitrove apply [--profile <profile-id> | --asset <asset-id> | --pack <pack-id>]... [--target <harness>]... [OPTIONS]\n    kitrove sync plan (--filesystem <path> | --git <https-url>) [OPTIONS]\n    kitrove sync apply (--filesystem <path> | --git <https-url>) --confirm <plan-digest> [OPTIONS]\n    kitrove trust plan --asset <asset-id> --decision <trusted|denied> [OPTIONS]\n    kitrove trust apply --asset <asset-id> --decision <trusted|denied> --confirm <plan-digest> [OPTIONS]\n    kitrove trust audit [--asset <asset-id>] [OPTIONS]\n    kitrove versions probe --harness <pi|opencode> --binary <absolute-path> [--json]\n    kitrove doctor [--environment <path>] [--json]\n    kitrove status [--environment <path>] [--json]\n    kitrove lock [--environment <path>] [--json]\n\nCOMMANDS:\n    init         Create empty portable and machine-local authority after a read-only scan\n    scan         Inspect local harness capabilities without making changes\n    adopt        Adopt or explicitly update one current accepted observation\n    remove       Remove one exact receipt-backed local projection\n    plan         Plan receipt-backed materialization without writing\n    apply        Add saved skills or packs to a tool; run bare for guided selection\n    sync         Plan or apply conditional cross-machine synchronization\n    trust        Plan, apply, or audit machine-local exact-content executable trust\n    versions     Explicitly probe reviewed harness version evidence\n    doctor       Observe portable integrity and storage without making changes\n    status       Verify manifest, generated lock, objects, and recovery state\n    lock         Regenerate only the manifest-derived lock\n    about        Show the product description\n    north-star   Print the durable product invariants\n    invariants   Print the architectural invariants\n    help         Show this help\n\nSCAN AND ADOPT SELECTION OPTIONS:\n    --harness <claude|codex|pi|opencode>    Select a harness; may repeat\n    --scope <user|project|all>              Select one scope\n    --root <harness>:<user|project>:<path>  Add an explicit root; may repeat\n\nPLAN, APPLY, AND REMOVE SELECTION OPTIONS:\n    --profile <profile-id>                  Select one inherited portable profile\n    --asset <asset-id>                      Select an asset; may repeat for plan/apply\n    --pack <pack-id>                        Select a pack; may repeat for plan/apply\n    --target <claude|codex|pi|opencode>     Select a target; may repeat for plan/apply\n    --scope <user|project>                  Select destination scope (default: user)\n    --version-binary <absolute-path>        Supply a required harness binary; may repeat\n\nINIT OPTIONS:\n    --machine-id <machine-id>               Set the local machine identity\n\nSYNC OPTIONS:\n    --filesystem <path>                     Select an existing filesystem remote\n    --git <https-url>                       Select a canonical HTTPS Git remote\n    --confirm <plan-digest>                 Confirm the exact recomputed sync plan\n\nTRUST OPTIONS:\n    --asset <asset-id>                      Select a script-containing skill or native executable asset\n    --decision <trusted|denied>             Select the planned local decision\n    --confirm <plan-digest>                 Confirm the exact recomputed trust plan\n\nSHARED OPTIONS:\n    --project-root <path>                   Supply the project boundary\n    --environment <path>                    Select a Kitrove environment\n    --json                                  Emit canonical JSON\n\nADOPT OPTIONS:\n    --id <asset-id>                         Choose an ID for first adoption\n    --update <asset-id>                     Explicitly update an existing asset\n    --expected-prior <content-hash>         Require the exact prior asset revision\n";
+
+pub(crate) const DOCTOR_HELP: &str = "Kitrove doctor: read-only diagnosis\nUsage: kitrove doctor [--environment <path>] [--json]\nDefault collection: ~/Kitrove\n    --environment <path>  Inspect this collection\n    --json                Emit closed, redacted checks\n    --help, -h            Show this help\nWrite access and lock availability are not tested.\n";
 
 pub(crate) const ADDITIONAL_MCP_HELP: &str = "\nADDITIONAL MCP ADOPT OPTIONS:\n    --binding <binding-name>    Map a native MCP environment reference to a logical binding\n";
 

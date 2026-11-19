@@ -78,6 +78,7 @@ pub use scripted_skill_trust::{
 };
 mod ssh_git_transport;
 mod ssh_known_hosts;
+mod storage_doctor;
 mod sync_backend;
 mod sync_base_store;
 mod sync_journal;
@@ -370,6 +371,16 @@ impl FidelitySummary {
         self.partial > 0 || self.unsupported > 0 || self.blocked > 0
     }
 }
+
+pub use storage_doctor::{
+    StorageDoctorCheck, StorageDoctorCode, StorageDoctorInspection, StorageDoctorMutationAccess,
+    StorageDoctorReport, StorageDoctorRole, StorageDoctorRoots, StorageDoctorStage,
+    StorageDoctorStatus, inspect_storage_doctor,
+};
+
+#[cfg(all(test, unix))]
+#[path = "../../../support/test-fixtures/probe_fixture.rs"]
+mod probe_fixture;
 
 #[cfg(test)]
 mod tests {

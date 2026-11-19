@@ -308,9 +308,9 @@ fn with_locked_batch_authority<T>(
         &BatchSources,
     ) -> Result<T, AtomicApplyBatchTransactionError>,
 ) -> Result<T, AtomicApplyBatchTransactionError> {
-    let environment = ObjectStore::open(environment_root).map_err(|_| storage_failed())?;
-    let state =
-        ObjectStore::open_private_state_for_mutation(state_root).map_err(|_| storage_failed())?;
+    let environment = ObjectStore::open(environment_root).map_err(|_| environment_open_failed())?;
+    let state = ObjectStore::open_private_state_for_mutation(state_root)
+        .map_err(|_| private_state_open_failed())?;
     environment
         .require_non_overlapping_root(&state)
         .map_err(|_| root_overlap())?;
@@ -359,7 +359,8 @@ fn try_lock_batch_roots(
         .filter(|target| target.requires_lock)
         .map(|target| &target.store)
         .collect::<Vec<_>>();
-    ObjectStore::try_lock_application_roots(environment, state, &roots).map_err(root_lock_error)
+    ObjectStore::try_lock_application_roots(environment, state, &roots)
+        .map_err(root_lock_acquisition_error)
 }
 
 fn validate_application_destinations(
@@ -398,6 +399,16 @@ fn root_lock_error(error: crate::ObjectMutationError) -> AtomicApplyBatchTransac
         "object.environment_locked" => lock_unavailable(),
         "object.io" => storage_failed(),
         _ => target_invalid(),
+    }
+}
+
+fn root_lock_acquisition_error(
+    error: crate::ObjectMutationError,
+) -> AtomicApplyBatchTransactionError {
+    if error.code() == "object.io" {
+        root_lock_storage_failed()
+    } else {
+        root_lock_error(error)
     }
 }
 
@@ -1676,7 +1687,7 @@ fn journal_error(_: crate::AtomicApplyBatchJournalError) -> AtomicApplyBatchTran
 fn cleanup_error(error: MutationCleanupError) -> AtomicApplyBatchTransactionError {
     match error {
         MutationCleanupError::InvalidReservation => cleanup_limit(),
-        MutationCleanupError::CleanupFailed => storage_failed(),
+        MutationCleanupError::CleanupFailed => retained_cleanup_failed(),
     }
 }
 
@@ -1696,13 +1707,13 @@ fn ensure_no_pending_recovery(
         local_state_authority::ALL_LOCAL_STATE_RECOVERY,
         MAX_JOURNAL_BYTES,
     )
-    .map_err(|_| storage_failed())?;
+    .map_err(|_| recovery_control_read_failed())?;
     let portable = local_state_authority::any_journal_present(
         environment,
         local_state_authority::ALL_PORTABLE_RECOVERY,
         MAX_JOURNAL_BYTES,
     )
-    .map_err(|_| storage_failed())?;
+    .map_err(|_| recovery_control_read_failed())?;
     if local || portable {
         return Err(recovery_required());
     }
@@ -1724,13 +1735,13 @@ fn ensure_no_foreign_recovery(
         ],
         MAX_JOURNAL_BYTES,
     )
-    .map_err(|_| storage_failed())?;
+    .map_err(|_| recovery_control_read_failed())?;
     let portable = local_state_authority::any_journal_present(
         environment,
         local_state_authority::ALL_PORTABLE_RECOVERY,
         MAX_JOURNAL_BYTES,
     )
-    .map_err(|_| storage_failed())?;
+    .map_err(|_| recovery_control_read_failed())?;
     if local || portable {
         return Err(recovery_required());
     }
@@ -1741,13 +1752,18 @@ fn required_text(
     store: &ObjectStore,
     path: &str,
 ) -> Result<String, AtomicApplyBatchTransactionError> {
+    let failure = || match path {
+        MANIFEST_PATH => manifest_authority_read_failed(),
+        STATE_PATH => state_authority_read_failed(),
+        _ => storage_failed(),
+    };
     store
         .read_text(
             &PortablePath::parse(path).expect("fixed portable control path"),
             MAX_CONTROL_BYTES,
         )
-        .map_err(|_| storage_failed())?
-        .ok_or_else(storage_failed)
+        .map_err(|_| failure())?
+        .ok_or_else(failure)
 }
 
 macro_rules! transaction_error {
@@ -1762,6 +1778,41 @@ transaction_error!(
     storage_failed,
     "apply.batch_storage_failed",
     "atomic batch authority could not be read safely"
+);
+transaction_error!(
+    environment_open_failed,
+    "apply.batch_storage_failed",
+    "collection storage could not be opened safely (stage: environment_open); inspect collection access"
+);
+transaction_error!(
+    private_state_open_failed,
+    "apply.batch_storage_failed",
+    "private state could not be opened safely (stage: private_state_open); inspect private-state access and directory protection"
+);
+transaction_error!(
+    root_lock_storage_failed,
+    "apply.batch_storage_failed",
+    "mutation locks could not be accessed safely (stage: root_lock); inspect transaction-control storage"
+);
+transaction_error!(
+    recovery_control_read_failed,
+    "apply.batch_storage_failed",
+    "recovery controls could not be read safely (stage: recovery_control_read); inspect recovery-control storage"
+);
+transaction_error!(
+    manifest_authority_read_failed,
+    "apply.batch_storage_failed",
+    "collection authority could not be read safely (stage: manifest_authority_read); inspect manifest storage"
+);
+transaction_error!(
+    state_authority_read_failed,
+    "apply.batch_storage_failed",
+    "private-state authority could not be read safely (stage: state_authority_read); inspect private-state control storage"
+);
+transaction_error!(
+    retained_cleanup_failed,
+    "apply.batch_storage_failed",
+    "retained transaction state could not be inspected or reclaimed safely (stage: retained_cleanup); inspect retained recovery storage"
 );
 transaction_error!(
     root_overlap,

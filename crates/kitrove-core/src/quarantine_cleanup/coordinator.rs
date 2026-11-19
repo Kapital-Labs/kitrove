@@ -263,6 +263,14 @@ pub(crate) const fn persistent_top_level_limit() -> usize {
     persistent_retained_limit().top_level_entries()
 }
 
+/// Supplies the existing production inspection limits without reserving or performing mutation.
+pub(crate) fn readonly_inspection_budget(
+    roots: usize,
+) -> Result<QuarantineCleanupBudget, MutationCleanupError> {
+    production_reservation(roots, MutationWork::none(), MutationWork::none())
+        .map(QuarantineCleanupBudget::new)
+}
+
 fn production_reservation(
     roots: usize,
     forward: MutationWork,
