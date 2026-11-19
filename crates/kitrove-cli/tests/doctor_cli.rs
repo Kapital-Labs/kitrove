@@ -7,6 +7,7 @@ use std::process::{Command, Output, Stdio};
 
 use kitrove_core::derive_lockfile;
 use kitrove_model::{Asset, AssetId, AssetKind, ContentClass, ContentHash, EnvironmentManifest};
+#[cfg(not(windows))]
 use kitrove_testkit::owned_fixture;
 use serde_json::Value;
 
@@ -16,22 +17,30 @@ const ASSET_CANARY: &str = "doctor-private-asset-canary";
 type Snapshot = BTreeMap<PathBuf, (u32, u64, Vec<u8>)>;
 
 fn private_directory(path: &Path) {
-    fs::create_dir_all(path).unwrap();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt as _;
-        fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
-    }
     #[cfg(windows)]
     kitrove_windows_security::ensure_private_directory_for_tests(path).unwrap();
+    #[cfg(not(windows))]
+    {
+        fs::create_dir_all(path).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
+        }
+    }
 }
 
 fn private_file(path: &Path, bytes: &[u8]) {
-    owned_fixture::create(path, bytes);
-    #[cfg(unix)]
+    #[cfg(windows)]
+    kitrove_windows_security::write_current_user_owned_file_for_tests(path, bytes).unwrap();
+    #[cfg(not(windows))]
     {
-        use std::os::unix::fs::PermissionsExt as _;
-        fs::set_permissions(path, fs::Permissions::from_mode(0o600)).unwrap();
+        owned_fixture::create(path, bytes);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            fs::set_permissions(path, fs::Permissions::from_mode(0o600)).unwrap();
+        }
     }
 }
 

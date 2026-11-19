@@ -5,7 +5,6 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::io::{self, Read as _, Write as _};
 use std::path::{Component, Path, PathBuf};
 
-#[cfg(not(windows))]
 use cap_fs_ext::OpenOptionsSyncExt as _;
 use cap_fs_ext::{DirExt as _, FollowSymlinks, OpenOptionsFollowExt as _};
 use cap_std::ambient_authority;
