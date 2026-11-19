@@ -4,6 +4,10 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.5.19
+
+Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.
+
 ### Added
 
 - Add a read-only `kitrove doctor` storage report with a redacted JSON form. It
@@ -17,6 +21,16 @@ Notable changes to Kitrove are recorded here.
   requires a fresh preview and confirmation.
 - Identify failed batch-storage boundaries with static, redacted stage messages.
   Existing error codes and transaction protections remain unchanged.
+
+### Dependency maintenance
+
+- Select heapless 0.9.4 through the tracked faster-hex 0.10.1 compatibility
+  override, preserving faster-hex's upstream Rust sources and required license attributions.
+  Full release validation and a fresh advisory check remain publication gates.
+
+The reported batch-storage failure on another Mac remains undiagnosed. Doctor
+adds read-only observations and clearer guidance; it does not establish that
+failure's cause or guarantee a later write.
 
 ## 0.1.0-rc.5.17
 

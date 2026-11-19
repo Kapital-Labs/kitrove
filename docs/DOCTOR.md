@@ -2,7 +2,7 @@
 
 `kitrove doctor` checks local collection and application-storage conditions without
 changing files. It gives a short report and a redacted JSON report for support.
-This command is part of the next preview's source work; RC5.18 does not include it.
+This command is included in RC5.19; RC5.18 does not include it.
 
 ```sh
 kitrove doctor --help
