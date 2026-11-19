@@ -378,6 +378,10 @@ pub use storage_doctor::{
     StorageDoctorStatus, inspect_storage_doctor,
 };
 
+#[cfg(all(test, unix))]
+#[path = "../../../support/test-fixtures/probe_fixture.rs"]
+mod probe_fixture;
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;

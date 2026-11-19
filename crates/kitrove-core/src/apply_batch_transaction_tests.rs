@@ -2150,8 +2150,7 @@ impl ExtensionBatchFixture {
     fn plan(&self) -> ExtensionApplyPlan {
         let version_root = tempfile::tempdir().unwrap();
         let binary = version_root.path().join("pi");
-        fs::write(&binary, "#!/bin/sh\nprintf '0.83.0\\n'\n").unwrap();
-        fs::set_permissions(&binary, fs::Permissions::from_mode(0o700)).unwrap();
+        crate::probe_fixture::write_pi(version_root.path(), "0.83.0");
         let version = probe_pi_version(&binary).unwrap();
         let policy = PiAdapter
             .extension_target_policy(
@@ -2739,6 +2738,84 @@ fn revoking_script_approval_after_planning_refuses_batch_before_targets_change()
                 .target
                 .join(item.relative_destination().as_str())
                 .exists()
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn isolated_core_probe_writer_preserves_bytes_mode_and_verified_evidence() {
+    for observed in ["0.83.0", "0.84.0"] {
+        let root = tempfile::tempdir().unwrap();
+        crate::probe_fixture::write_pi(root.path(), observed);
+        let binary = root.path().join("pi");
+        assert_eq!(
+            fs::read(&binary).unwrap(),
+            format!("#!/bin/sh\nprintf '{observed}\\n'\n").as_bytes()
+        );
+        assert_eq!(
+            fs::metadata(&binary).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        let version = probe_pi_version(&binary).unwrap();
+        assert_eq!(version.evidence().observed().as_str(), observed);
+        assert!(
+            version.evidence().evidence().as_str().ends_with(
+                version
+                    .executable_hash()
+                    .as_str()
+                    .trim_start_matches("blake3:")
+            )
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn parallel_core_probe_writers_publish_before_real_verified_probes() {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let workers = (0..4)
+        .map(|_| {
+            let sender = sender.clone();
+            std::thread::spawn(move || {
+                for _ in 0..10 {
+                    let root = tempfile::tempdir().unwrap();
+                    crate::probe_fixture::write_pi(root.path(), "0.83.0");
+                    sender.send(root).unwrap();
+                }
+            })
+        })
+        .collect::<Vec<_>>();
+    drop(sender);
+    // Overlap concurrent writers with one real consumer, preserving the probe deadline.
+    let outcomes = receiver
+        .into_iter()
+        .map(|root| {
+            let binary = root.path().join("pi");
+            let version = probe_pi_version(&binary);
+            let bytes = fs::read(binary);
+            (root, version, bytes)
+        })
+        .collect::<Vec<_>>();
+    let joined = workers
+        .into_iter()
+        .map(|worker| worker.join())
+        .collect::<Vec<_>>();
+    for worker in joined {
+        worker.unwrap();
+    }
+    assert_eq!(outcomes.len(), 40);
+    for (_root, version, bytes) in outcomes {
+        let version = version.unwrap();
+        assert_eq!(bytes.unwrap(), b"#!/bin/sh\nprintf '0.83.0\\n'\n");
+        assert_eq!(version.evidence().observed().as_str(), "0.83.0");
+        assert!(
+            version.evidence().evidence().as_str().ends_with(
+                version
+                    .executable_hash()
+                    .as_str()
+                    .trim_start_matches("blake3:")
+            )
         );
     }
 }

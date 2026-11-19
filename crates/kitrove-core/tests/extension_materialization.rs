@@ -48,8 +48,7 @@ fn verified_pi_version(observed: &'static str) -> VerifiedPiVersion {
         .get_or_init(|| {
             let root = tempfile::tempdir().unwrap();
             let binary = root.path().join("pi");
-            fs::write(&binary, format!("#!/bin/sh\nprintf '{observed}\\n'\n")).unwrap();
-            fs::set_permissions(&binary, fs::Permissions::from_mode(0o700)).unwrap();
+            probe_fixture::write_pi(root.path(), observed);
             probe_pi_version(&binary).unwrap()
         })
         .clone()
@@ -754,3 +753,7 @@ fn machine_a_trust_never_authorizes_machine_b_through_portable_authority() {
     assert!(!portable.contains("PRIVATE-TRUST-RATIONALE"));
     assert!(!portable.contains("decision"));
 }
+
+#[cfg(unix)]
+#[path = "../../../support/test-fixtures/probe_fixture.rs"]
+mod probe_fixture;

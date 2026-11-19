@@ -1732,6 +1732,7 @@ dependencies = [
  "kitrove-agent-skills",
  "kitrove-agents",
  "kitrove-instructions",
+ "kitrove-macos-process",
  "kitrove-mcp",
  "kitrove-model",
  "kitrove-prompt-commands",

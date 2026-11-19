@@ -568,7 +568,14 @@ fn next_actions_compare_exact_unmanaged_copy_without_claiming_ownership() {
     let output = script(&a, "\n2\n4\n1\ncompare 1\nn\n5\n", true, "");
     assert!(output.contains("Compare existing copy"), "{output}");
     assert!(output.contains("Exact bundle contents match"), "{output}");
-    assert!(output.contains(destination.to_str().unwrap()), "{output}");
+    let encoded_destination = destination.to_str().unwrap();
+    let displayed_destination = kitrove_model::NormalizedDestination::parse(
+        encoded_destination
+            .strip_prefix(r"\\?\")
+            .unwrap_or(encoded_destination),
+    )
+    .unwrap();
+    assert!(output.contains(displayed_destination.as_str()), "{output}");
     assert!(
         output.contains("Matching contents do not grant Kitrove ownership"),
         "{output}"
