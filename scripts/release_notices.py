@@ -51,7 +51,8 @@ def safe_relative(value: str) -> PurePosixPath:
 
 def is_material(path: PurePosixPath) -> bool:
     return (path.name.lower().startswith(PREFIXES) or
-            any(part.lower() in ("licenses", "licences") for part in path.parts[:-1]))
+            any(part.lower() in ("licenses", "licences", "license-third-party")
+                for part in path.parts[:-1]))
 
 
 def registry_materials(package: dict, locked: list) -> dict[str, bytes]:

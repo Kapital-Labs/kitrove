@@ -76,6 +76,25 @@ network types. It pins the embedded public-good trust-root bytes to SHA-256
 `6494e21ea73fa7ee769f85f57d5a3e6a08725eae1e38c755fc3517c9e6bc0b66` and requires an explicit
 reviewed update before different trust material can become authority.
 
+The separately scoped heapless advisory repair retains the complete published
+MIT faster-hex 0.10.1 source under `third_party/faster-hex`. Its only changed
+upstream file is the active manifest, pinning heapless to 0.9.4 (MIT OR
+Apache-2.0; Rust 1.88) rather than 0.8 and declaring the effective package Rust
+floor as 1.88 instead of the upstream 1.61. Kitrove's Rust 1.89 floor is unchanged.
+The package remains excluded from the workspace and counted as third party.
+Every Rust, build-script and license byte is unchanged; exact archive/member
+hashes and the noalloc nominal-type boundary are recorded in its patch note.
+The notice detector recognizes the exact LICENSE-THIRD-PARTY directory so both
+nested MIT attributions are retained with their original paths. Dependency
+resolution and Rust1.89 metadata confirm only the intended source/heapless
+version/checksum delta with unchanged dependency lists. Fresh audit removes all
+nine unsound warnings; the existing chrono informational record remains. The
+exact graph delta is approved. A real normal-command binding refusal supplied
+the reviewed BLAKE3 digest; the exact binding update and complete retained notice
+generation/check now pass with386 third-party packages. Preparatory Rust1.89
+feature contracts pass; final combined-source/native validation is required.
+See [`review/heapless-compatibility-repair.md`](review/heapless-compatibility-repair.md).
+
 ## Enforcement
 
 The separately approved RC5.3 dependency repair replaces withdrawn crypto-bigint

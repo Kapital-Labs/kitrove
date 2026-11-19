@@ -30,6 +30,7 @@ members = [
   "xtask",
 ]
 exclude = [
+  "third_party/faster-hex",
   "third_party/jsonc-parser",
   "third_party/pageant",
   "third_party/sigstore-rekor",
@@ -126,6 +127,10 @@ todo = "deny"
 unimplemented = "deny"
 
 [patch.crates-io]
+# Keep the reviewed faster-hex decoder while selecting patched heapless on Rust 1.89.
+# See third_party/faster-hex/KITROVE_PATCH.md for the complete manifest-only delta.
+faster-hex = { path = "third_party/faster-hex" }
+
 # Upstream 0.32.1 supplies the strict JSONC controls Kitrove requires, but uses
 # let-chain syntax newer than the former Rust 1.85 floor. This retained audited
 # source patch changes syntax only; see third_party/jsonc-parser/KITROVE_PATCH.md.

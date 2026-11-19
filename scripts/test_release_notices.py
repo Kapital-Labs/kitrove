@@ -64,6 +64,56 @@ class ReleaseNoticesTests(unittest.TestCase):
             self.assertIn(inputs["lock_packages"][0]["checksum"].encode(), texts)
             self.assertNotIn(temporary.encode(), texts)
 
+    def test_registry_license_third_party_ancestor_retains_exact_attribution(self):
+        module = self.load_generator()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            attribution = b"Copyright exact upstream attribution\nMIT terms\n"
+            inputs, _ = self.fixture(root, {
+                "LICENSE": b"Main terms\n",
+                "LICENSE-THIRD-PARTY/fast-hex": attribution,
+                "LICENSE-THIRD-PARTY/Rust Project Developers": attribution,
+                "LICENSE-THIRD-PARTY-extra/unrelated": b"Not a license directory\n",
+            })
+            text = module.render_documents(inputs, root)["THIRD_PARTY_LICENSES.txt"]
+            self.assertIn(attribution, text)
+            self.assertIn(b"LICENSE-THIRD-PARTY/fast-hex", text)
+            self.assertIn(b"LICENSE-THIRD-PARTY/Rust Project Developers", text)
+            self.assertEqual(text.count(attribution), 1)
+            self.assertNotIn(b"Not a license directory", text)
+            self.assertNotIn(temporary.encode(), text)
+
+    def test_vendored_license_third_party_ancestor_stays_third_party(self):
+        module = self.load_generator()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            inputs, _ = self.fixture(root)
+            source = root / "third_party/sample"
+            directory = source / "LICENSE-THIRD-PARTY"
+            directory.mkdir(parents=True)
+            attribution = b"Copyright vendored upstream attribution\nMIT terms\n"
+            (source / "LICENSE").write_bytes(b"Main terms\n")
+            (directory / "fast-hex").write_bytes(attribution)
+            (directory / "Rust Project Developers").write_bytes(attribution)
+            unrelated = source / "LICENSE-THIRD-PARTY-extra"
+            unrelated.mkdir()
+            (unrelated / "unrelated").write_bytes(b"Not a license directory\n")
+            package = inputs["metadata"]["packages"][0]
+            package["source"] = None
+            package["manifest_path"] = str(source / "Cargo.toml")
+            inputs["lock_packages"] = []
+            documents = module.render_documents(inputs, root)
+            text = documents["THIRD_PARTY_LICENSES.txt"]
+            self.assertEqual(documents["THIRD_PARTY_LICENSE_INVENTORY.txt"],
+                             inputs["inventory"].encode())
+            self.assertIn(b"Source: tracked third_party/sample", text)
+            self.assertIn(attribution, text)
+            self.assertIn(b"LICENSE-THIRD-PARTY/fast-hex", text)
+            self.assertIn(b"LICENSE-THIRD-PARTY/Rust Project Developers", text)
+            self.assertEqual(text.count(attribution), 1)
+            self.assertNotIn(b"Not a license directory", text)
+            self.assertNotIn(temporary.encode(), text)
+
     def test_wrong_crate_checksum_and_wrong_inventory_refuse(self):
         module = self.load_generator()
         with tempfile.TemporaryDirectory() as temporary:
