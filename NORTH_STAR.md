@@ -65,14 +65,16 @@ Every major feature must answer:
 
 ## Product distinction
 
-```text
-Kanon      compiles agent configuration
-agentctl   deploys agent configuration
-agentenv   reproduces project capabilities
-Kasetto    declares agent environments
+Kitrove focuses on the developer-owned capability lifecycle: discover existing
+content, preserve native variants, preview target fidelity, manage owned copies,
+and review changes across tools and machines.
 
-Kitrove    makes agent capabilities portable and bidirectional
-```
+Cross-tool distribution, imports, lockfiles and rollback also appear in other
+projects. The original four-project labels are historical orientation, not
+evidence of exclusive features. Use the dated
+[landscape review](docs/research/2026-11-18-landscape.md) and
+[product positioning](docs/PRODUCT-POSITIONING.md) for current comparisons and
+their limits. These summaries do not change the invariants above.
 
 ## Reassessment questions
 
