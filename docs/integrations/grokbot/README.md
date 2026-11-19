@@ -1,7 +1,8 @@
 # Grok Bot pilot
 
-Status: offline preparation, not a released integration. Reviewed November 18,
-2026. No Grok account, connector, computer access or provider upload was used.
+Status: source-only read-only MCP prototype, not a released or live integration.
+Reviewed November 18, 2026. No Grok account, computer access or provider upload
+was used. See the [operator guide](OPERATOR.md) for the implemented local boundary.
 
 Build a focused **Kitrove Collection Manager** Bot that helps a person choose
 saved skills and understand a destination preview. Begin with inspection on
@@ -11,8 +12,11 @@ plan contracts; the Bot does not need a second collection or mutation engine.
 ## Deliverables
 
 - [Bot brief](BOT-BRIEF.md): proposed role and behavior, not a provider import file.
-- [Tool contract](TOOL-CONTRACT.md): proposed inspection/preview tools and the
-  boundary before writes. These tool names are not implemented MCP endpoints.
+- [Tool contract](TOOL-CONTRACT.md): source-prototype inspection/preview tools
+  and the boundary before writes. They are not shipped RC5.18 endpoints.
+- [Operator guide](OPERATOR.md): source invocation, exact configuration and limits.
+- [Prototype acceptance](PILOT-VALIDATION.md): actual stdio and signed-CLI proof,
+  boundary regressions and explicit remaining limits.
 - [Offline demonstration](DEMO.md): results from the released CLI on a disposable
   collection; it does not establish live Grok Bot acceptance.
 - [Sample skill](../../../examples/grokbot/skills/review-notes/SKILL.md): public
@@ -37,8 +41,8 @@ product's contract. Research a destination adapter as a separate job.
 1. **Offline proof:** seed a synthetic collection, capture pack inspection and
    ordinary-skill plans for the four existing tools, and verify that inspection
    leaves source, collection, state and destinations unchanged.
-2. **Reviewed read-only connection:** implement and test a narrow tool wrapper,
-   then choose a disposable Bot-computer collection or an approved isolated local
+2. **Reviewed read-only connection:** validate the source prototype, then choose
+   a disposable Bot-computer collection or an approved isolated local
    runner. Verify account policy, platform and data exposure before connection.
    Neither connection is authorized or performed by this document.
 3. **Approved writes:** design an authorization boundary distinct from the plan

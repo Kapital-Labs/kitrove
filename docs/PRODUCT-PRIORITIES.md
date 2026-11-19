@@ -4,6 +4,10 @@ November 18, 2026. Recommendations for maintainer review, not approved implement
 or a claim that a listed feature has shipped. Read with the
 [positioning](PRODUCT-POSITIONING.md) and [release claims](launch/CLAIMS.md).
 
+The [delivery plan](superpowers/plans/2026-11-18-product-gap-delivery.md) maps these
+gaps to separate acceptance criteria, code boundaries and review decisions. It
+does not claim that the gap implementations have shipped.
+
 ## Before expanding the preview audience
 
 | Priority | User question | Completion evidence |
