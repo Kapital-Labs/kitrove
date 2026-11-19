@@ -34,6 +34,23 @@ Malicious publishers, compromised repositories, careless collaborators, accident
 
 ## Key threats and mitigations
 
+### Agent command-server pilot
+
+ADR-0077 exposes only fixed read operations on a private synthetic collection.
+Model input cannot choose commands, paths, environment, credentials, trust or
+writes. Closed schemas, bounded frames/output and minimal result projection keep
+raw skill content, private paths and provider errors outside the Bot response.
+Collected instructions remain untrusted data. Pin the operator's trusted CLI,
+validate the private no-follow fixture and stop on recovery or unknown control
+files. A plan or MCP read-only hint never authorizes another action.
+
+The POSIX runner reserves the leader's PID until all group signals finish,
+checks terminal cleanup and stops the session on uncertainty. Windows and missing
+native ownership primitives refuse. These are bounds for a trusted CLI, not an OS
+sandbox against its owner, detached processes or an uncatchable outer death.
+Provider connection/data transfer remains separately approved; a source prototype
+and local protocol proof do not establish live account acceptance or Bot isolation.
+
 ### Nested native inspection cleanup
 
 Read-only Apple ticket validation uses the private owned boundary in ADR-0069.
