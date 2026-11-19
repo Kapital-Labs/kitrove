@@ -62,6 +62,7 @@ pub(super) fn apply<R: PromptInput, W: Write>(
         if ids.is_empty() {
             return Ok(());
         }
+        dialog.say(&format!("Selected {} saved item(s). Checking the complete selection; one blocked item stops the batch.", ids.len()))?;
         for id in ids {
             if manifest.packs.contains_key(&id) {
                 args.packs.insert(id);
@@ -133,7 +134,7 @@ pub(super) fn apply<R: PromptInput, W: Write>(
             }
             Err(error) if error.code == "apply.compatibility_blocked" => {
                 dialog.warning("Selection not applied. Some selected skills cannot be transferred faithfully to these tools. Review the reasons above.")?;
-                dialog.hint("Choose ready to add compatible skills, or select specific numbers to review scripts separately. All includes incompatible items; it never skips them automatically.")?;
+                dialog.hint("Choose ready for compatible additions. Use why N to explain an incompatible item, review N for scripts, or compare N for an existing copy. All keeps blocked items in the selection.")?;
                 match dialog.decision("Choose different items?\nEnter/s  Choose different items\nn        Return to setup\nq        Quit", b"sn", true)?.as_str() {
                     "" | "s" => continue,
                     _ => Ok(()),
@@ -169,13 +170,45 @@ fn choose_items<R: PromptInput, W: Write>(
             start = 0;
         }
         let end = (start + PAGE_SIZE).min(shown.len());
+        let checks: Vec<_> = shown[start..end]
+            .iter()
+            .map(|(_, id)| super::application_readiness::inspect(root, manifest, id, args))
+            .collect();
         dialog.heading(&format!(
             "Skills and packs · {}–{} of {}",
             if shown.is_empty() { 0 } else { start + 1 },
             end,
             shown.len()
         ))?;
-        for &(index, id) in &shown[start..end] {
+        let mut counts = [0usize; 7];
+        for check in &checks {
+            use super::application_readiness::Readiness;
+            counts[match check {
+                Readiness::Ready => 0,
+                Readiness::Current => 1,
+                Readiness::NeedsReview(error) if error.code == "apply.skill_trust_required" => 2,
+                Readiness::NeedsReview(error) if error.code == "apply.destination_unmanaged" => 3,
+                Readiness::NeedsReview(error) if error.code == "apply.compatibility_blocked" => 4,
+                Readiness::NeedsReview(_) => 5,
+                Readiness::AfterSelection => 6,
+            }] += 1;
+        }
+        let summary: Vec<_> = counts
+            .into_iter()
+            .zip([
+                "ready",
+                "already current",
+                "review scripts",
+                "compare existing copy",
+                "incompatible",
+                "need attention",
+                "checked after selection",
+            ])
+            .filter(|(count, _)| *count > 0)
+            .map(|(count, label)| format!("{count} {label}"))
+            .collect();
+        dialog.say(&format!("This page: {}", summary.join(" · ")))?;
+        for (&(index, id), readiness) in shown[start..end].iter().zip(&checks) {
             let kind = if let Some(pack) = manifest.packs.get(id) {
                 format!(
                     "Pack · {} item{}",
@@ -185,8 +218,19 @@ fn choose_items<R: PromptInput, W: Write>(
             } else {
                 format!("{:?}", manifest.assets[id].kind)
             };
+            let action =
+                if let super::application_readiness::Readiness::NeedsReview(error) = readiness {
+                    let command = match error.code {
+                        "apply.skill_trust_required" => "review",
+                        "apply.destination_unmanaged" => "compare",
+                        _ => "why",
+                    };
+                    format!(" ({command} {})", index + 1)
+                } else {
+                    String::new()
+                };
             dialog.say(&format!(
-                "  {}. {} [{}]{}",
+                "  {}. {} [{}]{} · {}{action}",
                 index + 1,
                 safe(id.as_str()),
                 kind,
@@ -194,24 +238,17 @@ fn choose_items<R: PromptInput, W: Write>(
                     " · just collected"
                 } else {
                     ""
-                }
+                },
+                readiness.label()
             ))?;
-            let readiness = super::application_readiness::inspect(root, manifest, id, args);
-            dialog.say(&format!("     {}", readiness.label()))?;
-            if let super::application_readiness::Readiness::NeedsReview(error) = readiness {
-                dialog.hint(&format!("     {}", safe(&error.to_string())))?;
-            }
-            if let Some(description) = description(root, manifest, id) {
-                dialog.hint(&format!("     {description}"))?;
-            }
         }
-        dialog.hint("Packs are listed first. Select a pack number to preview its items together. Selections use all matching pages. Ready checks this destination folder; the tool may already find another copy elsewhere. All does not bypass checks; a blocked item can stop the plan.")?;
+        dialog.hint("Selections use all matching pages. Ready checks this destination folder; tools may find other copies. All does not bypass checks; one blocked item stops the batch.")?;
         let enter = if suggested.is_empty() {
             "Skip"
         } else {
             "Select just-collected items (may need review)"
         };
-        let response = dialog.ask(&format!("Which saved items would you like to add?\n1,4,7        Select original numbers\nready        Skills ready to add or update (recommended)\n             Skips needs-review and already-current items\nall          Every matching item, including needs-review items\nall,-3,-8    Every matching item except these numbers\n/word        Filter names (/ clears)\nnext/back    Browse pages\nEnter        {enter}\nn            Skip\nq            Quit"))?;
+        let response = dialog.ask(&format!("Which saved items would you like to add?\n1,4,7        Select original numbers\nready        Skills ready to add or update (recommended)\nall          Every matching item, including blocked items\nreview N     Review scripts\ncompare N    Compare existing copy (read-only)\nwhy N        Explain incompatibility / show description\nall,-3,-8    Every matching item except these numbers\n/word        Filter names (/ clears)\nnext/back    Browse pages\nEnter        {enter}\nn            Skip\nq            Quit"))?;
         match response.as_str() {
             "next" => {
                 if end < shown.len() {
@@ -230,18 +267,86 @@ fn choose_items<R: PromptInput, W: Write>(
             "ready" => {
                 let ready: Vec<_> = shown
                     .iter()
-                    .filter(|(_, id)| {
-                        matches!(
-                            super::application_readiness::inspect(root, manifest, id, args),
-                            super::application_readiness::Readiness::Ready
-                        )
+                    .enumerate()
+                    .filter(|(position, (_, id))| {
+                        let page_check = position
+                            .checked_sub(start)
+                            .and_then(|offset| checks.get(offset));
+                        match page_check {
+                            Some(check) => {
+                                matches!(check, super::application_readiness::Readiness::Ready)
+                            }
+                            None => matches!(
+                                super::application_readiness::inspect(root, manifest, id, args),
+                                super::application_readiness::Readiness::Ready
+                            ),
+                        }
                     })
-                    .map(|(_, id)| (*id).clone())
+                    .map(|(_, (_, id))| (*id).clone())
                     .collect();
                 if !ready.is_empty() {
+                    dialog.say(&format!("Selected {} ready skill(s). Review the full preview before approving placement.", ready.len()))?;
                     return Ok(ready);
                 }
                 dialog.say("No ready skills in this filter. Version-gated items and packs need an explicit selection; no files changed.")?;
+            }
+            value
+                if value.starts_with("review ")
+                    || value.starts_with("compare ")
+                    || value.starts_with("why ") =>
+            {
+                let (action, number) = value.split_once(' ').expect("matched action prefix");
+                let selected = number
+                    .trim()
+                    .parse::<usize>()
+                    .ok()
+                    .and_then(|n| n.checked_sub(1))
+                    .and_then(|index| shown.iter().position(|(candidate, _)| *candidate == index));
+                let Some(position) = selected else {
+                    dialog.say("Choose one original number in this filter. No files changed.")?;
+                    continue;
+                };
+                let (index, id) = shown[position];
+                if action == "compare" {
+                    super::application_readiness::compare(dialog, root, manifest, id, args)?;
+                    continue;
+                }
+                let off_page_check;
+                let check = match position
+                    .checked_sub(start)
+                    .and_then(|offset| checks.get(offset))
+                {
+                    Some(check) => check,
+                    None => {
+                        off_page_check =
+                            super::application_readiness::inspect(root, manifest, id, args);
+                        &off_page_check
+                    }
+                };
+                match action {
+                    "review" if matches!(check, super::application_readiness::Readiness::NeedsReview(error) if error.code == "apply.skill_trust_required") => return Ok(vec![id.clone()]),
+                    "review" => dialog.say("This item has no pending script-review check. Use why N for its reason, or select its number for a full plan.")?,
+                    "why" => {
+                        dialog.heading(&format!("Destination check: {}", safe(id.as_str())))?;
+                        dialog.say(check.label())?;
+                        if let Some(description) = description(root, manifest, id) {
+                            dialog.say(&description)?;
+                        }
+                        if let super::application_readiness::Readiness::NeedsReview(error) = check {
+                            dialog.detail(&format!("{}: {}", safe(error.code), safe(&error.to_string())))?;
+                            match error.code {
+                                "apply.compatibility_blocked" => {
+                                    super::application_preview::compatibility(dialog, manifest, &BTreeSet::from([id.clone()]), &args.targets)?;
+                                    dialog.hint("Choose another tool or leave this item out. Kitrove cannot preserve its behavior for this selection.")?;
+                                }
+                                "apply.skill_trust_required" => dialog.hint(&format!("Use review {} to inspect the exact stored bundle. Local script approval and file placement have separate confirmations.", index + 1))?,
+                                "apply.destination_unmanaged" => dialog.hint(&format!("Use compare {} to compare bundle contents. Keep the existing copy and leave this item out, or choose another destination. Kitrove does not take over existing copies.", index + 1))?,
+                                _ => dialog.hint("Resolve this destination check before retrying. Selecting the item still requires a fresh full plan and confirmation.")?,
+                            }
+                        }
+                    }
+                    _ => unreachable!("matched action prefix"),
+                }
             }
             value if value.starts_with('/') => {
                 filter = value[1..].to_owned();

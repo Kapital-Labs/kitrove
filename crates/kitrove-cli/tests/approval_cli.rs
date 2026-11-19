@@ -230,3 +230,63 @@ fn approval_cannot_expand_destinations_or_ignore_changed_state() {
     assert_eq!(fs::read(state_path).unwrap(), state);
     assert!(!fixture.home.join(".agents/skills/review").exists());
 }
+
+#[cfg(unix)]
+#[test]
+fn storage_refusal_preserves_authority_and_points_humans_to_read_only_doctor() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let fixture = Fixture::new();
+    let plan = fixture.plan();
+    let digest = plan["batch_digest"].as_str().unwrap();
+    let quarantine = fixture.environment.join(".kitrove/removal-quarantine");
+    fs::create_dir_all(&quarantine).unwrap();
+    fs::set_permissions(&quarantine, fs::Permissions::from_mode(0o700)).unwrap();
+    let retained = quarantine.join("private-retained-canary");
+    kitrove_testkit::owned_fixture::create(&retained, b"private retained authority");
+    let prior_state = fs::read(fixture.state.join("state.json")).unwrap();
+    let prior_manifest = fs::read(fixture.environment.join("kitrove.toml")).unwrap();
+    let human = fixture.apply(digest);
+    assert_eq!(human.status.code(), Some(1));
+    let text = String::from_utf8_lossy(&human.stderr);
+    assert!(text.contains("error[apply.batch_storage_failed]"), "{text}");
+    assert!(
+        text.contains("Run kitrove doctor")
+            && text.contains("--environment")
+            && text.contains("collection"),
+        "{text}"
+    );
+    let machine = fixture.run(&[
+        "--json-errors",
+        "apply",
+        "--asset",
+        "review",
+        "--target",
+        "codex",
+        "--confirm",
+        digest,
+        "--json",
+    ]);
+    assert_eq!(machine.status.code(), Some(1));
+    assert!(machine.stdout.is_empty());
+    let error: Value = serde_json::from_slice(&machine.stderr).unwrap();
+    assert_eq!(error.as_object().unwrap().len(), 3);
+    assert_eq!(error["error"].as_object().unwrap().len(), 1);
+    assert_eq!(error["error"]["code"], "apply.batch_storage_failed");
+    assert!(!String::from_utf8_lossy(&machine.stderr).contains("doctor"));
+    assert_eq!(
+        fs::read(fixture.state.join("state.json")).unwrap(),
+        prior_state
+    );
+    assert_eq!(
+        fs::read(fixture.environment.join("kitrove.toml")).unwrap(),
+        prior_manifest
+    );
+    assert_eq!(fs::read(retained).unwrap(), b"private retained authority");
+    assert!(!fixture.home.join(".agents/skills/review").exists());
+    assert!(
+        !fixture
+            .state
+            .join(".kitrove/atomic-apply-journal.json")
+            .exists()
+    );
+}

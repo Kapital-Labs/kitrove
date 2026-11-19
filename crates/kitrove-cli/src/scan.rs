@@ -921,6 +921,19 @@ pub(crate) fn resolve_required_environment_root(
     })
 }
 
+/// Resolves HOME lexically for read-only diagnostics without granting mutation authority.
+pub(crate) fn resolve_inspection_home_root() -> Result<PathBuf, CliError> {
+    let working_directory = env::current_dir().map_err(|_| context_unavailable())?;
+    let working_directory = normalize_absolute(&working_directory, &working_directory)
+        .map_err(|_| context_unavailable())?;
+    resolve_home(&working_directory).ok_or_else(|| {
+        CliError::new(
+            "doctor.home_unavailable",
+            "no absolute home location is available for inspection",
+        )
+    })
+}
+
 pub(crate) fn resolve_required_state_root() -> Result<PathBuf, CliError> {
     let working_directory = env::current_dir().map_err(|_| context_unavailable())?;
     let working_directory = normalize_absolute(&working_directory, &working_directory)

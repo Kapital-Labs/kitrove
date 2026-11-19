@@ -69,6 +69,13 @@ seed operation before taking the read-only snapshot. The [prior CLI demo](DEMO.m
 describes these seed operations; they are fixture writes, not server tools.
 
 The root, its role directories and protected ancestors must have trusted ownership.
+Before seeding, check the complete canonical ancestor chain for the CLI's private
+state path: every ancestor must be owned by the current user or root and must not
+be group/world writable. A sticky temporary directory such as `/tmp` still fails
+this CLI requirement, even when the fixture itself is mode0700. The Python
+wrapper's allowance for sticky ancestors does not override the CLI's stricter
+check. Choose a fresh private descendant of a verified home-directory chain;
+do not loosen ancestor permissions or delete an earlier failed fixture to retry.
 The inventory refuses symlinks, hardlinks, special files, group/world writable
 entries, more than 4096 nodes or any file larger than 64 MiB. The CLI is hash
 checked for every operation. Same-user/operator filesystem attacks and arbitrary

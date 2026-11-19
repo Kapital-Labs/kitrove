@@ -17,6 +17,7 @@ macro_rules! outln {
 mod adapters;
 mod args;
 mod batch_recovery;
+mod doctor;
 mod init;
 mod materialize;
 mod pack;
@@ -41,7 +42,8 @@ use std::io::{self, IsTerminal as _, Write as _};
 use std::process::ExitCode;
 
 use args::{
-    ADDITIONAL_MCP_HELP, ADDITIONAL_PACK_HELP, ADDITIONAL_SYNC_HELP, Command, HELP, parse_args,
+    ADDITIONAL_MCP_HELP, ADDITIONAL_PACK_HELP, ADDITIONAL_SYNC_HELP, Command, DOCTOR_HELP, HELP,
+    parse_args,
 };
 use init::run_init;
 use materialize::{run_apply, run_confirmed_apply, run_plan};
@@ -159,6 +161,7 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
             );
             out!("{HELP}{ADDITIONAL_MCP_HELP}{ADDITIONAL_SYNC_HELP}{ADDITIONAL_PACK_HELP}")
         }
+        Command::DoctorHelp => out!("{DOCTOR_HELP}"),
         Command::About => outln!(
             "Kitrove {} — bidirectional agent capability portability",
             env!("CARGO_PKG_VERSION")
@@ -167,6 +170,16 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         Command::Invariants => out!("{INVARIANTS}"),
         Command::Version => outln!("kitrove {}", env!("CARGO_PKG_VERSION")),
         Command::VersionProbe(arguments) => match run_version_probe(arguments) {
+            Ok(completed) => {
+                out!("{}", completed.output);
+                return completed.status;
+            }
+            Err(error) => {
+                report_error(json_errors, error.code, &error, 1);
+                return 1;
+            }
+        },
+        Command::Doctor(arguments) => match doctor::run_doctor(arguments) {
             Ok(completed) => {
                 out!("{}", completed.output);
                 return completed.status;
@@ -435,6 +448,11 @@ fn report_error(json: bool, code: &str, message: &dyn std::fmt::Display, exit_co
         );
     } else {
         eprintln!("error[{code}]: {message}");
+        if code == "apply.batch_storage_failed" {
+            eprintln!(
+                "Run kitrove doctor with --environment set to this collection for a read-only storage report."
+            );
+        }
     }
 }
 

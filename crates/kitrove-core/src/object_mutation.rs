@@ -400,6 +400,21 @@ enum PrivateDirectoryAccess {
     Mutate,
 }
 
+pub(crate) enum PrivateDirectoryAclObservation {
+    #[cfg(target_os = "macos")]
+    Empty,
+    #[cfg(target_os = "macos")]
+    NotEmpty,
+    #[cfg(target_os = "macos")]
+    ReadFailed,
+    #[cfg(windows)]
+    NativeChecked,
+    #[cfg(windows)]
+    NativeRejected,
+    #[cfg(not(any(target_os = "macos", windows)))]
+    NotApplicable,
+}
+
 /// An operating-system-backed exclusive lock held for one portable mutation.
 pub(crate) struct EnvironmentLock {
     // Field order is intentional: release the file lock before parent rename protection.
@@ -461,6 +476,93 @@ impl ObjectStore {
         store.security = StoreSecurity::PrivateState;
         store.private_access = Some(access);
         Ok(store)
+    }
+
+    /// Checks the held root through the existing private Inspect policy without repairing it.
+    pub(crate) fn inspect_private_root_boundary(&self) -> Result<(), ObjectMutationError> {
+        self.require_ambient_root_identity()?;
+        prepare_private_directory(&self.root, PrivateDirectoryAccess::Inspect)?;
+        self.require_ambient_root_identity()
+    }
+
+    pub(crate) fn inspect_private_root_acl(
+        &self,
+    ) -> Result<PrivateDirectoryAclObservation, ObjectMutationError> {
+        self.require_ambient_root_identity()?;
+        require_private_directory_owner(&self.root)?;
+        let observation = inspect_private_directory_acl(&self.root);
+        self.require_ambient_root_identity()?;
+        Ok(observation)
+    }
+
+    /// Uses the same conditional boundary policy as retained-state inspection.
+    pub(crate) fn inspect_existing_control_boundary(&self) -> Result<bool, ObjectMutationError> {
+        self.require_ambient_root_identity()?;
+        let Some(control) = open_optional_child_directory(
+            &self.root,
+            OsStr::new(crate::local_state_authority::CONTROL_DIRECTORY),
+        )?
+        else {
+            return Ok(false);
+        };
+        let quarantine_present = match control.symlink_metadata("removal-quarantine") {
+            Ok(_) => true,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+            Err(_) => return Err(mutation_io()),
+        };
+        inspect_control_directory_protection(&control, quarantine_present)?;
+        self.require_ambient_root_identity()?;
+        Ok(true)
+    }
+
+    /// Opens an existing fixed control solely for handle-bound metadata, never its contents or lock.
+    pub(crate) fn inspect_existing_fixed_file(
+        &self,
+        path: &PortablePath,
+        _private: bool,
+    ) -> Result<bool, ObjectMutationError> {
+        self.require_ambient_root_identity()?;
+        let Some((parent, name)) = self.open_existing_parent_optional(path)? else {
+            return Ok(false);
+        };
+        let selected = match parent.symlink_metadata(&name) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+            Err(_) => return Err(mutation_io()),
+        };
+        reject_link_like(&selected)?;
+        if !selected.is_file() {
+            return Err(unsafe_path());
+        }
+        let mut options = OpenOptions::new();
+        options.read(true).follow(FollowSymlinks::No).nonblock(true);
+        #[cfg(windows)]
+        {
+            use cap_std::fs::OpenOptionsExt as _;
+            options
+                .access_mode(kitrove_windows_security::METADATA_ONLY_FILE_ACCESS)
+                .share_mode(kitrove_windows_security::METADATA_ONLY_FILE_SHARE_MODE);
+        }
+        let file = parent
+            .open_with(&name, &options)
+            .map_err(|_| mutation_io())?;
+        let opened = file.metadata().map_err(|_| mutation_io())?;
+        reject_link_like(&opened)?;
+        if !opened.is_file()
+            || MetadataIdentity::from_metadata(&selected)
+                != MetadataIdentity::from_metadata(&opened)
+        {
+            return Err(unsafe_path());
+        }
+        require_single_file_link(&opened)?;
+        #[cfg(windows)]
+        if _private {
+            require_private_single_link_file(&file)?;
+        } else {
+            kitrove_windows_security::inspect_owned_file(&file).map_err(|_| unsafe_path())?;
+        }
+        self.require_ambient_root_identity()?;
+        Ok(true)
     }
 
     /// Opens or creates a capability-scoped root without following link-like components.
@@ -3698,11 +3800,9 @@ impl ObjectStore {
             Some(control) => {
                 let quarantine =
                     open_optional_child_directory(&control, OsStr::new("removal-quarantine"))?;
+                inspect_control_directory_protection(&control, quarantine.is_some())?;
                 if let Some(quarantine) = &quarantine {
-                    prepare_private_directory(&control, PrivateDirectoryAccess::Inspect)?;
                     prepare_private_directory(quarantine, PrivateDirectoryAccess::Inspect)?;
-                } else {
-                    require_owned_nonwritable_directory(&control)?;
                 }
                 quarantine
             }
@@ -4647,29 +4747,63 @@ pub(crate) fn secure_private_directory_for_mutation(
     prepare_private_directory(directory, PrivateDirectoryAccess::Mutate)
 }
 
-#[cfg(target_os = "macos")]
-fn require_private_directory_acl(directory: &Dir) -> Result<(), ObjectMutationError> {
-    use std::os::fd::AsFd as _;
-
-    let acl = calcifer_macos_acl::read_acl(directory.as_fd()).map_err(|_| unsafe_root())?;
-    if !acl.is_empty() {
-        return Err(unsafe_root());
+fn inspect_control_directory_protection(
+    control: &Dir,
+    quarantine_present: bool,
+) -> Result<(), ObjectMutationError> {
+    if quarantine_present {
+        prepare_private_directory(control, PrivateDirectoryAccess::Inspect)
+    } else {
+        require_owned_nonwritable_directory(control)
     }
-    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn inspect_private_directory_acl(directory: &Dir) -> PrivateDirectoryAclObservation {
+    use std::os::fd::AsFd as _;
+    match calcifer_macos_acl::read_acl(directory.as_fd()) {
+        Ok(acl) if acl.is_empty() => PrivateDirectoryAclObservation::Empty,
+        Ok(_) => PrivateDirectoryAclObservation::NotEmpty,
+        Err(_) => PrivateDirectoryAclObservation::ReadFailed,
+    }
 }
 
 #[cfg(windows)]
-fn require_private_directory_acl(directory: &Dir) -> Result<(), ObjectMutationError> {
-    let handle = open_private_directory_security_handle(
+fn inspect_private_directory_acl(directory: &Dir) -> PrivateDirectoryAclObservation {
+    let inspected = open_private_directory_security_handle(
         directory,
         kitrove_windows_security::PRIVATE_INSPECT_ACCESS,
-    )?;
-    kitrove_windows_security::inspect_private_directory(&handle).map_err(|_| unsafe_root())
+    )
+    .and_then(|handle| {
+        kitrove_windows_security::inspect_private_directory(&handle).map_err(|_| unsafe_root())
+    });
+    if inspected.is_ok() {
+        PrivateDirectoryAclObservation::NativeChecked
+    } else {
+        PrivateDirectoryAclObservation::NativeRejected
+    }
 }
 
 #[cfg(not(any(target_os = "macos", windows)))]
-const fn require_private_directory_acl(_directory: &Dir) -> Result<(), ObjectMutationError> {
-    Ok(())
+const fn inspect_private_directory_acl(_directory: &Dir) -> PrivateDirectoryAclObservation {
+    PrivateDirectoryAclObservation::NotApplicable
+}
+
+fn require_private_directory_acl(directory: &Dir) -> Result<(), ObjectMutationError> {
+    match inspect_private_directory_acl(directory) {
+        #[cfg(target_os = "macos")]
+        PrivateDirectoryAclObservation::Empty => Ok(()),
+        #[cfg(target_os = "macos")]
+        PrivateDirectoryAclObservation::NotEmpty | PrivateDirectoryAclObservation::ReadFailed => {
+            Err(unsafe_root())
+        }
+        #[cfg(windows)]
+        PrivateDirectoryAclObservation::NativeChecked => Ok(()),
+        #[cfg(windows)]
+        PrivateDirectoryAclObservation::NativeRejected => Err(unsafe_root()),
+        #[cfg(not(any(target_os = "macos", windows)))]
+        PrivateDirectoryAclObservation::NotApplicable => Ok(()),
+    }
 }
 
 #[cfg(all(

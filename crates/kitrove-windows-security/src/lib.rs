@@ -73,6 +73,11 @@ pub const PRIVATE_DIRECTORY_AUTHORITY_ACCESS: u32 =
 pub const PRIVATE_MUTATE_ACCESS: u32 = READ_CONTROL | WRITE_DAC | PRIVATE_OBJECT_CLASSIFY_ACCESS;
 /// Access for reading and inspecting an existing private regular file.
 pub const PRIVATE_FILE_INSPECT_ACCESS: u32 = FILE_GENERIC_READ;
+/// Access for attributes, native identity and owner/DACL metadata without file-data access.
+pub const METADATA_ONLY_FILE_ACCESS: u32 = READ_CONTROL | FILE_READ_ATTRIBUTES | SYNCHRONIZE;
+/// Metadata observers share deletion so their held handles do not prevent rename or deletion.
+pub const METADATA_ONLY_FILE_SHARE_MODE: u32 =
+    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
 /// Access for reading and writing an existing private regular file without descriptor mutation.
 pub const PRIVATE_FILE_WRITE_ACCESS: u32 = FILE_GENERIC_READ | FILE_GENERIC_WRITE;
 /// Share mode for held lock files: peers may read or write, but cannot rename or delete the lock.
@@ -4517,6 +4522,55 @@ mod tests {
             PrivateObjectKind::File,
         )
         .unwrap();
+    }
+
+    #[test]
+    fn metadata_only_file_inspection_permits_rename_while_lock_sharing_does_not() {
+        let root = tempfile::tempdir().unwrap();
+        let parent = open_parent(root.path());
+        let source = root.path().join("metadata-source");
+        let renamed = root.path().join("metadata-renamed");
+        let contents = b"metadata-only-native-fixture";
+        let mut created =
+            create_private_file(&parent, std::ffi::OsStr::new("metadata-source")).unwrap();
+        created.write_all(contents).unwrap();
+        created.sync_all().unwrap();
+        let expected = file_identity(&created).unwrap();
+        drop(created);
+
+        let mut options = OpenOptions::new();
+        options
+            .access_mode(METADATA_ONLY_FILE_ACCESS)
+            .share_mode(METADATA_ONLY_FILE_SHARE_MODE)
+            .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+        let mut metadata = options.open(&source).unwrap();
+        inspect_private_single_link_file(&metadata).unwrap();
+        inspect_owned_file(&metadata).unwrap();
+        assert_eq!(file_identity(&metadata).unwrap(), expected);
+        assert_eq!(metadata.metadata().unwrap().len(), contents.len() as u64);
+        assert!(metadata.read(&mut [0_u8; 1]).is_err());
+
+        std::fs::rename(&source, &renamed).unwrap();
+        inspect_private_single_link_file(&metadata).unwrap();
+        assert_eq!(file_identity(&metadata).unwrap(), expected);
+        assert!(!source.exists());
+        assert_eq!(std::fs::read(&renamed).unwrap(), contents);
+        drop(metadata);
+
+        // The prior inspector profile grants data read and uses writer-lock name protection.
+        let mut options = OpenOptions::new();
+        options
+            .access_mode(PRIVATE_FILE_INSPECT_ACCESS)
+            .share_mode(PRIVATE_FILE_LOCK_SHARE_MODE)
+            .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+        let lock_sharing = options.open(&renamed).unwrap();
+        inspect_private_single_link_file(&lock_sharing).unwrap();
+        assert!(std::fs::rename(&renamed, &source).is_err());
+        assert!(!source.exists());
+        assert_eq!(std::fs::read(&renamed).unwrap(), contents);
+        drop(lock_sharing);
+        std::fs::rename(&renamed, &source).unwrap();
+        assert_eq!(std::fs::read(source).unwrap(), contents);
     }
 
     #[test]
