@@ -10,3 +10,10 @@ Research files:
 - `opencode.md`
 
 Do not copy authentication files or real user state into fixtures.
+
+Product research:
+
+- [November 18 landscape review](2026-11-18-landscape.md): owner-qualified projects,
+  pinned current/baseline sources, shared standards and comparison limits.
+- [Product positioning](../PRODUCT-POSITIONING.md): the user workflow and the
+  distinction that needs evidence; this is separate from adapter behavior facts.

@@ -97,6 +97,9 @@ For installation and release-verification requirements, see the
 
 ## Documentation and development
 
+- [Product positioning and alternatives](docs/PRODUCT-POSITIONING.md)
+- [Product priorities](docs/PRODUCT-PRIORITIES.md) and [launch preparation](docs/launch/README.md)
+- [Grok Bot pilot proposal and offline demonstration](docs/integrations/grokbot/README.md)
 - [Product specification](docs/01-PRODUCT-SPEC.md)
 - [Architecture](docs/02-ARCHITECTURE.md)
 - [Roadmap](docs/ROADMAP.md)

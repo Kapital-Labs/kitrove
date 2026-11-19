@@ -2,6 +2,14 @@
 
 Dates are intentionally omitted. Progress is gated by evidence, not calendar pressure.
 
+Current release checkpoint (November 18, 2026): RC5.18 is a published evaluation
+preview with verified Homebrew and matching website. The historical checkpoints
+below record what was known at each implementation stage; they are not current
+download or support statements. Use the [release claims ledger](launch/CLAIMS.md)
+for availability and acceptance limits, and [product priorities](PRODUCT-PRIORITIES.md)
+for the proposed usability and stable-launch gaps. Grok Bot remains a
+[pilot proposal](integrations/grokbot/README.md), not a released adapter or service.
+
 ## Phase 0 — Foundation
 
 Governance, product review, harness research, threat model, domain ADRs, and synthetic fixtures.

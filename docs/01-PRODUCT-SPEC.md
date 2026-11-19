@@ -3,6 +3,11 @@
 **Status:** Accepted product direction; implementation and release acceptance are tracked in the roadmap
 **Working name:** Kitrove
 
+This is a design specification, not the released command or platform matrix.
+Some examples below describe intended workflows. Consult the versioned CLI
+guides and [release claims ledger](launch/CLAIMS.md) for current availability;
+[product positioning](PRODUCT-POSITIONING.md) records the audience and comparison.
+
 ## Product statement
 
 Kitrove is an open-source, Rust-first portability and synchronization layer for a developer's durable agent environment. It discovers, adopts, versions, preserves, adapts, and synchronizes capabilities across AI coding harnesses and computers while keeping credentials, authentication, and machine-private state local.
