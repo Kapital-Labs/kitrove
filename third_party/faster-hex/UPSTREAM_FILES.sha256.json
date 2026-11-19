@@ -1,0 +1,111 @@
+{
+  "package": "faster-hex",
+  "version": "0.10.1",
+  "archive_url": "https://static.crates.io/crates/faster-hex/faster-hex-0.10.1.crate",
+  "archive_sha256": "04839bdf9d8c10f66806fad16b852fc72aab80873aebc3cb69d85b4fa41543ed",
+  "upstream_commit": "c817979830ea5be2eafe0b0c99cb83b017ae2b8f",
+  "files": [
+    {
+      "path": ".cargo_vcs_info.json",
+      "upstream_sha256": "8c9a2fc6106b480c899ee0b28063975749b8d5575a1903c76c80e26ddd70a933",
+      "bytes": 94,
+      "local_sha256": "8c9a2fc6106b480c899ee0b28063975749b8d5575a1903c76c80e26ddd70a933"
+    },
+    {
+      "path": ".github/workflows/rust.yml",
+      "upstream_sha256": "8e489ac6edc8a39ce966e7d8e16dac3494e83b711b6ea1f1602bf38b5f858e8d",
+      "bytes": 1248,
+      "local_sha256": "8e489ac6edc8a39ce966e7d8e16dac3494e83b711b6ea1f1602bf38b5f858e8d"
+    },
+    {
+      "path": ".gitignore",
+      "upstream_sha256": "450e86c4561cb1a460b9a51d67f5cf8eb4341790afc1e49f47b256d511676236",
+      "bytes": 359,
+      "local_sha256": "450e86c4561cb1a460b9a51d67f5cf8eb4341790afc1e49f47b256d511676236"
+    },
+    {
+      "path": "Cargo.lock",
+      "upstream_sha256": "f37801866202f60195446e7025e16fe9edce51896c5053098a555a7de5e2619f",
+      "bytes": 24716,
+      "local_sha256": "f37801866202f60195446e7025e16fe9edce51896c5053098a555a7de5e2619f"
+    },
+    {
+      "path": "Cargo.toml",
+      "upstream_sha256": "2475c448fa61ceaf1fbbc44d8a036b1258471cf775f3ef7b6f5ee9c8f38a5a7d",
+      "bytes": 1913,
+      "local_sha256": "2288b103eb62c94712af7a7536e5336aa42e2360d2b50f943cfbf46f36baabe6"
+    },
+    {
+      "path": "Cargo.toml.orig",
+      "upstream_sha256": "a294cba7e22a5dd6801bdbf4e3da9c2bf471fe178a799b6efb0a4bbd33edd392",
+      "bytes": 1263,
+      "local_sha256": "a294cba7e22a5dd6801bdbf4e3da9c2bf471fe178a799b6efb0a4bbd33edd392"
+    },
+    {
+      "path": "LICENSE",
+      "upstream_sha256": "7e4baa202160a035c769bb83bd994222c74f479ec582624e3aedaa8f553481c7",
+      "bytes": 1074,
+      "local_sha256": "7e4baa202160a035c769bb83bd994222c74f479ec582624e3aedaa8f553481c7"
+    },
+    {
+      "path": "LICENSE-THIRD-PARTY/Rust Project Developers",
+      "upstream_sha256": "29662666b44dff84977b46e05642cdef910bc3a93a17b5fd86e632bafa59cf21",
+      "bytes": 1071,
+      "local_sha256": "29662666b44dff84977b46e05642cdef910bc3a93a17b5fd86e632bafa59cf21"
+    },
+    {
+      "path": "LICENSE-THIRD-PARTY/fast-hex",
+      "upstream_sha256": "7c652d12760975f519e979b099e40f9c0868c1139b231e780cea69b2a3fd6656",
+      "bytes": 1070,
+      "local_sha256": "7c652d12760975f519e979b099e40f9c0868c1139b231e780cea69b2a3fd6656"
+    },
+    {
+      "path": "README.md",
+      "upstream_sha256": "14bf30faaad09c315642b1913b9ebd9f4ae740bf76773b249e411b45379a6917",
+      "bytes": 2764,
+      "local_sha256": "14bf30faaad09c315642b1913b9ebd9f4ae740bf76773b249e411b45379a6917"
+    },
+    {
+      "path": "build.rs",
+      "upstream_sha256": "17d2548e27067b39af279852dfb04e77dd432a22b73ea1a6b0f7cf7574699aaa",
+      "bytes": 88,
+      "local_sha256": "17d2548e27067b39af279852dfb04e77dd432a22b73ea1a6b0f7cf7574699aaa"
+    },
+    {
+      "path": "proptest-regressions/.gitkeep",
+      "upstream_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "local_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "src/decode.rs",
+      "upstream_sha256": "94c4717c64fa5c0bbe96f00a1a293400faf7a2204ead5c04af4279134de93c52",
+      "bytes": 28133,
+      "local_sha256": "94c4717c64fa5c0bbe96f00a1a293400faf7a2204ead5c04af4279134de93c52"
+    },
+    {
+      "path": "src/encode.rs",
+      "upstream_sha256": "d73d4545a2fb2db2c9f04633e8781ac1b708b87e813aef2c027945409340c4d4",
+      "bytes": 12246,
+      "local_sha256": "d73d4545a2fb2db2c9f04633e8781ac1b708b87e813aef2c027945409340c4d4"
+    },
+    {
+      "path": "src/error.rs",
+      "upstream_sha256": "8f6bcbe6dffda2cc70abc389909a36d41d5e3cfb00241f1f731844d97a0f9795",
+      "bytes": 1144,
+      "local_sha256": "8f6bcbe6dffda2cc70abc389909a36d41d5e3cfb00241f1f731844d97a0f9795"
+    },
+    {
+      "path": "src/lib.rs",
+      "upstream_sha256": "6f144ddf7149041105ef44ef089a2a76880b0493009de49a7650eb473a66069e",
+      "bytes": 10022,
+      "local_sha256": "6f144ddf7149041105ef44ef089a2a76880b0493009de49a7650eb473a66069e"
+    },
+    {
+      "path": "src/serde.rs",
+      "upstream_sha256": "f444db204157593ace2ae06424bba9d6c0fd1755e61af66a72d3acda80c3a2c8",
+      "bytes": 21002,
+      "local_sha256": "f444db204157593ace2ae06424bba9d6c0fd1755e61af66a72d3acda80c3a2c8"
+    }
+  ]
+}

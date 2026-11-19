@@ -123,7 +123,7 @@ gix-zlib	0.1.0	MIT OR Apache-2.0
 group	0.14.0	MIT/Apache-2.0
 hash32	0.3.1	MIT OR Apache-2.0
 hashbrown	0.17.1	MIT OR Apache-2.0
-heapless	0.8.0	MIT OR Apache-2.0
+heapless	0.9.4	MIT OR Apache-2.0
 hex	0.4.3	MIT OR Apache-2.0
 hex-literal	1.1.0	MIT OR Apache-2.0
 hkdf	0.13.0	MIT OR Apache-2.0
