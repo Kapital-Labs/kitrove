@@ -37,6 +37,7 @@ use crate::quarantine_name::RemovedObjectKind;
 #[cfg(not(unix))]
 use crate::quarantine_name::RetainedTombstoneName;
 use crate::read_only_fs::{RegularFileMode, has_single_file_link};
+use crate::storage_doctor::StorageDoctorCleanupReason as InspectionReason;
 use kitrove_model::raw_parent_component;
 
 const INITIAL_AUTHORITY_LIMIT: usize = 32 * 1024 * 1024;
@@ -330,6 +331,7 @@ fn empty_object_tree() -> CapturedTree {
 pub struct ObjectMutationError {
     code: &'static str,
     message: &'static str,
+    inspection_reason: Option<InspectionReason>,
     #[cfg(test)]
     test_stage: Option<&'static str>,
 }
@@ -343,6 +345,15 @@ impl PartialEq for ObjectMutationError {
 impl Eq for ObjectMutationError {}
 
 impl ObjectMutationError {
+    pub(crate) const fn inspection_reason(&self) -> Option<InspectionReason> {
+        self.inspection_reason
+    }
+
+    const fn with_inspection_reason(mut self, reason: InspectionReason) -> Self {
+        self.inspection_reason = Some(reason);
+        self
+    }
+
     pub(crate) const fn invalid_object() -> Self {
         invalid_object()
     }
@@ -1065,7 +1076,9 @@ impl ObjectStore {
         let reopened = open_root_nofollow(&self.root_path)?;
         let metadata = reopened.dir_metadata().map_err(|_| unsafe_root())?;
         if MetadataIdentity::from_metadata(&metadata) != self.root_identity {
-            return Err(unsafe_root());
+            return Err(
+                unsafe_root().with_inspection_reason(InspectionReason::ChangedDuringInspection)
+            );
         }
         Ok(())
     }
@@ -4685,14 +4698,16 @@ fn prepare_private_directory(
         },
     )?;
     match access {
-        PrivateDirectoryAccess::Inspect => {
-            inspect_private_directory(&handle).map_err(|_| unsafe_root())
-        }
+        PrivateDirectoryAccess::Inspect => inspect_private_directory(&handle).map_err(|_| {
+            unsafe_root().with_inspection_reason(InspectionReason::NativeProtectionRejected)
+        }),
         PrivateDirectoryAccess::Mutate => {
             if inspect_private_directory(&handle).is_err() {
                 repair_private_directory(&handle).map_err(|_| mutation_io())?;
             }
-            inspect_private_directory(&handle).map_err(|_| unsafe_root())
+            inspect_private_directory(&handle).map_err(|_| {
+                unsafe_root().with_inspection_reason(InspectionReason::NativeProtectionRejected)
+            })
         }
     }
 }
@@ -4710,10 +4725,12 @@ fn open_private_directory_security_handle(
         .access_mode(access)
         .custom_flags(PRIVATE_DIRECTORY_OPEN_FLAGS)
         .follow(FollowSymlinks::No);
-    let handle = directory
-        .open_with(".", &options)
-        .map_err(|_| unsafe_root())?;
-    let metadata = handle.metadata().map_err(|_| unsafe_root())?;
+    let handle = directory.open_with(".", &options).map_err(|_| {
+        unsafe_root().with_inspection_reason(InspectionReason::NativeProtectionRejected)
+    })?;
+    let metadata = handle.metadata().map_err(|_| {
+        unsafe_root().with_inspection_reason(InspectionReason::NativeProtectionRejected)
+    })?;
     if !metadata.is_dir() || metadata_is_windows_reparse(&metadata) {
         return Err(unsafe_root());
     }
@@ -4793,13 +4810,19 @@ fn require_private_directory_acl(directory: &Dir) -> Result<(), ObjectMutationEr
         #[cfg(target_os = "macos")]
         PrivateDirectoryAclObservation::Empty => Ok(()),
         #[cfg(target_os = "macos")]
-        PrivateDirectoryAclObservation::NotEmpty | PrivateDirectoryAclObservation::ReadFailed => {
-            Err(unsafe_root())
+        PrivateDirectoryAclObservation::NotEmpty => {
+            Err(unsafe_root().with_inspection_reason(InspectionReason::AclNotEmpty))
+        }
+        #[cfg(target_os = "macos")]
+        PrivateDirectoryAclObservation::ReadFailed => {
+            Err(unsafe_root().with_inspection_reason(InspectionReason::AclUnreadable))
         }
         #[cfg(windows)]
         PrivateDirectoryAclObservation::NativeChecked => Ok(()),
         #[cfg(windows)]
-        PrivateDirectoryAclObservation::NativeRejected => Err(unsafe_root()),
+        PrivateDirectoryAclObservation::NativeRejected => {
+            Err(unsafe_root().with_inspection_reason(InspectionReason::NativeProtectionRejected))
+        }
         #[cfg(not(any(target_os = "macos", windows)))]
         PrivateDirectoryAclObservation::NotApplicable => Ok(()),
     }
@@ -4831,9 +4854,11 @@ const fn set_private_directory_permissions(_directory: &Dir) -> Result<(), Objec
 #[cfg(unix)]
 fn require_private_directory_mode(directory: &Dir) -> Result<(), ObjectMutationError> {
     use cap_std::fs::PermissionsExt as _;
-    let metadata = directory.dir_metadata().map_err(|_| unsafe_root())?;
+    let metadata = directory
+        .dir_metadata()
+        .map_err(|_| unsafe_root().with_inspection_reason(InspectionReason::MetadataUnreadable))?;
     if metadata.permissions().mode() & 0o777 != 0o700 {
-        return Err(unsafe_root());
+        return Err(unsafe_root().with_inspection_reason(InspectionReason::DirectoryModeRejected));
     }
     Ok(())
 }
@@ -4845,10 +4870,12 @@ const fn require_private_directory_mode(_directory: &Dir) -> Result<(), ObjectMu
 
 #[cfg(any(target_vendor = "apple", target_os = "linux", target_os = "redox"))]
 fn require_private_directory_owner(directory: &Dir) -> Result<(), ObjectMutationError> {
-    let metadata = directory.dir_metadata().map_err(|_| unsafe_root())?;
+    let metadata = directory
+        .dir_metadata()
+        .map_err(|_| unsafe_root().with_inspection_reason(InspectionReason::MetadataUnreadable))?;
     use cap_fs_ext::OsMetadataExt as _;
     if metadata.uid() != rustix::process::geteuid().as_raw() {
-        return Err(unsafe_root());
+        return Err(unsafe_root().with_inspection_reason(InspectionReason::DirectoryOwnerMismatch));
     }
     Ok(())
 }
@@ -4870,15 +4897,19 @@ fn open_child_directory_from_metadata(
 ) -> Result<Dir, ObjectMutationError> {
     reject_link_like(before)?;
     if !before.is_dir() {
-        return Err(unsafe_path());
+        return Err(unsafe_path().with_inspection_reason(InspectionReason::WrongEntryKind));
     }
-    let child = parent.open_dir_nofollow(name).map_err(|_| unsafe_path())?;
-    let after = child.dir_metadata().map_err(|_| mutation_io())?;
+    let child = parent
+        .open_dir_nofollow(name)
+        .map_err(|_| unsafe_path().with_inspection_reason(InspectionReason::OpenRejected))?;
+    let after = child
+        .dir_metadata()
+        .map_err(|_| mutation_io().with_inspection_reason(InspectionReason::MetadataUnreadable))?;
     reject_link_like(&after)?;
     if !after.is_dir()
         || MetadataIdentity::from_metadata(before) != MetadataIdentity::from_metadata(&after)
     {
-        return Err(unsafe_path());
+        return Err(unsafe_path().with_inspection_reason(InspectionReason::ChangedDuringInspection));
     }
     Ok(child)
 }
@@ -5184,7 +5215,7 @@ pub(crate) fn rename_noreplace(
 
 fn reject_link_like(metadata: &Metadata) -> Result<(), ObjectMutationError> {
     if metadata.is_symlink() || metadata_is_windows_reparse(metadata) {
-        Err(unsafe_path())
+        Err(unsafe_path().with_inspection_reason(InspectionReason::LinkOrReparsePoint))
     } else {
         Ok(())
     }
@@ -5205,6 +5236,7 @@ const fn mutation_error(code: &'static str, message: &'static str) -> ObjectMuta
     ObjectMutationError {
         code,
         message,
+        inspection_reason: None,
         #[cfg(test)]
         test_stage: None,
     }

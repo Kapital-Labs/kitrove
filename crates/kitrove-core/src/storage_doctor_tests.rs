@@ -484,6 +484,19 @@ fn unrecognized_retained_state_is_refused_and_preserved() {
             StorageDoctorRole::UserHome,
             StorageDoctorStage::RetainedCleanup
         )
+        .detail,
+        Some(StorageDoctorCleanupDetail {
+            reason: StorageDoctorCleanupReason::UnrecognizedName,
+            entry: Some(1),
+            location: StorageDoctorCleanupLocation::Entry
+        })
+    );
+    assert_eq!(
+        check(
+            &report,
+            StorageDoctorRole::UserHome,
+            StorageDoctorStage::RetainedCleanup
+        )
         .code,
         StorageDoctorCode::RetainedUnrecognized
     );
@@ -510,6 +523,19 @@ fn retained_identity_mismatch_is_refused_without_reclamation() {
     .unwrap();
     fs::write(quarantine.join(name), "").unwrap();
     let report = fixture.inspect_unchanged();
+    assert_eq!(
+        check(
+            &report,
+            StorageDoctorRole::PrivateState,
+            StorageDoctorStage::RetainedCleanup
+        )
+        .detail,
+        Some(StorageDoctorCleanupDetail {
+            reason: StorageDoctorCleanupReason::IdentityMismatch,
+            entry: Some(1),
+            location: StorageDoctorCleanupLocation::Entry
+        })
+    );
     assert_eq!(
         check(
             &report,
@@ -676,6 +702,19 @@ fn quarantine_acl_rejection_stays_in_retained_cleanup_without_repair() {
             StorageDoctorRole::UserHome,
             StorageDoctorStage::RetainedCleanup
         )
+        .detail,
+        Some(StorageDoctorCleanupDetail {
+            reason: StorageDoctorCleanupReason::AclNotEmpty,
+            entry: None,
+            location: StorageDoctorCleanupLocation::Boundary
+        })
+    );
+    assert_eq!(
+        check(
+            &report,
+            StorageDoctorRole::UserHome,
+            StorageDoctorStage::RetainedCleanup
+        )
         .code,
         StorageDoctorCode::RetainedUnsafe
     );
@@ -684,5 +723,187 @@ fn quarantine_acl_rejection_stays_in_retained_cleanup_without_repair() {
         !calcifer_macos_acl::read_acl(file.as_fd())
             .unwrap()
             .is_empty()
+    );
+}
+
+#[cfg(unix)]
+fn retained_directory(quarantine: &Path) -> PathBuf {
+    let original = quarantine.join("temporary-directory");
+    fs::create_dir(&original).unwrap();
+    let name = RemovalTombstoneName {
+        kind: RemovedObjectKind::Directory,
+        identity: MetadataIdentity::from_metadata(&fs::metadata(&original).unwrap()),
+    }
+    .encode("00112233445566778899aabbccddeeff")
+    .unwrap();
+    let retained = quarantine.join(name);
+    fs::rename(original, &retained).unwrap();
+    retained
+}
+
+#[cfg(unix)]
+#[test]
+fn cleanup_reasons_distinguish_invariants_without_writes_or_private_data() {
+    use crate::quarantine_name::CleanupPendingName;
+    use StorageDoctorCleanupReason as R;
+    use std::os::unix::fs::symlink;
+    for (case, reason, location, entry) in [
+        (
+            0,
+            R::DirectoryModeRejected,
+            StorageDoctorCleanupLocation::Boundary,
+            None,
+        ),
+        (
+            1,
+            R::WrongEntryKind,
+            StorageDoctorCleanupLocation::Entry,
+            Some(1),
+        ),
+        (
+            2,
+            R::LinkOrReparsePoint,
+            StorageDoctorCleanupLocation::Entry,
+            Some(1),
+        ),
+        (
+            3,
+            R::FileLinkCountRejected,
+            StorageDoctorCleanupLocation::Entry,
+            Some(1),
+        ),
+        (
+            4,
+            R::PendingBatchNotVerifiedEmpty,
+            StorageDoctorCleanupLocation::Entry,
+            Some(1),
+        ),
+        (
+            5,
+            R::MultipleCleanupBatches,
+            StorageDoctorCleanupLocation::Entry,
+            Some(2),
+        ),
+        (
+            6,
+            R::LinkOrReparsePoint,
+            StorageDoctorCleanupLocation::Descendant,
+            Some(1),
+        ),
+    ] {
+        let fixture = Fixture::new();
+        let q = fixture.quarantine(&fixture.collection);
+        let pending =
+            || q.join(CleanupPendingName::encode("00112233445566778899aabbccddeeff").unwrap());
+        match case {
+            0 => fs::set_permissions(&q, fs::Permissions::from_mode(0o755)).unwrap(),
+            1 | 2 => {
+                let name = RemovalTombstoneName {
+                    kind: RemovedObjectKind::Directory,
+                    identity: MetadataIdentity {
+                        device: 0,
+                        inode: 0,
+                    },
+                }
+                .encode("00112233445566778899aabbccddeeff")
+                .unwrap();
+                if case == 1 {
+                    fs::write(q.join(name), "fixture-private-body").unwrap();
+                } else {
+                    symlink(&fixture.home, q.join(name)).unwrap();
+                }
+            }
+            3 => {
+                let original = fixture.home.join("hardlink-private-canary");
+                fs::write(&original, "fixture-private-body").unwrap();
+                let name = RemovalTombstoneName {
+                    kind: RemovedObjectKind::File,
+                    identity: MetadataIdentity::from_metadata(&fs::metadata(&original).unwrap()),
+                }
+                .encode("00112233445566778899aabbccddeeff")
+                .unwrap();
+                fs::hard_link(original, q.join(name)).unwrap();
+            }
+            4 => {
+                fs::create_dir(pending()).unwrap();
+                fs::write(
+                    pending().join("PRIVATE_NAME_CANARY"),
+                    "fixture-private-body",
+                )
+                .unwrap();
+            }
+            5 => {
+                fs::create_dir(pending()).unwrap();
+                fs::create_dir(
+                    q.join(CleanupPendingName::encode("ffeeddccbbaa99887766554433221100").unwrap()),
+                )
+                .unwrap();
+            }
+            6 => {
+                symlink(
+                    &fixture.home,
+                    retained_directory(&q).join("PRIVATE_NAME_CANARY"),
+                )
+                .unwrap();
+            }
+            _ => unreachable!(),
+        }
+        let report = fixture.inspect_unchanged();
+        let check = check(
+            &report,
+            StorageDoctorRole::Collection,
+            StorageDoctorStage::RetainedCleanup,
+        );
+        assert_eq!(check.code, StorageDoctorCode::RetainedUnsafe, "case {case}");
+        assert_eq!(
+            check.detail,
+            Some(StorageDoctorCleanupDetail {
+                location,
+                reason,
+                entry
+            }),
+            "case {case}"
+        );
+        let encoded = serde_json::to_string(&report).unwrap();
+        for secret in [
+            "PRIVATE_NAME_CANARY",
+            "hardlink-private-canary",
+            ".kitrove-removed-v1",
+            "00112233445566778899aabbccddeeff",
+        ] {
+            assert!(!encoded.contains(secret), "reported private entry data");
+        }
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn cleanup_ordinal_is_sorted_snapshot_only_and_stops_at_first_failure() {
+    let fixture = Fixture::new();
+    let q = fixture.quarantine(&fixture.collection);
+    let original = q.join("temporary");
+    fs::write(&original, "fixture-private-body").unwrap();
+    let name = RemovalTombstoneName {
+        kind: RemovedObjectKind::File,
+        identity: MetadataIdentity::from_metadata(&fs::metadata(&original).unwrap()),
+    }
+    .encode("00112233445566778899aabbccddeeff")
+    .unwrap();
+    fs::rename(original, q.join(name)).unwrap();
+    fs::write(q.join("zz-PRIVATE_CANARY"), "").unwrap();
+    let report = fixture.inspect_unchanged();
+    let detail = check(
+        &report,
+        StorageDoctorRole::Collection,
+        StorageDoctorStage::RetainedCleanup,
+    )
+    .detail
+    .unwrap();
+    assert_eq!(detail.reason, StorageDoctorCleanupReason::UnrecognizedName);
+    assert_eq!(detail.entry, Some(2));
+    assert!(
+        !serde_json::to_string(&report)
+            .unwrap()
+            .contains("zz-PRIVATE_CANARY")
     );
 }

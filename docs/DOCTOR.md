@@ -2,7 +2,9 @@
 
 `kitrove doctor` checks local collection and application-storage conditions without
 changing files. It gives a short report and a redacted JSON report for support.
-This command is included in RC5.19; RC5.18 does not include it.
+This command is included in RC5.19; RC5.18 does not include it. The more specific
+cleanup findings described below are source changes for a future preview, not an
+update to the published RC5.19 executable.
 
 ```sh
 kitrove doctor --help
@@ -36,6 +38,35 @@ An ordinary permission listing can look correct while native private-directory
 protection or retained recovery files fail validation. Follow the reported check
 and code. Keep retained recovery files in place for review.
 
+## Specific retained cleanup findings
+
+Doctor reports the first failed cleanup invariant in each storage root directly
+in its ordinary output. For example:
+
+```text
+Kitrove doctor: needs attention
+  Collection (retained files): a retained item's recorded filesystem identity does not match the current entry.
+    Retained item 3 in this inspection.
+Next: leave retained files in place; the finding above identifies the failed check. Share doctor --json for a recovery review.
+No changes made. Write access and lock availability were not tested.
+```
+
+Findings distinguish recorded identity mismatches, entries that changed while
+being inspected, links or redirected entries, wrong file types, hard-linked
+retained files, unrecognized name formats, pending folders not verified empty,
+multiple cleanup batches, directory protection failures, unreadable metadata or
+listings, refused opens and inspection limits. These describe observed checks,
+not an inferred cause of an earlier apply failure. A normal-looking `0700`
+directory listing does not verify its retained entries.
+
+The item number is a one-based position in this inspection's bounded, sorted
+**top-level** cleanup listing. A descendant finding identifies a problem inside
+that item's directory. The number can change on the next inspection and is not a
+filename, a stable item ID or authority to delete anything. Boundary failures and
+limits reached before selecting an item have no item number. Doctor stops at the
+first failed invariant per root; it does not claim to find every cleanup issue.
+Do not rename, remove or repair retained files based only on this report.
+
 ## What a result means
 
 **Observed checks passed** means the reported read-only checks passed. It grants
@@ -54,7 +85,11 @@ A later filesystem change or operating-system refusal can still stop an apply.
 
 Use `--json` and copy its output into a support conversation. The versioned report
 contains the public CLI version, fixed roles/checks/statuses/codes and bounded
-counts. It excludes paths, user/group identities, ACL principals, environment
+counts. The new report uses `schema_version: 2`; RC5.19 emitted version 1.
+Version 2 retains the existing fields and adds an optional `detail` object to
+failed retained-cleanup checks: closed `location` (`boundary`, `entry` or
+`descendant`) and `reason` labels, with an optional bounded `entry` number.
+It excludes paths, user/group identities, ACL principals, environment
 values, skill names, trust decisions, file bodies and raw operating-system errors.
 It does not upload or save a report automatically.
 
