@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 
 use kitrove_agent_skills::CaptureLimits;
 use kitrove_core::{
-    LockStatus, ObjectState, StorageDoctorRoots, compare_lockfile, inspect_storage_doctor,
-    verify_referenced_objects,
+    LockStatus, ObjectState, StorageDoctorCleanupDetail, StorageDoctorCleanupReason,
+    StorageDoctorRoots, compare_lockfile, inspect_storage_doctor, verify_referenced_objects,
 };
 use serde_json::{Value, json};
 
@@ -24,6 +24,7 @@ struct Check {
     status: &'static str,
     code: &'static str,
     count: Option<usize>,
+    detail: Option<StorageDoctorCleanupDetail>,
 }
 
 impl Check {
@@ -39,6 +40,7 @@ impl Check {
             status,
             code,
             count,
+            detail: None,
         }
     }
 
@@ -61,6 +63,9 @@ impl Check {
         if let Some(count) = self.count {
             value["count"] = json!(count);
         }
+        if let Some(detail) = self.detail {
+            value["detail"] = json!(detail);
+        }
         value
     }
 }
@@ -72,6 +77,7 @@ fn locations(explicit: Option<&Path>) -> Result<(PathBuf, PathBuf, PathBuf), Che
         status: "not_checked",
         code,
         count: None,
+        detail: None,
     };
     let home =
         resolve_inspection_home_root().map_err(|_| failed("user_home", "home_unavailable"))?;
@@ -107,6 +113,7 @@ pub(crate) fn run_doctor(arguments: EnvironmentArgs) -> Result<CompletedCommand,
                     status: check.status.as_str(),
                     code: check.code.as_str(),
                     count: check.count,
+                    detail: check.detail,
                 })
                 .collect();
             if collection_inspected {
@@ -126,7 +133,7 @@ pub(crate) fn run_doctor(arguments: EnvironmentArgs) -> Result<CompletedCommand,
         format!(
             "{}\n",
             serde_json::to_string(&json!({
-                "schema_version":1,"version":env!("CARGO_PKG_VERSION"),
+                "schema_version":2,"version":env!("CARGO_PKG_VERSION"),
                 "inspection":inspection,"mutation_access":mutation_access,
                 "checks":checks.iter().map(Check::encoded).collect::<Vec<_>>(),
             }))
@@ -250,6 +257,20 @@ fn human_report(checks: &[Check], attention: bool) -> String {
             problem(check)
         )
         .expect("writing to a string cannot fail");
+        if let Some(detail) = check.detail
+            && let Some(entry) = detail.entry
+        {
+            writeln!(
+                output,
+                "    Retained item {entry} in this inspection{}.",
+                if detail.location.as_str() == "descendant" {
+                    ", inside its directory"
+                } else {
+                    ""
+                }
+            )
+            .expect("writing to a string cannot fail");
+        }
     }
     if issues.len() > 3 {
         writeln!(
@@ -292,6 +313,9 @@ fn stage_label(stage: &str) -> &'static str {
 }
 
 fn problem(check: &Check) -> &'static str {
+    if let Some(detail) = check.detail {
+        return cleanup_problem(detail.reason);
+    }
     match check.code {
         "home_unavailable" | "collection_unavailable" | "private_state_unavailable" => {
             "the configured location could not be resolved"
@@ -324,11 +348,48 @@ fn problem(check: &Check) -> &'static str {
     }
 }
 
+fn cleanup_problem(reason: StorageDoctorCleanupReason) -> &'static str {
+    use StorageDoctorCleanupReason as R;
+    match reason {
+        R::MetadataUnreadable => "retained cleanup metadata could not be read",
+        R::DirectoryUnreadable => "the retained cleanup directory could not be listed",
+        R::OpenRejected => "a retained cleanup entry could not be opened without following links",
+        R::LinkOrReparsePoint => "retained cleanup contains a link or redirected entry",
+        R::WrongEntryKind => "a retained cleanup entry has the wrong file or directory type",
+        R::IdentityMismatch => {
+            "a retained item's recorded filesystem identity does not match the current entry"
+        }
+        R::ChangedDuringInspection => {
+            "a retained cleanup entry changed type or identity during inspection"
+        }
+        R::FileLinkCountRejected => "a retained cleanup file does not have exactly one hard link",
+        R::PendingBatchNotVerifiedEmpty => "a pending cleanup folder could not be verified empty",
+        R::MultipleCleanupBatches => {
+            "more than one pending or interrupted cleanup batch is present"
+        }
+        R::UnrecognizedName => "a retained cleanup entry has an unrecognized name format",
+        R::DirectoryOwnerMismatch => "a cleanup directory is not owned by the current user",
+        R::DirectoryModeRejected => {
+            "a cleanup directory does not have the required owner-only permissions (0700)"
+        }
+        R::AclNotEmpty => "a cleanup directory has extra filesystem access rules",
+        R::AclUnreadable => "a cleanup directory's filesystem access rules could not be read",
+        R::NativeProtectionRejected => "native cleanup protection could not be verified",
+        R::BoundaryUnverified => "the cleanup directory boundary could not be verified",
+        R::InspectionLimit => "retained cleanup inspection reached its bound",
+    }
+}
+
 fn next_step(checks: &[Check]) -> &'static str {
     if checks.iter().any(|check| {
         check.attention() && matches!(check.code, "recovery_present" | "recovery_unsafe")
     }) {
         "share the full JSON report for review of the transaction-marker finding; leave existing files in place."
+    } else if checks
+        .iter()
+        .any(|check| check.attention() && check.stage == "retained_cleanup")
+    {
+        "leave retained files in place; the finding above identifies the failed check. Share doctor --json for a recovery review."
     } else if checks
         .iter()
         .any(|check| check.attention() && !check.stage.starts_with("portable_"))

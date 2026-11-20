@@ -4,7 +4,9 @@ use crate::local_state_authority;
 use crate::object_mutation::{ObjectStore, PrivateDirectoryAclObservation, guarded_backup_path};
 use crate::quarantine_cleanup::budget::QuarantineCleanupBudget;
 use crate::quarantine_cleanup::coordinator::readonly_inspection_budget;
-use crate::quarantine_cleanup::inspection::{QuarantineInspectionError, inspect_store_quarantine};
+use crate::quarantine_cleanup::inspection::{
+    QuarantineInspectionError, inspect_store_quarantine_detailed,
+};
 use crate::read_only_fs::{self, ReadOnlyRootOpen};
 use kitrove_model::PortablePath;
 use serde::Serialize;
@@ -54,6 +56,42 @@ vocabulary!(StorageDoctorCode {
     StateFileMissing => "state_file_missing", StateFileUnverified => "state_file_unverified",
 });
 
+vocabulary!(StorageDoctorCleanupReason {
+    MetadataUnreadable => "metadata_unreadable",
+    DirectoryUnreadable => "directory_unreadable",
+    OpenRejected => "open_rejected",
+    LinkOrReparsePoint => "link_or_reparse_point",
+    WrongEntryKind => "wrong_entry_kind",
+    IdentityMismatch => "identity_mismatch",
+    ChangedDuringInspection => "changed_during_inspection",
+    FileLinkCountRejected => "file_link_count_rejected",
+    PendingBatchNotVerifiedEmpty => "pending_batch_not_verified_empty",
+    MultipleCleanupBatches => "multiple_cleanup_batches",
+    UnrecognizedName => "unrecognized_name",
+    DirectoryOwnerMismatch => "directory_owner_mismatch",
+    DirectoryModeRejected => "directory_mode_rejected",
+    AclNotEmpty => "acl_not_empty",
+    AclUnreadable => "acl_unreadable",
+    NativeProtectionRejected => "native_protection_rejected",
+    BoundaryUnverified => "boundary_unverified",
+    InspectionLimit => "inspection_limit",
+});
+
+vocabulary!(StorageDoctorCleanupLocation {
+    Boundary => "boundary", Entry => "entry", Descendant => "descendant",
+});
+
+/// First failed invariant, without names, paths or filesystem identity values.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub struct StorageDoctorCleanupDetail {
+    pub location: StorageDoctorCleanupLocation,
+    pub reason: StorageDoctorCleanupReason,
+    /// One-based position in this inspection's bounded, sorted top-level listing.
+    /// This is not a stable identifier and never authorizes a recovery operation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entry: Option<usize>,
+}
+
 /// Caller-resolved roots. Paths are never copied into the report.
 #[derive(Clone, Copy)]
 pub struct StorageDoctorRoots<'a> {
@@ -72,6 +110,8 @@ pub struct StorageDoctorCheck {
     pub code: StorageDoctorCode,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub count: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<StorageDoctorCleanupDetail>,
 }
 
 /// Content- and path-redacted observations made without acquiring mutation locks.
@@ -119,6 +159,7 @@ fn record(
         status,
         code,
         count,
+        detail: None,
     });
 }
 
@@ -472,7 +513,7 @@ fn inspect_retained(
             );
             return;
         }
-        Err(_) => {
+        Err(error) => {
             record(
                 checks,
                 role,
@@ -481,12 +522,23 @@ fn inspect_retained(
                 StorageDoctorCode::RetainedUnsafe,
                 None,
             );
+            checks.last_mut().expect("recorded retained failure").detail =
+                Some(StorageDoctorCleanupDetail {
+                    location: StorageDoctorCleanupLocation::Boundary,
+                    reason: error
+                        .inspection_reason()
+                        .unwrap_or(StorageDoctorCleanupReason::BoundaryUnverified),
+                    entry: None,
+                });
             return;
         }
         Ok(Some(_)) => {}
     }
-    let outcome = budget.map(|budget| inspect_store_quarantine(store, budget));
-    let (status, code, count) = match outcome {
+    let outcome = budget.map(|budget| inspect_store_quarantine_detailed(store, budget));
+    let detail = outcome
+        .as_ref()
+        .and_then(|result| result.as_ref().err().map(|error| error.detail));
+    let (status, code, count) = match outcome.map(|result| result.map_err(|error| error.coarse)) {
         Some(Ok(inspection)) => (
             StorageDoctorStatus::Ok,
             StorageDoctorCode::Checked,
@@ -516,6 +568,10 @@ fn inspect_retained(
         code,
         count,
     );
+    checks
+        .last_mut()
+        .expect("recorded retained inspection")
+        .detail = detail;
 }
 
 fn fixed_path(value: &str) -> PortablePath {

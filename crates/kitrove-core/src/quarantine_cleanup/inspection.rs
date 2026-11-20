@@ -1,3 +1,6 @@
+use crate::storage_doctor::{
+    StorageDoctorCleanupDetail, StorageDoctorCleanupLocation, StorageDoctorCleanupReason,
+};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 
@@ -131,66 +134,135 @@ struct PendingDirectory {
     depth: usize,
 }
 
-pub(crate) fn inspect_store_quarantine(
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct QuarantineInspectionFailure {
+    pub(crate) coarse: QuarantineInspectionError,
+    pub(crate) detail: StorageDoctorCleanupDetail,
+}
+
+impl QuarantineInspectionFailure {
+    const fn unsafe_state(reason: StorageDoctorCleanupReason) -> Self {
+        Self {
+            coarse: QuarantineInspectionError::UnsafeState,
+            detail: StorageDoctorCleanupDetail {
+                location: StorageDoctorCleanupLocation::Entry,
+                reason,
+                entry: None,
+            },
+        }
+    }
+
+    fn at_boundary(mut self) -> Self {
+        self.detail.location = StorageDoctorCleanupLocation::Boundary;
+        self
+    }
+
+    fn at_entry(mut self, index: usize) -> Self {
+        if self.detail.location == StorageDoctorCleanupLocation::Boundary {
+            self.detail.location = StorageDoctorCleanupLocation::Entry;
+        }
+        self.detail.entry = Some(index);
+        self
+    }
+    fn in_descendant(mut self) -> Self {
+        self.detail.location = StorageDoctorCleanupLocation::Descendant;
+        self
+    }
+}
+
+impl From<QuarantineBudgetError> for QuarantineInspectionFailure {
+    fn from(error: QuarantineBudgetError) -> Self {
+        Self {
+            coarse: QuarantineInspectionError::Budget(error),
+            detail: StorageDoctorCleanupDetail {
+                location: StorageDoctorCleanupLocation::Boundary,
+                reason: StorageDoctorCleanupReason::InspectionLimit,
+                entry: None,
+            },
+        }
+    }
+}
+
+pub(crate) fn inspect_store_quarantine_detailed(
     store: &ObjectStore,
     budget: &mut QuarantineCleanupBudget,
-) -> Result<QuarantineInspection, QuarantineInspectionError> {
+) -> Result<QuarantineInspection, QuarantineInspectionFailure> {
     budget.try_root()?;
-    let Some(quarantine) = store
-        .open_existing_removal_quarantine()
-        .map_err(|_| QuarantineInspectionError::UnsafeState)?
+    let Some(quarantine) =
+        store
+            .open_existing_removal_quarantine()
+            .map_err(|error| QuarantineInspectionFailure {
+                coarse: QuarantineInspectionError::UnsafeState,
+                detail: StorageDoctorCleanupDetail {
+                    location: StorageDoctorCleanupLocation::Boundary,
+                    reason: error
+                        .inspection_reason()
+                        .unwrap_or(StorageDoctorCleanupReason::BoundaryUnverified),
+                    entry: None,
+                },
+            })?
     else {
         return Ok(QuarantineInspection {
             candidates: Vec::new(),
             work: TombstoneWork::default(),
         });
     };
-    inspect_quarantine_directory_with_hook(quarantine, budget, &mut |_| {})
+    inspect_quarantine_directory_with_hook_detailed(quarantine, budget, &mut |_| {})
 }
 
-fn inspect_quarantine_directory_with_hook(
+fn inspect_quarantine_directory_with_hook_detailed(
     quarantine: Dir,
     budget: &mut QuarantineCleanupBudget,
     before_open: &mut impl FnMut(&OsString),
-) -> Result<QuarantineInspection, QuarantineInspectionError> {
+) -> Result<QuarantineInspection, QuarantineInspectionFailure> {
     let portion = QuarantineWorkPortion::CleanupInspection;
-    let entries = quarantine
-        .entries()
-        .map_err(|_| QuarantineInspectionError::UnsafeState)?;
+    let entries = quarantine.entries().map_err(|_| {
+        QuarantineInspectionFailure::unsafe_state(StorageDoctorCleanupReason::DirectoryUnreadable)
+            .at_boundary()
+    })?;
     let entries = collect_bounded_sorted_directory_entries(
         entries,
         budget.remaining_top_level_entries(portion),
     )
-    .map_err(|_| QuarantineInspectionError::UnsafeState)?;
+    .map_err(|_| {
+        QuarantineInspectionFailure::unsafe_state(StorageDoctorCleanupReason::DirectoryUnreadable)
+            .at_boundary()
+    })?;
     let BoundedDirectoryEntries::Complete(entries) = entries else {
-        return Err(QuarantineInspectionError::Budget(
-            QuarantineBudgetError::ReservationExceeded(portion),
-        ));
+        return Err(QuarantineBudgetError::ReservationExceeded(portion).into());
     };
     let mut candidates = Vec::with_capacity(entries.len());
     let mut work = TombstoneWork::default();
     #[cfg(any(unix, windows))]
     let mut has_cleanup_control = false;
-    for entry in entries {
-        budget.try_top_level_entry(portion)?;
+    for (index, entry) in entries.into_iter().enumerate() {
+        let index = index + 1;
+        budget
+            .try_top_level_entry(portion)
+            .map_err(|error| QuarantineInspectionFailure::from(error).at_entry(index))?;
         let name = entry.file_name();
-        let metadata = entry
-            .full_metadata()
-            .map_err(|_| QuarantineInspectionError::UnsafeState)?;
+        let metadata = entry.full_metadata().map_err(|_| {
+            QuarantineInspectionFailure::unsafe_state(
+                StorageDoctorCleanupReason::MetadataUnreadable,
+            )
+            .at_entry(index)
+        })?;
         before_open(&name);
-        let candidate = inspect_tombstone(&quarantine, name, metadata, budget)?;
+        let candidate = inspect_tombstone(&quarantine, name, metadata, budget)
+            .map_err(|error| error.at_entry(index))?;
         #[cfg(any(unix, windows))]
         if candidate.is_cleanup_control() {
             if has_cleanup_control {
-                return Err(QuarantineInspectionError::UnsafeState);
+                return Err(QuarantineInspectionFailure::unsafe_state(
+                    StorageDoctorCleanupReason::MultipleCleanupBatches,
+                )
+                .at_entry(index));
             }
             has_cleanup_control = true;
         }
         work = work
             .checked_add(candidate.work())
-            .ok_or(QuarantineInspectionError::Budget(
-                QuarantineBudgetError::ArithmeticOverflow,
-            ))?;
+            .ok_or(QuarantineBudgetError::ArithmeticOverflow)?;
         candidates.push(candidate);
     }
     Ok(QuarantineInspection { candidates, work })
@@ -202,33 +274,47 @@ fn inspect_tombstone(
     name: OsString,
     metadata: Metadata,
     budget: &mut QuarantineCleanupBudget,
-) -> Result<QuarantineCandidate, QuarantineInspectionError> {
+) -> Result<QuarantineCandidate, QuarantineInspectionFailure> {
     if CleanupPendingName::parse(&name).is_some() {
         validate_kind(RemovedObjectKind::Directory, &metadata)?;
-        let directory = open_verified_directory(quarantine, &name, &metadata)?;
+        let directory = open_verified_directory_detailed(quarantine, &name, &metadata)?;
         require_empty_directory(&directory, budget)?;
         return Ok(QuarantineCandidate::EmptyPendingBatch { name });
     }
     if let Some(authority) = CleanupBatchName::parse(&name) {
         validate_kind(RemovedObjectKind::Directory, &metadata)?;
         if MetadataIdentity::from_metadata(&metadata) != authority.identity {
-            return Err(QuarantineInspectionError::UnsafeState);
+            return Err(QuarantineInspectionFailure::unsafe_state(
+                StorageDoctorCleanupReason::IdentityMismatch,
+            ));
         }
-        let directory = open_verified_directory(quarantine, &name, &metadata)?;
+        let directory = open_verified_directory_detailed(quarantine, &name, &metadata)?;
         return Ok(QuarantineCandidate::InterruptedBatch {
             name,
-            work: inspect_descendants(directory, budget, QuarantineWorkPortion::CleanupInspection)?,
+            work: inspect_descendants_detailed(
+                directory,
+                budget,
+                QuarantineWorkPortion::CleanupInspection,
+            )?,
         });
     }
-    let authority =
-        RemovalTombstoneName::parse(&name).ok_or(QuarantineInspectionError::UnrecognizedState)?;
+    let authority = RemovalTombstoneName::parse(&name).ok_or(QuarantineInspectionFailure {
+        coarse: QuarantineInspectionError::UnrecognizedState,
+        detail: StorageDoctorCleanupDetail {
+            location: StorageDoctorCleanupLocation::Entry,
+            reason: StorageDoctorCleanupReason::UnrecognizedName,
+            entry: None,
+        },
+    })?;
     validate_kind(authority.kind, &metadata)?;
     if MetadataIdentity::from_metadata(&metadata) != authority.identity {
-        return Err(QuarantineInspectionError::UnsafeState);
+        return Err(QuarantineInspectionFailure::unsafe_state(
+            StorageDoctorCleanupReason::IdentityMismatch,
+        ));
     }
     match authority.kind {
         RemovedObjectKind::File => {
-            let opened = open_verified_file(quarantine, &name, &metadata)?;
+            let opened = open_verified_file_detailed(quarantine, &name, &metadata)?;
             require_single_link(&opened)?;
             Ok(QuarantineCandidate::File {
                 name,
@@ -237,10 +323,10 @@ fn inspect_tombstone(
             })
         }
         RemovedObjectKind::Directory => {
-            let directory = open_verified_directory(quarantine, &name, &metadata)?;
+            let directory = open_verified_directory_detailed(quarantine, &name, &metadata)?;
             Ok(QuarantineCandidate::Directory {
                 name,
-                work: inspect_descendants(
+                work: inspect_descendants_detailed(
                     directory,
                     budget,
                     QuarantineWorkPortion::CleanupInspection,
@@ -257,29 +343,43 @@ fn inspect_tombstone(
     name: OsString,
     metadata: Metadata,
     budget: &mut QuarantineCleanupBudget,
-) -> Result<QuarantineCandidate, QuarantineInspectionError> {
+) -> Result<QuarantineCandidate, QuarantineInspectionFailure> {
     if CleanupPendingName::parse(&name).is_some() {
         validate_kind(RemovedObjectKind::Directory, &metadata)?;
-        let directory = open_verified_directory(quarantine, &name, &metadata)?;
-        kitrove_windows_security::inspect_private_directory(&directory)
-            .map_err(|_| QuarantineInspectionError::UnsafeState)?;
+        let directory = open_verified_directory_detailed(quarantine, &name, &metadata)?;
+        kitrove_windows_security::inspect_private_directory(&directory).map_err(|_| {
+            QuarantineInspectionFailure::unsafe_state(
+                StorageDoctorCleanupReason::NativeProtectionRejected,
+            )
+        })?;
         require_empty_directory(&directory, budget)?;
         return Ok(QuarantineCandidate::EmptyPendingBatch { name });
     }
     if let Some(authority) = CleanupBatchName::parse(&name) {
         validate_kind(RemovedObjectKind::Directory, &metadata)?;
-        let directory = open_verified_directory(quarantine, &name, &metadata)?;
-        kitrove_windows_security::inspect_private_directory(&directory)
-            .map_err(|_| QuarantineInspectionError::UnsafeState)?;
-        if kitrove_windows_security::file_identity(&directory)
-            .map_err(|_| QuarantineInspectionError::UnsafeState)?
-            != authority.identity
+        let directory = open_verified_directory_detailed(quarantine, &name, &metadata)?;
+        kitrove_windows_security::inspect_private_directory(&directory).map_err(|_| {
+            QuarantineInspectionFailure::unsafe_state(
+                StorageDoctorCleanupReason::NativeProtectionRejected,
+            )
+        })?;
+        if kitrove_windows_security::file_identity(&directory).map_err(|_| {
+            QuarantineInspectionFailure::unsafe_state(
+                StorageDoctorCleanupReason::MetadataUnreadable,
+            )
+        })? != authority.identity
         {
-            return Err(QuarantineInspectionError::UnsafeState);
+            return Err(QuarantineInspectionFailure::unsafe_state(
+                StorageDoctorCleanupReason::IdentityMismatch,
+            ));
         }
         return Ok(QuarantineCandidate::InterruptedBatch {
             name,
-            work: inspect_descendants(directory, budget, QuarantineWorkPortion::CleanupInspection)?,
+            work: inspect_descendants_detailed(
+                directory,
+                budget,
+                QuarantineWorkPortion::CleanupInspection,
+            )?,
         });
     }
     let Some(authority) = RemovalTombstoneName::parse(&name) else {
@@ -288,14 +388,22 @@ fn inspect_tombstone(
     validate_kind(authority.kind, &metadata)?;
     match authority.kind {
         RemovedObjectKind::File => {
-            let (file, opened) = open_verified_file_capability(quarantine, &name, &metadata)?;
-            kitrove_windows_security::inspect_owned_file(&file)
-                .map_err(|_| QuarantineInspectionError::UnsafeState)?;
-            if kitrove_windows_security::file_identity(&file)
-                .map_err(|_| QuarantineInspectionError::UnsafeState)?
-                != authority.identity
+            let (file, opened) =
+                open_verified_file_capability_detailed(quarantine, &name, &metadata)?;
+            kitrove_windows_security::inspect_owned_file(&file).map_err(|_| {
+                QuarantineInspectionFailure::unsafe_state(
+                    StorageDoctorCleanupReason::NativeProtectionRejected,
+                )
+            })?;
+            if kitrove_windows_security::file_identity(&file).map_err(|_| {
+                QuarantineInspectionFailure::unsafe_state(
+                    StorageDoctorCleanupReason::MetadataUnreadable,
+                )
+            })? != authority.identity
             {
-                return Err(QuarantineInspectionError::UnsafeState);
+                return Err(QuarantineInspectionFailure::unsafe_state(
+                    StorageDoctorCleanupReason::IdentityMismatch,
+                ));
             }
             require_single_link(&opened)?;
             Ok(QuarantineCandidate::File {
@@ -305,18 +413,25 @@ fn inspect_tombstone(
             })
         }
         RemovedObjectKind::Directory => {
-            let directory = open_verified_directory(quarantine, &name, &metadata)?;
-            kitrove_windows_security::inspect_owned_directory(&directory)
-                .map_err(|_| QuarantineInspectionError::UnsafeState)?;
-            if kitrove_windows_security::file_identity(&directory)
-                .map_err(|_| QuarantineInspectionError::UnsafeState)?
-                != authority.identity
+            let directory = open_verified_directory_detailed(quarantine, &name, &metadata)?;
+            kitrove_windows_security::inspect_owned_directory(&directory).map_err(|_| {
+                QuarantineInspectionFailure::unsafe_state(
+                    StorageDoctorCleanupReason::NativeProtectionRejected,
+                )
+            })?;
+            if kitrove_windows_security::file_identity(&directory).map_err(|_| {
+                QuarantineInspectionFailure::unsafe_state(
+                    StorageDoctorCleanupReason::MetadataUnreadable,
+                )
+            })? != authority.identity
             {
-                return Err(QuarantineInspectionError::UnsafeState);
+                return Err(QuarantineInspectionFailure::unsafe_state(
+                    StorageDoctorCleanupReason::IdentityMismatch,
+                ));
             }
             Ok(QuarantineCandidate::Directory {
                 name,
-                work: inspect_descendants(
+                work: inspect_descendants_detailed(
                     directory,
                     budget,
                     QuarantineWorkPortion::CleanupInspection,
@@ -333,7 +448,7 @@ fn inspect_tombstone(
     name: OsString,
     metadata: Metadata,
     budget: &mut QuarantineCleanupBudget,
-) -> Result<QuarantineCandidate, QuarantineInspectionError> {
+) -> Result<QuarantineCandidate, QuarantineInspectionFailure> {
     inspect_retained_tombstone(quarantine, name, metadata, budget)
 }
 
@@ -343,13 +458,19 @@ fn inspect_retained_tombstone(
     name: OsString,
     metadata: Metadata,
     budget: &mut QuarantineCleanupBudget,
-) -> Result<QuarantineCandidate, QuarantineInspectionError> {
-    let retained =
-        RetainedTombstoneName::parse(&name).ok_or(QuarantineInspectionError::UnrecognizedState)?;
+) -> Result<QuarantineCandidate, QuarantineInspectionFailure> {
+    let retained = RetainedTombstoneName::parse(&name).ok_or(QuarantineInspectionFailure {
+        coarse: QuarantineInspectionError::UnrecognizedState,
+        detail: StorageDoctorCleanupDetail {
+            location: StorageDoctorCleanupLocation::Entry,
+            reason: StorageDoctorCleanupReason::UnrecognizedName,
+            entry: None,
+        },
+    })?;
     validate_kind(retained.kind, &metadata)?;
     match retained.kind {
         RemovedObjectKind::File => {
-            let opened = open_verified_file(quarantine, &name, &metadata)?;
+            let opened = open_verified_file_detailed(quarantine, &name, &metadata)?;
             Ok(QuarantineCandidate::File {
                 name,
                 content: FileContentState::from_length(opened.len()),
@@ -357,10 +478,10 @@ fn inspect_retained_tombstone(
             })
         }
         RemovedObjectKind::Directory => {
-            let directory = open_verified_directory(quarantine, &name, &metadata)?;
+            let directory = open_verified_directory_detailed(quarantine, &name, &metadata)?;
             Ok(QuarantineCandidate::Directory {
                 name,
-                work: inspect_descendants(
+                work: inspect_descendants_detailed(
                     directory,
                     budget,
                     QuarantineWorkPortion::CleanupInspection,
@@ -374,66 +495,77 @@ fn inspect_retained_tombstone(
 fn validate_kind(
     kind: RemovedObjectKind,
     metadata: &Metadata,
-) -> Result<(), QuarantineInspectionError> {
+) -> Result<(), QuarantineInspectionFailure> {
     let expected_kind = match kind {
         RemovedObjectKind::File => metadata.is_file(),
         RemovedObjectKind::Directory => metadata.is_dir(),
     };
-    if !safe_metadata(metadata) || !expected_kind {
-        return Err(QuarantineInspectionError::UnsafeState);
+    if !safe_metadata(metadata) {
+        return Err(QuarantineInspectionFailure::unsafe_state(
+            StorageDoctorCleanupReason::LinkOrReparsePoint,
+        ));
+    }
+    if !expected_kind {
+        return Err(QuarantineInspectionFailure::unsafe_state(
+            StorageDoctorCleanupReason::WrongEntryKind,
+        ));
     }
     Ok(())
 }
 
-pub(super) fn open_verified_file(
+fn open_verified_file_detailed(
     parent: &Dir,
     name: &std::ffi::OsStr,
     selected: &Metadata,
-) -> Result<Metadata, QuarantineInspectionError> {
-    open_verified_file_capability(parent, name, selected).map(|(_, metadata)| metadata)
+) -> Result<Metadata, QuarantineInspectionFailure> {
+    open_verified_file_capability_detailed(parent, name, selected).map(|(_, metadata)| metadata)
 }
 
-pub(super) fn open_verified_file_capability(
+fn open_verified_file_capability_detailed(
     parent: &Dir,
     name: &std::ffi::OsStr,
     selected: &Metadata,
-) -> Result<(cap_std::fs::File, Metadata), QuarantineInspectionError> {
+) -> Result<(cap_std::fs::File, Metadata), QuarantineInspectionFailure> {
     let mut options = OpenOptions::new();
     options.read(true).follow(FollowSymlinks::No).nonblock(true);
-    let file = parent
-        .open_with(name, &options)
-        .map_err(|_| QuarantineInspectionError::UnsafeState)?;
-    let opened = file
-        .metadata()
-        .map_err(|_| QuarantineInspectionError::UnsafeState)?;
+    let file = parent.open_with(name, &options).map_err(|_| {
+        QuarantineInspectionFailure::unsafe_state(StorageDoctorCleanupReason::OpenRejected)
+    })?;
+    let opened = file.metadata().map_err(|_| {
+        QuarantineInspectionFailure::unsafe_state(StorageDoctorCleanupReason::MetadataUnreadable)
+    })?;
     if !safe_metadata(&opened) || !opened.is_file() || !same_file(selected, &opened) {
-        return Err(QuarantineInspectionError::UnsafeState);
+        return Err(QuarantineInspectionFailure::unsafe_state(
+            StorageDoctorCleanupReason::ChangedDuringInspection,
+        ));
     }
     Ok((file, opened))
 }
 
-pub(super) fn open_verified_directory(
+fn open_verified_directory_detailed(
     parent: &Dir,
     name: &std::ffi::OsStr,
     selected: &Metadata,
-) -> Result<Dir, QuarantineInspectionError> {
-    let directory = parent
-        .open_dir_nofollow(name)
-        .map_err(|_| QuarantineInspectionError::UnsafeState)?;
-    let opened = directory
-        .dir_metadata()
-        .map_err(|_| QuarantineInspectionError::UnsafeState)?;
+) -> Result<Dir, QuarantineInspectionFailure> {
+    let directory = parent.open_dir_nofollow(name).map_err(|_| {
+        QuarantineInspectionFailure::unsafe_state(StorageDoctorCleanupReason::OpenRejected)
+    })?;
+    let opened = directory.dir_metadata().map_err(|_| {
+        QuarantineInspectionFailure::unsafe_state(StorageDoctorCleanupReason::MetadataUnreadable)
+    })?;
     if !safe_metadata(&opened) || !opened.is_dir() || !same_file(selected, &opened) {
-        return Err(QuarantineInspectionError::UnsafeState);
+        return Err(QuarantineInspectionFailure::unsafe_state(
+            StorageDoctorCleanupReason::ChangedDuringInspection,
+        ));
     }
     Ok(directory)
 }
 
 #[cfg(any(unix, windows))]
-pub(super) fn is_empty_directory(directory: &Dir) -> Result<bool, QuarantineInspectionError> {
-    let mut entries = directory
-        .entries()
-        .map_err(|_| QuarantineInspectionError::UnsafeState)?;
+fn is_empty_directory_detailed(directory: &Dir) -> Result<bool, QuarantineInspectionFailure> {
+    let mut entries = directory.entries().map_err(|_| {
+        QuarantineInspectionFailure::unsafe_state(StorageDoctorCleanupReason::DirectoryUnreadable)
+    })?;
     Ok(entries.next().is_none())
 }
 
@@ -441,19 +573,30 @@ pub(super) fn is_empty_directory(directory: &Dir) -> Result<bool, QuarantineInsp
 fn require_empty_directory(
     directory: &Dir,
     budget: &mut QuarantineCleanupBudget,
-) -> Result<(), QuarantineInspectionError> {
-    if is_empty_directory(directory)? {
+) -> Result<(), QuarantineInspectionFailure> {
+    if is_empty_directory_detailed(directory)? {
         return Ok(());
     }
     budget.try_descendant(QuarantineWorkPortion::CleanupInspection, 1)?;
-    Err(QuarantineInspectionError::UnsafeState)
+    Err(QuarantineInspectionFailure::unsafe_state(
+        StorageDoctorCleanupReason::PendingBatchNotVerifiedEmpty,
+    ))
 }
 
-pub(super) fn inspect_descendants(
+fn inspect_descendants_detailed(
     root: Dir,
     budget: &mut QuarantineCleanupBudget,
     portion: QuarantineWorkPortion,
-) -> Result<TombstoneWork, QuarantineInspectionError> {
+) -> Result<TombstoneWork, QuarantineInspectionFailure> {
+    inspect_descendants_inner(root, budget, portion)
+        .map_err(QuarantineInspectionFailure::in_descendant)
+}
+
+fn inspect_descendants_inner(
+    root: Dir,
+    budget: &mut QuarantineCleanupBudget,
+    portion: QuarantineWorkPortion,
+) -> Result<TombstoneWork, QuarantineInspectionFailure> {
     let mut pending = BTreeMap::from([(
         Vec::new(),
         PendingDirectory {
@@ -464,42 +607,48 @@ pub(super) fn inspect_descendants(
     )]);
     let mut work = TombstoneWork::default();
     while let Some((_key, current)) = pending.pop_first() {
-        let entries = current
-            .directory
-            .entries()
-            .map_err(|_| QuarantineInspectionError::UnsafeState)?;
+        let entries = current.directory.entries().map_err(|_| {
+            QuarantineInspectionFailure::unsafe_state(
+                StorageDoctorCleanupReason::DirectoryUnreadable,
+            )
+        })?;
         let entries = collect_bounded_sorted_directory_entries(
             entries,
             budget.remaining_descendant_visits(portion),
         )
-        .map_err(|_| QuarantineInspectionError::UnsafeState)?;
+        .map_err(|_| {
+            QuarantineInspectionFailure::unsafe_state(
+                StorageDoctorCleanupReason::DirectoryUnreadable,
+            )
+        })?;
         let BoundedDirectoryEntries::Complete(entries) = entries else {
-            return Err(QuarantineInspectionError::Budget(
-                QuarantineBudgetError::ReservationExceeded(portion),
-            ));
+            return Err(QuarantineBudgetError::ReservationExceeded(portion).into());
         };
         for entry in entries {
             let depth = current
                 .depth
                 .checked_add(1)
-                .ok_or(QuarantineInspectionError::Budget(
-                    QuarantineBudgetError::ArithmeticOverflow,
-                ))?;
+                .ok_or(QuarantineBudgetError::ArithmeticOverflow)?;
             budget.try_descendant(portion, depth)?;
-            work = work.checked_add(TombstoneWork::new(0, 1, depth)).ok_or(
-                QuarantineInspectionError::Budget(QuarantineBudgetError::ArithmeticOverflow),
-            )?;
+            work = work
+                .checked_add(TombstoneWork::new(0, 1, depth))
+                .ok_or(QuarantineBudgetError::ArithmeticOverflow)?;
             let name = entry.file_name();
-            let selected = entry
-                .full_metadata()
-                .map_err(|_| QuarantineInspectionError::UnsafeState)?;
+            let selected = entry.full_metadata().map_err(|_| {
+                QuarantineInspectionFailure::unsafe_state(
+                    StorageDoctorCleanupReason::MetadataUnreadable,
+                )
+            })?;
             if !safe_metadata(&selected) {
-                return Err(QuarantineInspectionError::UnsafeState);
+                return Err(QuarantineInspectionFailure::unsafe_state(
+                    StorageDoctorCleanupReason::LinkOrReparsePoint,
+                ));
             }
             if selected.is_file() {
-                open_verified_file(&current.directory, &name, &selected)?;
+                open_verified_file_detailed(&current.directory, &name, &selected)?;
             } else if selected.is_dir() {
-                let directory = open_verified_directory(&current.directory, &name, &selected)?;
+                let directory =
+                    open_verified_directory_detailed(&current.directory, &name, &selected)?;
                 let mut key = current.key.clone();
                 if !key.is_empty() {
                     key.push(b'/');
@@ -514,7 +663,9 @@ pub(super) fn inspect_descendants(
                     },
                 );
             } else {
-                return Err(QuarantineInspectionError::UnsafeState);
+                return Err(QuarantineInspectionFailure::unsafe_state(
+                    StorageDoctorCleanupReason::WrongEntryKind,
+                ));
             }
         }
     }
@@ -522,12 +673,42 @@ pub(super) fn inspect_descendants(
 }
 
 #[cfg(any(unix, windows))]
-fn require_single_link(metadata: &Metadata) -> Result<(), QuarantineInspectionError> {
+fn require_single_link(metadata: &Metadata) -> Result<(), QuarantineInspectionFailure> {
     if has_single_file_link(metadata) {
         Ok(())
     } else {
-        Err(QuarantineInspectionError::UnsafeState)
+        Err(QuarantineInspectionFailure::unsafe_state(
+            StorageDoctorCleanupReason::FileLinkCountRejected,
+        ))
     }
+}
+
+pub(crate) fn inspect_store_quarantine(
+    store: &ObjectStore,
+    budget: &mut QuarantineCleanupBudget,
+) -> Result<QuarantineInspection, QuarantineInspectionError> {
+    inspect_store_quarantine_detailed(store, budget).map_err(|error| error.coarse)
+}
+
+pub(super) fn open_verified_file_capability(
+    parent: &Dir,
+    name: &std::ffi::OsStr,
+    selected: &Metadata,
+) -> Result<(cap_std::fs::File, Metadata), QuarantineInspectionError> {
+    open_verified_file_capability_detailed(parent, name, selected).map_err(|error| error.coarse)
+}
+
+pub(super) fn open_verified_directory(
+    parent: &Dir,
+    name: &std::ffi::OsStr,
+    selected: &Metadata,
+) -> Result<Dir, QuarantineInspectionError> {
+    open_verified_directory_detailed(parent, name, selected).map_err(|error| error.coarse)
+}
+
+#[cfg(any(unix, windows))]
+pub(super) fn is_empty_directory(directory: &Dir) -> Result<bool, QuarantineInspectionError> {
+    is_empty_directory_detailed(directory).map_err(|error| error.coarse)
 }
 
 #[cfg(test)]
@@ -607,6 +788,52 @@ mod tests {
         let quarantine = create_private_quarantine(root);
         fs::rename(source, quarantine.join(&name)).unwrap();
         name
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unlinked_open_file_is_a_link_count_refusal_not_a_multiple_link_claim() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = Dir::open_ambient_dir(temporary.path(), cap_std::ambient_authority()).unwrap();
+        let file = root.create("private-canary").unwrap();
+        root.remove_file("private-canary").unwrap();
+        let failure = require_single_link(&file.metadata().unwrap()).unwrap_err();
+        assert_eq!(failure.coarse, QuarantineInspectionError::UnsafeState);
+        assert_eq!(
+            failure.detail.reason,
+            StorageDoctorCleanupReason::FileLinkCountRejected
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn detailed_inspection_preserves_coarse_results_and_budget_charges() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path().canonicalize().unwrap();
+        let quarantine = create_private_quarantine(&root);
+        let pending = quarantine
+            .join(CleanupPendingName::encode("00112233445566778899aabbccddeeff").unwrap());
+        fs::create_dir(&pending).unwrap();
+        fs::write(pending.join("PRIVATE_ENTRY_CANARY"), "private body").unwrap();
+        let store = ObjectStore::open(&root).unwrap();
+        for descendants in [0, 1] {
+            let mut coarse_budget = inspection_budget(1, descendants, 1);
+            let mut detailed_budget = coarse_budget.clone();
+            let coarse = inspect_store_quarantine(&store, &mut coarse_budget);
+            let detailed = inspect_store_quarantine_detailed(&store, &mut detailed_budget);
+            assert_eq!(coarse, detailed.clone().map_err(|error| error.coarse));
+            assert_eq!(coarse_budget, detailed_budget);
+            let failure = detailed.unwrap_err();
+            assert_eq!(failure.detail.entry, Some(1));
+            assert_eq!(
+                failure.detail.reason,
+                if descendants == 0 {
+                    StorageDoctorCleanupReason::InspectionLimit
+                } else {
+                    StorageDoctorCleanupReason::PendingBatchNotVerifiedEmpty
+                }
+            );
+        }
     }
 
     #[test]
@@ -1044,14 +1271,25 @@ mod tests {
         budget.try_root().unwrap();
         let original_path = quarantine_path.join("moved-original");
 
-        let error =
-            inspect_quarantine_directory_with_hook(quarantine, &mut budget, &mut |selected_name| {
+        let error = inspect_quarantine_directory_with_hook_detailed(
+            quarantine,
+            &mut budget,
+            &mut |selected_name| {
                 fs::rename(quarantine_path.join(selected_name), &original_path).unwrap();
                 fs::write(quarantine_path.join(selected_name), "replacement").unwrap();
-            })
-            .unwrap_err();
+            },
+        )
+        .unwrap_err();
 
-        assert_eq!(error, QuarantineInspectionError::UnsafeState);
+        assert_eq!(error.coarse, QuarantineInspectionError::UnsafeState);
+        assert_eq!(
+            error.detail,
+            StorageDoctorCleanupDetail {
+                location: StorageDoctorCleanupLocation::Entry,
+                reason: StorageDoctorCleanupReason::ChangedDuringInspection,
+                entry: Some(1)
+            }
+        );
         assert_eq!(fs::read_to_string(original_path).unwrap(), "original");
         assert_eq!(
             fs::read_to_string(quarantine_path.join(name)).unwrap(),
@@ -1263,6 +1501,15 @@ mod tests {
             inspect_store_quarantine(&store, &mut mismatch_budget),
             Err(QuarantineInspectionError::UnsafeState)
         );
+        let mut detailed_budget = inspection_budget(1, 0, 1);
+        let failure = inspect_store_quarantine_detailed(&store, &mut detailed_budget).unwrap_err();
+        assert_eq!(failure.coarse, QuarantineInspectionError::UnsafeState);
+        assert_eq!(
+            failure.detail.reason,
+            StorageDoctorCleanupReason::IdentityMismatch
+        );
+        assert_eq!(failure.detail.entry, Some(1));
+        assert_eq!(detailed_budget, mismatch_budget);
     }
 
     #[cfg(windows)]
@@ -1292,6 +1539,15 @@ mod tests {
             inspect_store_quarantine(&store, &mut budget),
             Err(QuarantineInspectionError::UnsafeState)
         );
+        let mut detailed_budget = inspection_budget(1, 0, 1);
+        let failure = inspect_store_quarantine_detailed(&store, &mut detailed_budget).unwrap_err();
+        assert_eq!(failure.coarse, QuarantineInspectionError::UnsafeState);
+        assert_eq!(
+            failure.detail.reason,
+            StorageDoctorCleanupReason::IdentityMismatch
+        );
+        assert_eq!(failure.detail.entry, Some(1));
+        assert_eq!(detailed_budget, budget);
     }
 
     #[cfg(windows)]
@@ -1309,19 +1565,37 @@ mod tests {
             fs::remove_file(entry.unwrap().path()).unwrap();
         }
         let source = root.join("source");
-        fs::write(&source, "managed").unwrap();
+        kitrove_windows_security::write_current_user_owned_file_for_tests(&source, b"managed")
+            .unwrap();
         let opened = fs::File::open(&source).unwrap();
         let identity = kitrove_windows_security::file_identity(&opened).unwrap();
         drop(opened);
-        fs::hard_link(&source, root.join("external-alias")).unwrap();
         let name = RemovalTombstoneName {
             kind: RemovedObjectKind::File,
             identity,
         }
         .encode("00112233445566778899aabbccddeeff")
         .unwrap();
-        fs::rename(&source, quarantine.join(name)).unwrap();
+        let retained = quarantine.join(&name);
+        fs::rename(&source, &retained).unwrap();
         let store = ObjectStore::open(&root).unwrap();
+        let mut single_link_budget = inspection_budget(1, 0, 1);
+        let baseline = inspect_store_quarantine_detailed(&store, &mut single_link_budget).unwrap();
+        assert!(matches!(
+            &baseline.candidates()[0],
+            QuarantineCandidate::File {
+                disposition: CleanupDisposition::Eligible,
+                ..
+            }
+        ));
+        fs::hard_link(&retained, root.join("external-alias")).unwrap();
+        let linked = fs::File::open(&retained).unwrap();
+        kitrove_windows_security::inspect_owned_file(&linked).unwrap();
+        assert_eq!(
+            kitrove_windows_security::file_identity(&linked).unwrap(),
+            identity
+        );
+        drop(linked);
         let mut budget = inspection_budget(1, 0, 1);
 
         assert_eq!(
@@ -1332,6 +1606,15 @@ mod tests {
             fs::read_to_string(root.join("external-alias")).unwrap(),
             "managed"
         );
+        let mut detailed_budget = inspection_budget(1, 0, 1);
+        let failure = inspect_store_quarantine_detailed(&store, &mut detailed_budget).unwrap_err();
+        assert_eq!(failure.coarse, QuarantineInspectionError::UnsafeState);
+        assert_eq!(
+            failure.detail.reason,
+            StorageDoctorCleanupReason::FileLinkCountRejected
+        );
+        assert_eq!(failure.detail.entry, Some(1));
+        assert_eq!(detailed_budget, budget);
     }
 
     #[cfg(not(unix))]

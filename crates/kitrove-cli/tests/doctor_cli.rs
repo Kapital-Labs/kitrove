@@ -215,7 +215,7 @@ fn doctor_closed_json_is_read_only_and_redacted() {
             "checks"
         ])
     );
-    assert_eq!(value["schema_version"], 1);
+    assert_eq!(value["schema_version"], 2);
     assert_eq!(value["version"], env!("CARGO_PKG_VERSION"));
     assert_eq!(value["inspection"], "unlocked");
     assert_eq!(value["mutation_access"], "not_tested");
@@ -468,5 +468,57 @@ fn doctor_reports_missing_machine_state_without_initializing_it() {
     assert_redacted(&fixture, &output);
     assert_redacted(&fixture, &human);
     assert!(!state_file.exists());
+    assert_eq!(snapshot(&fixture.root), before);
+}
+
+#[cfg(any(unix, windows))]
+#[test]
+fn doctor_identifies_cleanup_failure_in_human_and_closed_json_without_extra_commands() {
+    let fixture = Fixture::new();
+    let quarantine = fixture.collection.join(".kitrove/removal-quarantine");
+    private_directory(&quarantine);
+    let pending = quarantine.join(".kitrove-cleanup-pending-v1-00112233445566778899aabbccddeeff");
+    private_directory(&pending);
+    private_file(&pending.join(ASSET_CANARY), CANARY.as_bytes());
+    let before = snapshot(&fixture.root);
+    let human = fixture.explicit(false);
+    assert_eq!(human.status.code(), Some(3));
+    let text = String::from_utf8(human.stdout.clone()).unwrap();
+    assert!(
+        text.contains("pending cleanup folder could not be verified empty"),
+        "{text}"
+    );
+    assert!(text.contains("Retained item 1 in this inspection"));
+    assert!(text.contains("leave retained files in place"));
+    let json = fixture.explicit(true);
+    assert_eq!(json.status.code(), Some(3));
+    let value = decoded(&json);
+    assert_eq!(value["schema_version"], 2);
+    let findings: Vec<_> = value["checks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|check| check.get("detail").is_some())
+        .collect();
+    assert_eq!(findings.len(), 1);
+    let check = findings[0];
+    assert_eq!(check["role"], "collection");
+    assert_eq!(check["code"], "retained_unsafe");
+    assert_eq!(
+        check["detail"],
+        serde_json::json!({"location":"entry", "reason":"pending_batch_not_verified_empty", "entry":1})
+    );
+    assert_eq!(
+        check
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from(["role", "stage", "status", "code", "detail"])
+    );
+    for output in [&human, &json] {
+        assert_redacted(&fixture, output);
+    }
     assert_eq!(snapshot(&fixture.root), before);
 }

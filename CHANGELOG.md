@@ -4,6 +4,13 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+### Changed
+
+- Make doctor explain the first failed retained-cleanup check directly, including
+  identity mismatches, links, directory protection and pending batch contents.
+  Its redacted JSON report moves to schema 2 with a closed diagnostic detail;
+  inspection remains read-only and does not grant repair or deletion authority.
+
 ## 0.1.0-rc.5.19
 
 Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.
