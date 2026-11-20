@@ -2,9 +2,9 @@
 
 `kitrove doctor` checks local collection and application-storage conditions without
 changing files. It gives a short report and a redacted JSON report for support.
-This command is included in RC5.19; RC5.18 does not include it. The more specific
-cleanup findings described below are source changes for a future preview, not an
-update to the published RC5.19 executable.
+Doctor was introduced in RC5.19; RC5.18 does not include it. RC5.20 adds the
+specific retained-cleanup findings described below. RC5.19 keeps its original
+generic cleanup messages and JSON schema 1.
 
 ```sh
 kitrove doctor --help
