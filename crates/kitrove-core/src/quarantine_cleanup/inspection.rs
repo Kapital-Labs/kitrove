@@ -1565,19 +1565,37 @@ mod tests {
             fs::remove_file(entry.unwrap().path()).unwrap();
         }
         let source = root.join("source");
-        fs::write(&source, "managed").unwrap();
+        kitrove_windows_security::write_current_user_owned_file_for_tests(&source, b"managed")
+            .unwrap();
         let opened = fs::File::open(&source).unwrap();
         let identity = kitrove_windows_security::file_identity(&opened).unwrap();
         drop(opened);
-        fs::hard_link(&source, root.join("external-alias")).unwrap();
         let name = RemovalTombstoneName {
             kind: RemovedObjectKind::File,
             identity,
         }
         .encode("00112233445566778899aabbccddeeff")
         .unwrap();
-        fs::rename(&source, quarantine.join(name)).unwrap();
+        let retained = quarantine.join(&name);
+        fs::rename(&source, &retained).unwrap();
         let store = ObjectStore::open(&root).unwrap();
+        let mut single_link_budget = inspection_budget(1, 0, 1);
+        let baseline = inspect_store_quarantine_detailed(&store, &mut single_link_budget).unwrap();
+        assert!(matches!(
+            &baseline.candidates()[0],
+            QuarantineCandidate::File {
+                disposition: CleanupDisposition::Eligible,
+                ..
+            }
+        ));
+        fs::hard_link(&retained, root.join("external-alias")).unwrap();
+        let linked = fs::File::open(&retained).unwrap();
+        kitrove_windows_security::inspect_owned_file(&linked).unwrap();
+        assert_eq!(
+            kitrove_windows_security::file_identity(&linked).unwrap(),
+            identity
+        );
+        drop(linked);
         let mut budget = inspection_budget(1, 0, 1);
 
         assert_eq!(

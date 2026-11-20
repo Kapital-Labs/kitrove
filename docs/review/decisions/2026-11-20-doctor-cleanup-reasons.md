@@ -42,3 +42,18 @@ restores generic doctor reporting; no state migration or cleanup is required.
 
 Validation results are recorded separately; this note does not assert unrun
 checks passed or constitute exhaustive independent repository review.
+
+
+The first exact public Windows run exposed an unproven fixture precondition:
+the old hardlink fixture used a generic file writer, and the actual first failure
+was native protection inspection, not link-count inspection. The specific reason
+was correctly reported; the new test expectation was unsupported. This does not
+establish which native subcondition failed or the file's actual owner SID.
+Create that one synthetic file with the existing explicit current-user-owned
+fixture writer. Prove its single-link retained form is eligible, add an external
+hardlink, then independently prove native ownership/type and complete identity
+still pass before requiring the exact link-count refusal. The original coarse
+refusal, unchanged external content, ordinal and budget checks remain. No
+production code, native predicate, permissions policy or error mapping changes.
+Retain the failed run, validate the corrected source and require a new exact PR
+run rather than rerunning the unchanged failed candidate.
