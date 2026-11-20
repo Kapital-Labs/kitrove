@@ -1,6 +1,6 @@
-# Quick skill collection (RC5.19)
+# Quick skill collection (RC5.20)
 
-These instructions assume RC5.19. Quick collection was introduced in RC5.6;
+These instructions assume RC5.20. Quick collection was introduced in RC5.6;
 RC5.5 has the older per-item prompts. Check
 `kitrove --version` before following these shortcuts. This guide does not itself
 establish publication or update an installed binary. Use the current download

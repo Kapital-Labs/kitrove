@@ -4,6 +4,10 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.5.20
+
+Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.
+
 ### Changed
 
 - Make doctor explain the first failed retained-cleanup check directly, including
