@@ -215,7 +215,7 @@ fn doctor_closed_json_is_read_only_and_redacted() {
             "checks"
         ])
     );
-    assert_eq!(value["schema_version"], 2);
+    assert_eq!(value["schema_version"], 3);
     assert_eq!(value["version"], env!("CARGO_PKG_VERSION"));
     assert_eq!(value["inspection"], "unlocked");
     assert_eq!(value["mutation_access"], "not_tested");
@@ -493,7 +493,7 @@ fn doctor_identifies_cleanup_failure_in_human_and_closed_json_without_extra_comm
     let json = fixture.explicit(true);
     assert_eq!(json.status.code(), Some(3));
     let value = decoded(&json);
-    assert_eq!(value["schema_version"], 2);
+    assert_eq!(value["schema_version"], 3);
     let findings: Vec<_> = value["checks"]
         .as_array()
         .unwrap()
@@ -521,4 +521,113 @@ fn doctor_identifies_cleanup_failure_in_human_and_closed_json_without_extra_comm
         assert_redacted(&fixture, output);
     }
     assert_eq!(snapshot(&fixture.root), before);
+}
+
+#[cfg(unix)]
+#[test]
+fn doctor_distinguishes_retained_identity_components_without_extra_commands() {
+    use std::os::unix::fs::MetadataExt as _;
+
+    for kind in ["file", "directory", "batch"] {
+        for (component, disk_differs, file_differs, words) in [
+            (
+                "device",
+                true,
+                false,
+                "device ID differs; the file ID matches",
+            ),
+            (
+                "file",
+                false,
+                true,
+                "file ID differs; the device ID matches",
+            ),
+            (
+                "device_and_file",
+                true,
+                true,
+                "device and file IDs both differ",
+            ),
+        ] {
+            let fixture = Fixture::new();
+            let mut entries = Vec::new();
+            for root in [&fixture.collection, &fixture.state] {
+                let quarantine = root.join(".kitrove/removal-quarantine");
+                private_directory(&quarantine);
+                let seed = quarantine.join(ASSET_CANARY);
+                if kind == "file" {
+                    private_file(&seed, CANARY.as_bytes());
+                } else {
+                    private_directory(&seed);
+                }
+                let metadata = fs::symlink_metadata(&seed).unwrap();
+                let prefix = match kind {
+                    "file" => ".kitrove-removed-v1-unix-f-",
+                    "directory" => ".kitrove-removed-v1-unix-d-",
+                    _ => ".kitrove-cleanup-v1-unix-",
+                };
+                let name = |device, inode| {
+                    format!("{prefix}{device:016x}-{inode:016x}-00112233445566778899aabbccddeeff")
+                };
+                let correct = quarantine.join(name(metadata.dev(), metadata.ino()));
+                let mismatched = quarantine.join(name(
+                    metadata.dev() ^ u64::from(disk_differs),
+                    metadata.ino() ^ u64::from(file_differs),
+                ));
+                fs::rename(seed, &correct).unwrap();
+                entries.push((correct, mismatched));
+            }
+            let healthy_before = snapshot(&fixture.root);
+            let healthy = fixture.explicit(true);
+            assert_eq!(healthy.status.code(), Some(0), "{kind}: {component}");
+            assert_eq!(snapshot(&fixture.root), healthy_before);
+            for (correct, mismatched) in &entries {
+                fs::rename(correct, mismatched).unwrap();
+            }
+            let before = snapshot(&fixture.root);
+            let human = fixture.explicit(false);
+            assert_eq!(human.status.code(), Some(3));
+            let text = String::from_utf8(human.stdout.clone()).unwrap();
+            assert!(text.contains("share this report for recovery review"));
+            assert!(!text.contains("doctor --json"));
+            assert_eq!(
+                text.matches(words).count(),
+                2,
+                "{kind}: {component}: {text}"
+            );
+            let machine = fixture.explicit(true);
+            assert_eq!(machine.status.code(), Some(3));
+            let value = decoded(&machine);
+            assert_eq!(value["schema_version"], 3);
+            let findings: Vec<_> = value["checks"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|check| check.get("detail").is_some())
+                .collect();
+            assert_eq!(findings.len(), 2);
+            for check in findings {
+                assert_eq!(check["stage"], "retained_cleanup");
+                assert_eq!(check["code"], "retained_unsafe");
+                assert_eq!(
+                    check["detail"],
+                    serde_json::json!({
+                        "location": "entry", "reason": "identity_mismatch", "entry": 1,
+                        "identity_component": component
+                    })
+                );
+            }
+            for output in [&human, &machine] {
+                assert_redacted(&fixture, output);
+                let output = String::from_utf8_lossy(&output.stdout);
+                for (_, mismatched) in &entries {
+                    assert!(!output.contains(mismatched.file_name().unwrap().to_str().unwrap()));
+                }
+            }
+            assert_eq!(snapshot(&fixture.root), before);
+            for root in [&fixture.home, &fixture.collection, &fixture.state] {
+                assert!(!root.join(".kitrove/environment.lock").exists());
+            }
+        }
+    }
 }

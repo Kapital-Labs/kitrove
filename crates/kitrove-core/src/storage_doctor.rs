@@ -81,11 +81,19 @@ vocabulary!(StorageDoctorCleanupLocation {
     Boundary => "boundary", Entry => "entry", Descendant => "descendant",
 });
 
+vocabulary!(StorageDoctorCleanupIdentityComponent {
+    Device => "device", File => "file", DeviceAndFile => "device_and_file",
+});
+
 /// First failed invariant, without names, paths or filesystem identity values.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct StorageDoctorCleanupDetail {
     pub location: StorageDoctorCleanupLocation,
     pub reason: StorageDoctorCleanupReason,
+    /// Differing Unix identity components, observed at the original failed comparison.
+    /// Absent for other failures and platforms without this component observation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub identity_component: Option<StorageDoctorCleanupIdentityComponent>,
     /// One-based position in this inspection's bounded, sorted top-level listing.
     /// This is not a stable identifier and never authorizes a recovery operation.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -524,6 +532,7 @@ fn inspect_retained(
             );
             checks.last_mut().expect("recorded retained failure").detail =
                 Some(StorageDoctorCleanupDetail {
+                    identity_component: None,
                     location: StorageDoctorCleanupLocation::Boundary,
                     reason: error
                         .inspection_reason()

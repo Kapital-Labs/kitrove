@@ -6,6 +6,9 @@ Doctor was introduced in RC5.19; RC5.18 does not include it. RC5.20 adds the
 specific retained-cleanup findings described below. RC5.19 keeps its original
 generic cleanup messages and JSON schema 1.
 
+The unpublished source update adds identity-component reporting and JSON schema
+3. It is not included in the published RC5.20 executable, which uses schema 2.
+
 ```sh
 kitrove doctor --help
 kitrove doctor
@@ -41,13 +44,14 @@ and code. Keep retained recovery files in place for review.
 ## Specific retained cleanup findings
 
 Doctor reports the first failed cleanup invariant in each storage root directly
-in its ordinary output. For example:
+in its ordinary output. The source update also distinguishes the mismatching
+Unix identity component. For example, after that update:
 
 ```text
 Kitrove doctor: needs attention
-  Collection (retained files): a retained item's recorded filesystem identity does not match the current entry.
+  Collection (retained files): the recorded device ID differs; the file ID matches.
     Retained item 3 in this inspection.
-Next: leave retained files in place; the finding above identifies the failed check. Share doctor --json for a recovery review.
+Next: leave retained files in place and share this report for recovery review.
 No changes made. Write access and lock availability were not tested.
 ```
 
@@ -58,6 +62,13 @@ multiple cleanup batches, directory protection failures, unreadable metadata or
 listings, refused opens and inspection limits. These describe observed checks,
 not an inferred cause of an earlier apply failure. A normal-looking `0700`
 directory listing does not verify its retained entries.
+
+On Unix, the identity finding states whether the recorded filesystem device ID, file
+ID, or both differ from the current entry. It uses the metadata from the
+original failed comparison, without another scan or disclosure of identifiers.
+Other failures and Windows' complete native identity checks do not claim a Unix
+component comparison. A disk-only mismatch does not by itself prove a restart,
+remount or restore caused it; a file mismatch does not prove corruption.
 
 The item number is a one-based position in this inspection's bounded, sorted
 **top-level** cleanup listing. A descendant finding identifies a problem inside
@@ -83,12 +94,17 @@ A later filesystem change or operating-system refusal can still stop an apply.
 
 ## Sharing a report
 
-Use `--json` and copy its output into a support conversation. The versioned report
+Share the ordinary report first; it includes the cleanup identity component.
+Use `--json` when support needs the full structured observations. The versioned report
 contains the public CLI version, fixed roles/checks/statuses/codes and bounded
-counts. The new report uses `schema_version: 2`; RC5.19 emitted version 1.
-Version 2 retains the existing fields and adds an optional `detail` object to
+counts. RC5.19 emitted schema 1 and RC5.20 emits schema 2.
+The source update uses `schema_version: 3`. Version 2 retains the existing fields
+and adds an optional `detail` object to
 failed retained-cleanup checks: closed `location` (`boundary`, `entry` or
 `descendant`) and `reason` labels, with an optional bounded `entry` number.
+Version 3 adds optional `detail.identity_component` with closed values `device`,
+`file` or `device_and_file` only for observed Unix recorded-identity mismatches.
+The existing `reason: identity_mismatch` and coarse mutation errors remain.
 It excludes paths, user/group identities, ACL principals, environment
 values, skill names, trust decisions, file bodies and raw operating-system errors.
 It does not upload or save a report automatically.

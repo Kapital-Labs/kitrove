@@ -486,6 +486,7 @@ fn unrecognized_retained_state_is_refused_and_preserved() {
         )
         .detail,
         Some(StorageDoctorCleanupDetail {
+            identity_component: None,
             reason: StorageDoctorCleanupReason::UnrecognizedName,
             entry: Some(1),
             location: StorageDoctorCleanupLocation::Entry
@@ -531,6 +532,7 @@ fn retained_identity_mismatch_is_refused_without_reclamation() {
         )
         .detail,
         Some(StorageDoctorCleanupDetail {
+            identity_component: Some(StorageDoctorCleanupIdentityComponent::DeviceAndFile),
             reason: StorageDoctorCleanupReason::IdentityMismatch,
             entry: Some(1),
             location: StorageDoctorCleanupLocation::Entry
@@ -704,6 +706,7 @@ fn quarantine_acl_rejection_stays_in_retained_cleanup_without_repair() {
         )
         .detail,
         Some(StorageDoctorCleanupDetail {
+            identity_component: None,
             reason: StorageDoctorCleanupReason::AclNotEmpty,
             entry: None,
             location: StorageDoctorCleanupLocation::Boundary
@@ -858,6 +861,7 @@ fn cleanup_reasons_distinguish_invariants_without_writes_or_private_data() {
         assert_eq!(
             check.detail,
             Some(StorageDoctorCleanupDetail {
+                identity_component: None,
                 location,
                 reason,
                 entry

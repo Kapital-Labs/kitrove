@@ -373,10 +373,10 @@ impl FidelitySummary {
 }
 
 pub use storage_doctor::{
-    StorageDoctorCheck, StorageDoctorCleanupDetail, StorageDoctorCleanupLocation,
-    StorageDoctorCleanupReason, StorageDoctorCode, StorageDoctorInspection,
-    StorageDoctorMutationAccess, StorageDoctorReport, StorageDoctorRole, StorageDoctorRoots,
-    StorageDoctorStage, StorageDoctorStatus, inspect_storage_doctor,
+    StorageDoctorCheck, StorageDoctorCleanupDetail, StorageDoctorCleanupIdentityComponent,
+    StorageDoctorCleanupLocation, StorageDoctorCleanupReason, StorageDoctorCode,
+    StorageDoctorInspection, StorageDoctorMutationAccess, StorageDoctorReport, StorageDoctorRole,
+    StorageDoctorRoots, StorageDoctorStage, StorageDoctorStatus, inspect_storage_doctor,
 };
 
 #[cfg(all(test, unix))]

@@ -24,6 +24,8 @@ use crate::quarantine_name::{CleanupBatchName, CleanupPendingName};
 #[cfg(any(unix, windows))]
 use crate::read_only_fs::has_single_file_link;
 use crate::read_only_fs::{safe_metadata, same_file};
+#[cfg(unix)]
+use crate::storage_doctor::StorageDoctorCleanupIdentityComponent;
 
 #[cfg(test)]
 use super::budget::{CleanupPassWork, QuarantineCleanupLimits, QuarantineCleanupReservation};
@@ -145,11 +147,28 @@ impl QuarantineInspectionFailure {
         Self {
             coarse: QuarantineInspectionError::UnsafeState,
             detail: StorageDoctorCleanupDetail {
+                identity_component: None,
                 location: StorageDoctorCleanupLocation::Entry,
                 reason,
                 entry: None,
             },
         }
+    }
+
+    #[cfg(unix)]
+    fn unix_identity_mismatch(recorded: MetadataIdentity, observed: MetadataIdentity) -> Self {
+        use StorageDoctorCleanupIdentityComponent as C;
+        let mut failure = Self::unsafe_state(StorageDoctorCleanupReason::IdentityMismatch);
+        failure.detail.identity_component = match (
+            recorded.device == observed.device,
+            recorded.inode == observed.inode,
+        ) {
+            (false, true) => Some(C::Device),
+            (true, false) => Some(C::File),
+            (false, false) => Some(C::DeviceAndFile),
+            (true, true) => None,
+        };
+        failure
     }
 
     fn at_boundary(mut self) -> Self {
@@ -175,6 +194,7 @@ impl From<QuarantineBudgetError> for QuarantineInspectionFailure {
         Self {
             coarse: QuarantineInspectionError::Budget(error),
             detail: StorageDoctorCleanupDetail {
+                identity_component: None,
                 location: StorageDoctorCleanupLocation::Boundary,
                 reason: StorageDoctorCleanupReason::InspectionLimit,
                 entry: None,
@@ -194,6 +214,7 @@ pub(crate) fn inspect_store_quarantine_detailed(
             .map_err(|error| QuarantineInspectionFailure {
                 coarse: QuarantineInspectionError::UnsafeState,
                 detail: StorageDoctorCleanupDetail {
+                    identity_component: None,
                     location: StorageDoctorCleanupLocation::Boundary,
                     reason: error
                         .inspection_reason()
@@ -283,9 +304,11 @@ fn inspect_tombstone(
     }
     if let Some(authority) = CleanupBatchName::parse(&name) {
         validate_kind(RemovedObjectKind::Directory, &metadata)?;
-        if MetadataIdentity::from_metadata(&metadata) != authority.identity {
-            return Err(QuarantineInspectionFailure::unsafe_state(
-                StorageDoctorCleanupReason::IdentityMismatch,
+        let observed = MetadataIdentity::from_metadata(&metadata);
+        if observed != authority.identity {
+            return Err(QuarantineInspectionFailure::unix_identity_mismatch(
+                authority.identity,
+                observed,
             ));
         }
         let directory = open_verified_directory_detailed(quarantine, &name, &metadata)?;
@@ -301,15 +324,18 @@ fn inspect_tombstone(
     let authority = RemovalTombstoneName::parse(&name).ok_or(QuarantineInspectionFailure {
         coarse: QuarantineInspectionError::UnrecognizedState,
         detail: StorageDoctorCleanupDetail {
+            identity_component: None,
             location: StorageDoctorCleanupLocation::Entry,
             reason: StorageDoctorCleanupReason::UnrecognizedName,
             entry: None,
         },
     })?;
     validate_kind(authority.kind, &metadata)?;
-    if MetadataIdentity::from_metadata(&metadata) != authority.identity {
-        return Err(QuarantineInspectionFailure::unsafe_state(
-            StorageDoctorCleanupReason::IdentityMismatch,
+    let observed = MetadataIdentity::from_metadata(&metadata);
+    if observed != authority.identity {
+        return Err(QuarantineInspectionFailure::unix_identity_mismatch(
+            authority.identity,
+            observed,
         ));
     }
     match authority.kind {
@@ -462,6 +488,7 @@ fn inspect_retained_tombstone(
     let retained = RetainedTombstoneName::parse(&name).ok_or(QuarantineInspectionFailure {
         coarse: QuarantineInspectionError::UnrecognizedState,
         detail: StorageDoctorCleanupDetail {
+            identity_component: None,
             location: StorageDoctorCleanupLocation::Entry,
             reason: StorageDoctorCleanupReason::UnrecognizedName,
             entry: None,
@@ -1230,6 +1257,20 @@ mod tests {
             inspect_store_quarantine(&mismatch_store, &mut mismatch_budget),
             Err(QuarantineInspectionError::UnsafeState)
         );
+        let mut detailed_budget = inspection_budget(1, 0, 1);
+        let failure =
+            inspect_store_quarantine_detailed(&mismatch_store, &mut detailed_budget).unwrap_err();
+        assert_eq!(failure.coarse, QuarantineInspectionError::UnsafeState);
+        assert_eq!(
+            failure.detail.reason,
+            StorageDoctorCleanupReason::IdentityMismatch
+        );
+        assert_eq!(
+            failure.detail.identity_component,
+            Some(StorageDoctorCleanupIdentityComponent::File)
+        );
+        assert_eq!(failure.detail.entry, Some(1));
+        assert_eq!(detailed_budget, mismatch_budget);
 
         let malformed_root = parent.join("malformed-root");
         fs::create_dir(&malformed_root).unwrap();
@@ -1285,6 +1326,7 @@ mod tests {
         assert_eq!(
             error.detail,
             StorageDoctorCleanupDetail {
+                identity_component: None,
                 location: StorageDoctorCleanupLocation::Entry,
                 reason: StorageDoctorCleanupReason::ChangedDuringInspection,
                 entry: Some(1)
@@ -1509,6 +1551,7 @@ mod tests {
             StorageDoctorCleanupReason::IdentityMismatch
         );
         assert_eq!(failure.detail.entry, Some(1));
+        assert_eq!(failure.detail.identity_component, None);
         assert_eq!(detailed_budget, mismatch_budget);
     }
 
@@ -1547,6 +1590,7 @@ mod tests {
             StorageDoctorCleanupReason::IdentityMismatch
         );
         assert_eq!(failure.detail.entry, Some(1));
+        assert_eq!(failure.detail.identity_component, None);
         assert_eq!(detailed_budget, budget);
     }
 
