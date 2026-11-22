@@ -4192,7 +4192,8 @@ mod tests {
     fn public_github_fixture_uses_the_production_connector_and_pinned_roots() {
         let limits = SyncLimits::default();
         let backend =
-            GitSyncBackend::open("https://github.com/octocat/Hello-World.git", limits).unwrap();
+            GitSyncBackend::open("https://github.com/Kapital-Labs/homebrew-tap.git", limits)
+                .unwrap();
         let observed = backend.inspect(limits).unwrap();
         assert!(observed.snapshot().is_none());
         assert_eq!(observed.revision().as_str(), "git:absent:v1");
