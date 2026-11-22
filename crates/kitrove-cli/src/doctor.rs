@@ -4,8 +4,9 @@ use std::path::{Path, PathBuf};
 
 use kitrove_agent_skills::CaptureLimits;
 use kitrove_core::{
-    LockStatus, ObjectState, StorageDoctorCleanupDetail, StorageDoctorCleanupReason,
-    StorageDoctorRoots, compare_lockfile, inspect_storage_doctor, verify_referenced_objects,
+    LockStatus, ObjectState, StorageDoctorCleanupDetail, StorageDoctorCleanupIdentityComponent,
+    StorageDoctorCleanupReason, StorageDoctorRoots, compare_lockfile, inspect_storage_doctor,
+    verify_referenced_objects,
 };
 use serde_json::{Value, json};
 
@@ -133,7 +134,7 @@ pub(crate) fn run_doctor(arguments: EnvironmentArgs) -> Result<CompletedCommand,
         format!(
             "{}\n",
             serde_json::to_string(&json!({
-                "schema_version":2,"version":env!("CARGO_PKG_VERSION"),
+                "schema_version":3,"version":env!("CARGO_PKG_VERSION"),
                 "inspection":inspection,"mutation_access":mutation_access,
                 "checks":checks.iter().map(Check::encoded).collect::<Vec<_>>(),
             }))
@@ -314,6 +315,21 @@ fn stage_label(stage: &str) -> &'static str {
 
 fn problem(check: &Check) -> &'static str {
     if let Some(detail) = check.detail {
+        if detail.reason == StorageDoctorCleanupReason::IdentityMismatch {
+            use StorageDoctorCleanupIdentityComponent as C;
+            match detail.identity_component {
+                Some(C::Device) => {
+                    return "the recorded device ID differs; the file ID matches";
+                }
+                Some(C::File) => {
+                    return "the recorded file ID differs; the device ID matches";
+                }
+                Some(C::DeviceAndFile) => {
+                    return "the recorded device and file IDs both differ";
+                }
+                None => {}
+            }
+        }
         return cleanup_problem(detail.reason);
     }
     match check.code {
@@ -389,7 +405,7 @@ fn next_step(checks: &[Check]) -> &'static str {
         .iter()
         .any(|check| check.attention() && check.stage == "retained_cleanup")
     {
-        "leave retained files in place; the finding above identifies the failed check. Share doctor --json for a recovery review."
+        "leave retained files in place and share this report for recovery review."
     } else if checks
         .iter()
         .any(|check| check.attention() && !check.stage.starts_with("portable_"))
