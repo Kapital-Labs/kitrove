@@ -11,7 +11,7 @@ mod release_archive;
 mod release_staging;
 
 const REVIEWED_CARGO_LOCK_BLAKE3: &str =
-    "2f0437625bbe85ffb7f99f01c6c144459821b9e84b07850cebd4fa3824e644b8";
+    "d4b8734dc15fd3b8da5b51b9f232b0f20e2b8b2eb6c471eeb23054a2c5d5a8c9";
 const REVIEWED_SIGSTORE_REKOR_TREE_BLAKE3: &str =
     "898ca8f9c61bd79c3ef16bcc22650249eb4f32872540d281660f07b1c828c355";
 const REVIEWED_SIGSTORE_TSA_TREE_BLAKE3: &str =
@@ -1365,7 +1365,7 @@ fn check_git_dependency_boundary(root: &Path) -> Result<(), String> {
         "ureq = { version = \"=3.4.0\", default-features = false, features = [\"rustls\"] }",
         "rustls = { version = \"=0.23.46\", default-features = false, features = [\"ring\", \"logging\", \"std\", \"tls12\"] }",
         "webpki-roots = \"=1.0.10\"",
-        "url = \"=2.5.8\"",
+        "url = \"=2.5.9\"",
         "gix-hash = { version = \"=0.26.2\", default-features = false, features = [\"sha1\"] }",
         "gix-object = { version = \"=0.64.1\", default-features = false }",
         "gix-pack = { version = \"=0.74.2\", default-features = false, features = [\"sha1\"] }",
