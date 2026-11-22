@@ -630,10 +630,10 @@ Source: registry+https://github.com/rust-lang/crates.io-index
 Crate SHA-256: b7ac824320a75a52197e8f2d787f6a38b6718bb6897a35142d749af3c0e8f4fe
   SHA-256:cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30	LICENSE
 
-Package: form_urlencoded 1.2.2
+Package: form_urlencoded 1.2.3
 Declared license: MIT OR Apache-2.0
 Source: registry+https://github.com/rust-lang/crates.io-index
-Crate SHA-256: cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf
+Crate SHA-256: afa489199eaffb1211795df1c6236ce1ad0d41a6fa45250add73e3b02420f06e
   SHA-256:a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2	LICENSE-APACHE
   SHA-256:20c7855c364d57ea4c97889a5e8d98470a9952dade37bd9248b9a54431670e5e	LICENSE-MIT
 
@@ -2217,10 +2217,10 @@ Crate SHA-256: da5f78b09e6941e1a0f2e30e695e4b120377b54d5e0aec11b594bb57b3971613
   SHA-256:cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30	LICENSE-APACHE.txt
   SHA-256:5b460f37be48ac4cf2181596181cc6cae432fc2caae05944873f380730829a4b	LICENSE-MIT.txt
 
-Package: url 2.5.8
+Package: url 2.5.9
 Declared license: MIT OR Apache-2.0
 Source: registry+https://github.com/rust-lang/crates.io-index
-Crate SHA-256: ff67a8a4397373c3ef660812acab3268222035010ab8680ec4215f38ba3d0eed
+Crate SHA-256: f00cd2407bb42c0ef17be88d4cf020f5cceffd121665bac9b8b9493a369b3b1a
   SHA-256:a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2	LICENSE-APACHE
   SHA-256:b38f11f6096706e6de553dabe2a7ed142d59b6fa8c97e290c67496154745cdd5	LICENSE-MIT
 
