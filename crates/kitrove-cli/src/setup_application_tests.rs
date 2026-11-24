@@ -41,9 +41,9 @@ fn all_four_tools_choose_destination_first_and_install_skills_without_version_pr
         assert!(output.contains("1. alpha [Skill] · Ready to add / update"));
         assert!(!output.contains("Review changes carefully."));
         assert!(output.contains("Files added"));
-        assert!(output.contains("ready        Skills ready to add or update (recommended)"));
-        assert!(output.contains("all          Every matching item, including blocked items"));
-        assert!(output.contains("All does not bypass checks"));
+        assert!(output.contains("ready        Preview skills ready to add or update"));
+        assert!(output.contains("help         All selection commands"));
+        assert!(!output.contains("all,-3,-8"));
         assert!(
             a.join("home")
                 .join(destination)
@@ -298,8 +298,7 @@ fn ready_shortcut_excludes_unmanaged_conflicts_without_touching_them() {
         output.contains("This page: 1 ready · 1 compare existing copy"),
         "{output}"
     );
-    assert!(output.contains("Selected 1 ready skill(s)"), "{output}");
-    assert!(output.contains("Selected 1 saved item(s)"), "{output}");
+    assert!(output.contains("1 destination"), "{output}");
     assert!(
         a.join("home/.config/opencode/skills/beta/SKILL.md")
             .is_file()
@@ -311,7 +310,7 @@ fn ready_shortcut_excludes_unmanaged_conflicts_without_touching_them() {
 }
 
 #[test]
-fn incompatible_bulk_selection_can_be_reselected_without_partial_application() {
+fn incompatible_bulk_selection_offers_ready_preview_without_automatic_application() {
     let (_tmp, a) = prepared();
     super::tests::skill(&a, "beta", "A separately selected compatible skill.");
     std::fs::write(
@@ -326,13 +325,21 @@ fn incompatible_bulk_selection_can_be_reselected_without_partial_application() {
             .fidelity(),
         kitrove_model::Fidelity::Partial
     );
-    let output = script(&a, "\n2\n4\n1\nall\ns\n1\ny\n5\n", true, "");
-    assert!(output.contains("Selection not applied"));
-    assert!(output.contains("Selected 2 saved item(s)"), "{output}");
+    let declined = script(&a, "\n2\n4\n1\nall\nr\n\n5\n", true, "");
     assert!(
-        output.contains("one blocked item stops the batch"),
-        "{output}"
+        declined.contains("Preview ready items from this selection"),
+        "{declined}"
     );
+    assert!(
+        declined.contains("Previewing 1 of 2 selected items"),
+        "{declined}"
+    );
+    assert_eq!(declined.matches("Add to tools").count(), 1, "{declined}");
+    assert!(declined.contains("Application skipped"));
+    assert!(!a.join("home/.config/opencode/skills").exists());
+
+    let output = script(&a, "\n2\n4\n1\nall\nr\ny\n5\n", true, "");
+    assert!(output.contains("Selection blocked"));
     assert!(output.contains("Choose different items"));
     assert!(output.contains("Not compatible with the selected tools"));
     assert!(!a.join("home/.config/opencode/skills/beta").exists());
@@ -346,6 +353,33 @@ fn incompatible_bulk_selection_can_be_reselected_without_partial_application() {
     assert_eq!(
         state.receipts.values().next().unwrap().asset_id.as_str(),
         "alpha"
+    );
+}
+
+#[test]
+fn bulk_ready_preview_respects_filter_and_exclusions_with_unmanaged_conflict() {
+    let (_tmp, a) = prepared();
+    for name in ["alpha-added", "alpha-excluded", "other"] {
+        super::tests::skill(&a, name, "A saved skill for scoped selection.");
+    }
+    script(&a, "\n1\nfrom claude\ny\n5\n", true, "");
+    let target = a.join("home/.config/opencode/skills");
+    let existing = target.join("alpha/SKILL.md");
+    std::fs::create_dir_all(existing.parent().unwrap()).unwrap();
+    std::fs::write(&existing, "User-owned alpha.").unwrap();
+
+    let output = script(&a, "\n2\n4\n1\nhelp\n/alpha\nall,-3\nr\ny\n5\n", true, "");
+    assert!(output.contains("Selection help"));
+    assert!(
+        output.contains("Previewing 1 of 2 selected items"),
+        "{output}"
+    );
+    assert!(target.join("alpha-added/SKILL.md").is_file());
+    assert!(!target.join("alpha-excluded").exists());
+    assert!(!target.join("other").exists());
+    assert_eq!(
+        std::fs::read_to_string(existing).unwrap(),
+        "User-owned alpha."
     );
 }
 
@@ -655,7 +689,7 @@ fn next_actions_why_explains_stored_incompatibility_without_applying() {
     assert!(!reasons.is_empty());
     let state_before = std::fs::read(a.join("state/state.json")).unwrap();
     let output = script(&a, "\n2\n4\n1\nwhy 2\nn\n5\n", true, "");
-    assert!(output.contains("Explain incompatibility"), "{output}");
+    assert!(output.contains("(why 2)"), "{output}");
     assert!(output.contains(&safe(&reasons[0].message)), "{output}");
     assert!(
         output.contains("Choose another tool or leave this item out"),
@@ -788,10 +822,6 @@ fn next_actions_page_summary_keeps_off_page_checks_explicit() {
         "{explained}"
     );
     assert!(explained.contains("13. s12"), "{explained}");
-    assert!(
-        explained.contains("Selected 12 ready skill(s)"),
-        "ready still selects across pages: {explained}"
-    );
     assert!(explained.contains("12 destinations"), "{explained}");
     assert!(!a.join("home/.config/opencode/skills").exists());
     assert_eq!(

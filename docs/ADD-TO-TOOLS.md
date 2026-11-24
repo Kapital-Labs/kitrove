@@ -32,19 +32,18 @@ asking for the collection path again. Skipping this next step keeps the collecti
      reasons. Choose another tool or leave the item out. Script approval cannot
      resolve a fidelity refusal. `why N` also explains other destination checks.
 
-   `all` selects every matching item across pages, including already-current and
-   blocked items. It does not bypass checks; one blocked item can stop the
-   complete selection before placement approval. An incompatible selection offers
-   **Choose different items**, keeping the tool and destination choices. `ready`
-   selects compatible additions and still requires the full preview and your
-   placement approval. Readiness describes the plan; the result after approval
-   reports completion or a separate apply failure. Incompatible members are never
-   silently removed from a selected pack or batch. `ready` checks
-   the destination folder, not whether the tool can already discover another copy
-   elsewhere. Packs and version-gated kinds need an explicit selection.
-   Twelve entries appear per page; `next` and `back` browse, `/word` filters names,
-   and `/` clears the filter. `all,-3,-8` selects matching items except original
-   numbers 3 and 8. A filter narrows bulk selection; it never renumbers entries.
+   Type `help` for every selection command. `all` checks every matching item
+   across pages before showing a preview. If incompatibility, script approval
+   or an existing copy blocks the selection, press `r` to **Preview ready
+   items from this selection**. You can also choose different items.
+   The ready preview keeps your filter and exclusions, leaves out blocked and
+   already-current skills, and still needs your placement approval. Choose a
+   pack by number to preview it as a whole.
+   The destination check covers the folder Kitrove would write to. Your tool
+   may also discover copies elsewhere.
+   Use `next` and `back` to browse, `/word` to filter names or `/` to clear
+   the filter. `all,-3,-8` selects matching items except numbers 3 and 8.
+   Numbers stay the same across filters and pages.
    Enter selects just-collected suggestions if present, otherwise skips.
 4. Review the destination check and the combined preview. **Add**, **Already
    current (managed)**, **Restore managed copy**, and **Update managed copy**

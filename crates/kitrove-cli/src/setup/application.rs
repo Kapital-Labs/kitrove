@@ -10,6 +10,18 @@ const TOOLS: [HarnessId; 4] = [
 ];
 const PAGE_SIZE: usize = 12;
 
+#[derive(Default)]
+struct ItemSelection {
+    ids: Vec<AssetId>,
+    bulk: bool,
+}
+
+impl From<Vec<AssetId>> for ItemSelection {
+    fn from(ids: Vec<AssetId>) -> Self {
+        Self { ids, bulk: false }
+    }
+}
+
 pub(super) fn apply<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
     root: &std::path::Path,
@@ -55,19 +67,33 @@ pub(super) fn apply<R: PromptInput, W: Write>(
         environment: Some(root.to_owned()),
         json: true,
     };
+    let mut preview_ready: Option<Vec<AssetId>> = None;
     loop {
         let manifest = load_manifest(root)?;
         let mut args = destination_args.clone();
-        let ids = choose_items(dialog, root, &manifest, suggested, &args)?;
+        let ItemSelection { ids, bulk } = if let Some(previous) = preview_ready.take() {
+            let ready = ready_items(root, &manifest, previous.iter(), &args);
+            if ready.is_empty() {
+                dialog.say("None of the selected skills are ready. Choose other items or check the reasons beside each skill.")?;
+                continue;
+            }
+            dialog.say(&format!(
+                "Previewing {} of {} selected items. The other items will be left out.",
+                ready.len(),
+                previous.len()
+            ))?;
+            ready.into()
+        } else {
+            choose_items(dialog, root, &manifest, suggested, &args)?
+        };
         if ids.is_empty() {
             return Ok(());
         }
-        dialog.say(&format!("Selected {} saved item(s). Checking the complete selection; one blocked item stops the batch.", ids.len()))?;
-        for id in ids {
-            if manifest.packs.contains_key(&id) {
-                args.packs.insert(id);
+        for id in &ids {
+            if manifest.packs.contains_key(id) {
+                args.packs.insert(id.clone());
             } else {
-                args.assets.insert(id);
+                args.assets.insert(id.clone());
             }
         }
         let mut assets = args.assets.clone();
@@ -104,18 +130,34 @@ pub(super) fn apply<R: PromptInput, W: Write>(
         super::application_preview::discovery(dialog, root, &manifest, &assets, &args)?;
         super::application_preview::compatibility(dialog, &manifest, &assets, &args.targets)?;
         let mut prompt_error = None;
-        let mut result =
-            apply_with_preview(dialog, root, &manifest, args.clone(), &mut prompt_error);
-        if result
-            .as_ref()
-            .is_err_and(|error| error.code == "apply.skill_trust_required")
+        let mut preview_offered = false;
+        let mut result = apply_with_preview(
+            dialog,
+            root,
+            &manifest,
+            args.clone(),
+            &mut prompt_error,
+            &mut preview_offered,
+        );
+        if !bulk
+            && !preview_offered
+            && result
+                .as_ref()
+                .is_err_and(|error| error.code == "apply.skill_trust_required")
         {
             if !review_scripted_skills(dialog, root, &assets)? {
                 return dialog.say(
                     "Selection was not applied. Earlier explicit local approvals remain saved.",
                 );
             }
-            result = apply_with_preview(dialog, root, &manifest, args, &mut prompt_error);
+            result = apply_with_preview(
+                dialog,
+                root,
+                &manifest,
+                args,
+                &mut prompt_error,
+                &mut preview_offered,
+            );
         }
         if let Some(error) = prompt_error {
             return Err(error);
@@ -132,10 +174,33 @@ pub(super) fn apply<R: PromptInput, W: Write>(
             Err(error) if error.code == "apply.confirmation_required" => {
                 dialog.say("Application skipped.")
             }
-            Err(error) if error.code == "apply.compatibility_blocked" => {
-                dialog.warning("Selection not applied. Some selected skills cannot be transferred faithfully to these tools. Review the reasons above.")?;
-                dialog.hint("Choose ready for compatible additions. Use why N to explain an incompatible item, review N for scripts, or compare N for an existing copy. All keeps blocked items in the selection.")?;
-                match dialog.decision("Choose different items?\nEnter/s  Choose different items\nn        Return to setup\nq        Quit", b"sn", true)?.as_str() {
+            Err(error)
+                if !preview_offered
+                    && (error.code == "apply.compatibility_blocked"
+                        || bulk
+                            && matches!(
+                                error.code,
+                                "apply.destination_unmanaged" | "apply.skill_trust_required"
+                            )) =>
+            {
+                let reason = match error.code {
+                    "apply.compatibility_blocked" => {
+                        "Some items are incompatible with the selected tools."
+                    }
+                    "apply.destination_unmanaged" => {
+                        "A destination already contains a copy managed outside Kitrove."
+                    }
+                    _ => "Some skills need separate script approval.",
+                };
+                dialog.warning(&format!("Selection blocked. {reason}"))?;
+                match dialog.decision(
+                    "What would you like to do?\nr        Preview ready items from this selection\nEnter/s  Choose different items\nn        Go back\nq        Quit",
+                    b"rsn", true,
+                )?.as_str() {
+                    "r" => {
+                        preview_ready = Some(ids);
+                        continue;
+                    }
                     "" | "s" => continue,
                     _ => Ok(()),
                 }
@@ -151,7 +216,7 @@ fn choose_items<R: PromptInput, W: Write>(
     manifest: &EnvironmentManifest,
     suggested: &[AssetId],
     args: &MaterializeArgs,
-) -> Result<Vec<AssetId>, CliError> {
+) -> Result<ItemSelection, CliError> {
     let ids: Vec<_> = manifest
         .packs
         .keys()
@@ -242,13 +307,26 @@ fn choose_items<R: PromptInput, W: Write>(
                 readiness.label()
             ))?;
         }
-        dialog.hint("Selections use all matching pages. Ready checks this destination folder; tools may find other copies. All does not bypass checks; one blocked item stops the batch.")?;
         let enter = if suggested.is_empty() {
             "Skip"
         } else {
-            "Select just-collected items (may need review)"
+            "Preview just-collected items"
         };
-        let response = dialog.ask(&format!("Which saved items would you like to add?\n1,4,7        Select original numbers\nready        Skills ready to add or update (recommended)\nall          Every matching item, including blocked items\nreview N     Review scripts\ncompare N    Compare existing copy (read-only)\nwhy N        Explain incompatibility / show description\nall,-3,-8    Every matching item except these numbers\n/word        Filter names (/ clears)\nnext/back    Browse pages\nEnter        {enter}\nn            Skip\nq            Quit"))?;
+        let prompt = format!(
+            "Which saved items would you like to add?\nready        Preview skills ready to add or update\n1,4,7        Preview specific items\nhelp         All selection commands\nEnter        {enter}\nq            Quit"
+        );
+        let paging = match (start > 0, end < shown.len()) {
+            (true, true) => "\nnext/back    Browse pages",
+            (false, true) => "\nnext         Next page",
+            (true, false) => "\nback         Previous page",
+            (false, false) => "",
+        };
+        let mut response = dialog.ask(&format!("{prompt}{paging}"))?;
+        while matches!(response.as_str(), "help" | "?") {
+            response = dialog.ask(
+                "Selection help\nready        Preview ready skills across matching pages\n             Already-current skills, packs and blocked items are left out.\n1,4,7        Preview items by their listed numbers\nall          Preview all matching items if every item passes its checks\nall,-3,-8    All matching items except 3 and 8\n/word        Filter names (/ clears the filter)\nnext/back    Browse pages without changing item numbers\nreview N     Review a skill's scripts\ncompare N    Compare a copy at the destination\nwhy N        Explain an item's status\nn            Skip\nq            Quit",
+            )?;
+        }
         match response.as_str() {
             "next" => {
                 if end < shown.len() {
@@ -261,34 +339,16 @@ fn choose_items<R: PromptInput, W: Write>(
                     .iter()
                     .filter(|id| suggested.contains(id) && id.as_str().contains(&filter))
                     .cloned()
-                    .collect());
+                    .collect::<Vec<_>>()
+                    .into());
             }
-            "n" => return Ok(Vec::new()),
+            "n" => return Ok(ItemSelection::default()),
             "ready" => {
-                let ready: Vec<_> = shown
-                    .iter()
-                    .enumerate()
-                    .filter(|(position, (_, id))| {
-                        let page_check = position
-                            .checked_sub(start)
-                            .and_then(|offset| checks.get(offset));
-                        match page_check {
-                            Some(check) => {
-                                matches!(check, super::application_readiness::Readiness::Ready)
-                            }
-                            None => matches!(
-                                super::application_readiness::inspect(root, manifest, id, args),
-                                super::application_readiness::Readiness::Ready
-                            ),
-                        }
-                    })
-                    .map(|(_, (_, id))| (*id).clone())
-                    .collect();
+                let ready = ready_items(root, manifest, shown.iter().map(|(_, id)| *id), args);
                 if !ready.is_empty() {
-                    dialog.say(&format!("Selected {} ready skill(s). Review the full preview before approving placement.", ready.len()))?;
-                    return Ok(ready);
+                    return Ok(ready.into());
                 }
-                dialog.say("No ready skills in this filter. Version-gated items and packs need an explicit selection; no files changed.")?;
+                dialog.say("No ready skills match this view. Choose an item by number to check it, or type / to clear the filter.")?;
             }
             value
                 if value.starts_with("review ")
@@ -324,7 +384,7 @@ fn choose_items<R: PromptInput, W: Write>(
                     }
                 };
                 match action {
-                    "review" if matches!(check, super::application_readiness::Readiness::NeedsReview(error) if error.code == "apply.skill_trust_required") => return Ok(vec![id.clone()]),
+                    "review" if matches!(check, super::application_readiness::Readiness::NeedsReview(error) if error.code == "apply.skill_trust_required") => return Ok(vec![id.clone()].into()),
                     "review" => dialog.say("This item has no pending script-review check. Use why N for its reason, or select its number for a full plan.")?,
                     "why" => {
                         dialog.heading(&format!("Destination check: {}", safe(id.as_str())))?;
@@ -369,18 +429,37 @@ fn choose_items<R: PromptInput, W: Write>(
                     {
                         dialog.say("Selection includes an item hidden by the filter. Clear the filter or use shown original numbers.")?;
                     } else {
-                        return Ok(indices
-                            .into_iter()
-                            .map(|index| ids[index].clone())
-                            .collect());
+                        return Ok(ItemSelection {
+                            ids: indices
+                                .into_iter()
+                                .map(|index| ids[index].clone())
+                                .collect(),
+                            bulk,
+                        });
                     }
                 }
                 None => {
-                    dialog.say("Choose displayed numbers, all,-3,-8, a filter or next/back.")?
+                    dialog.say("Choose ready or enter item numbers. Type help for all commands.")?
                 }
             },
         }
     }
+}
+
+fn ready_items<'a>(
+    root: &std::path::Path,
+    manifest: &EnvironmentManifest,
+    ids: impl Iterator<Item = &'a AssetId>,
+    args: &MaterializeArgs,
+) -> Vec<AssetId> {
+    ids.filter(|id| {
+        matches!(
+            super::application_readiness::inspect(root, manifest, id, args),
+            super::application_readiness::Readiness::Ready
+        )
+    })
+    .cloned()
+    .collect()
 }
 
 fn description(
@@ -481,8 +560,10 @@ fn apply_with_preview<R: PromptInput, W: Write>(
     manifest: &EnvironmentManifest,
     args: MaterializeArgs,
     prompt_error: &mut Option<CliError>,
+    preview_offered: &mut bool,
 ) -> Result<crate::portable::CompletedCommand, CliError> {
     crate::materialize::run_apply(args, |plan| {
+        *preview_offered = true;
         let decision = load_manifest(root).and_then(|current| {
             if &current != manifest {
                 return Err(CliError::new(

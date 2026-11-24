@@ -4,6 +4,18 @@ Notable changes to Kitrove are recorded here.
 
 ## Unreleased
 
+## 0.1.0-rc.5.21
+
+Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.
+
+### Changed
+
+- Offer a ready-only preview when a bulk selection is blocked. Keep the
+  original selection's scope and require approval of the new preview.
+- Show common picker actions first and put the full command list under `help`.
+- Report whether a retained cleanup item differs by filesystem device, file
+  identity or both on Unix. Doctor JSON schema 3 includes this observation.
+
 ## 0.1.0-rc.5.20
 
 Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.
