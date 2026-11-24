@@ -6,8 +6,8 @@ Doctor was introduced in RC5.19; RC5.18 does not include it. RC5.20 adds the
 specific retained-cleanup findings described below. RC5.19 keeps its original
 generic cleanup messages and JSON schema 1.
 
-The unpublished source update adds identity-component reporting and JSON schema
-3. It is not included in the published RC5.20 executable, which uses schema 2.
+RC5.21 identifies which part of a retained item's Unix filesystem identity
+differs and reports it in JSON schema 3.
 
 ```sh
 kitrove doctor --help
@@ -44,8 +44,7 @@ and code. Keep retained recovery files in place for review.
 ## Specific retained cleanup findings
 
 Doctor reports the first failed cleanup invariant in each storage root directly
-in its ordinary output. The source update also distinguishes the mismatching
-Unix identity component. For example, after that update:
+in its ordinary output. RC5.21 also distinguishes the mismatching Unix identity component.
 
 ```text
 Kitrove doctor: needs attention
@@ -98,7 +97,7 @@ Share the ordinary report first; it includes the cleanup identity component.
 Use `--json` when support needs the full structured observations. The versioned report
 contains the public CLI version, fixed roles/checks/statuses/codes and bounded
 counts. RC5.19 emitted schema 1 and RC5.20 emits schema 2.
-The source update uses `schema_version: 3`. Version 2 retains the existing fields
+RC5.21 uses `schema_version: 3`. Version 2 retains the existing fields
 and adds an optional `detail` object to
 failed retained-cleanup checks: closed `location` (`boundary`, `entry` or
 `descendant`) and `reason` labels, with an optional bounded `entry` number.
