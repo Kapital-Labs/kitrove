@@ -15,7 +15,7 @@ fn prepared() -> (tempfile::TempDir, PathBuf) {
     script(
         &a,
         &format!(
-            "1\n{}\na\ny\nfrom pi\ny\n5\n",
+            "1\n{}\na\ny\nfrom pi\ny\nn\n5\n",
             a.join("collection").display()
         ),
         false,
@@ -35,7 +35,7 @@ fn all_four_tools_choose_destination_first_and_install_skills_without_version_pr
         ("4", ".config/opencode/skills"),
     ] {
         let (_tmp, a) = prepared();
-        let output = script(&a, &format!("\n2\n{key}\n1\n1\ny\n5\n"), true, "");
+        let output = script(&a, &format!("2\n{key}\n1\ns\n1\ny\n5\n"), true, "");
         assert!(output.find("Which AI tools").unwrap() < output.find("Which saved items").unwrap());
         assert!(!output.contains("Absolute trusted"));
         assert!(output.contains("1. alpha [Skill] · Ready to add / update"));
@@ -65,7 +65,7 @@ fn project_scope_for_each_tool_writes_only_the_confirmed_project() {
         let project = a.join("working");
         let output = script(
             &a,
-            &format!("\n2\n{key}\n2\n{}\n1\ny\n5\n", project.display()),
+            &format!("2\n{key}\n2\n{}\ns\n1\ny\n5\n", project.display()),
             true,
             "",
         );
@@ -88,7 +88,7 @@ fn project_scope_for_each_tool_writes_only_the_confirmed_project() {
 #[test]
 fn apply_preview_enter_still_skips_writes_and_does_not_probe_tools() {
     let (_tmp, a) = prepared();
-    let output = script(&a, "\n2\nm\n3,4\n1\n1\n\n5\n", true, "");
+    let output = script(&a, "2\nm\n3,4\n1\ns\n1\n\n5\n", true, "");
     assert!(output.contains("Application skipped"));
     for destination in [".pi/agent/skills/alpha", ".config/opencode/skills/alpha"] {
         assert!(!a.join("home").join(destination).exists());
@@ -101,7 +101,12 @@ fn unmanaged_destination_is_reported_without_overwrite_or_adoption_of_ownership(
     let existing = a.join("home/.config/opencode/skills/alpha");
     std::fs::create_dir_all(&existing).unwrap();
     std::fs::write(existing.join("SKILL.md"), "User owned content.").unwrap();
-    let output = script(&a, "\n2\n4\n1\n1\n5\n", true, "apply.destination_unmanaged");
+    let output = script(
+        &a,
+        "2\n4\n1\ns\n1\n5\n",
+        true,
+        "apply.destination_unmanaged",
+    );
     assert!(output.contains("Compare existing copy"));
     assert_eq!(
         std::fs::read_to_string(existing.join("SKILL.md")).unwrap(),
@@ -118,17 +123,13 @@ fn newly_collected_items_can_go_directly_to_a_tool_with_separate_confirmation() 
     let output = script(
         &a,
         &format!(
-            "1\n{}\na\ny\nfrom claude\ny\n2\n4\n1\n\ny\n5\n",
+            "1\n{}\na\ny\nfrom claude\ny\na\n4\n1\n\ny\n5\n",
             a.join("collection").display()
         ),
         false,
         "",
     );
-    assert!(
-        output.contains(
-            "To use the skills you just collected, choose option 2 or run kitrove apply."
-        )
-    );
+    assert!(output.contains("Next: add the collected skills to a tool?"));
     assert!(output.contains("just collected"));
     assert!(output.contains("additional managed copies in the OpenCode destination"));
     assert!(output.contains("matching IDs may override"));
@@ -144,10 +145,10 @@ fn newly_collected_items_can_go_directly_to_a_tool_with_separate_confirmation() 
 #[test]
 fn repeated_apply_reports_managed_current_content_without_rewriting_it() {
     let (_tmp, a) = prepared();
-    script(&a, "\n2\n4\n1\n1\ny\n5\n", true, "");
+    script(&a, "2\n4\n1\ns\n1\ny\n5\n", true, "");
     let target = a.join("home/.config/opencode/skills/alpha/SKILL.md");
     let before = std::fs::read(&target).unwrap();
-    let output = script(&a, "\n2\n4\n1\n1\ny\n5\n", true, "");
+    let output = script(&a, "2\n4\n1\ns\n1\ny\n5\n", true, "");
     assert!(output.contains("Already current (managed)"));
     assert_eq!(std::fs::read(target).unwrap(), before);
 }
@@ -161,15 +162,15 @@ fn collecting_another_skill_keeps_existing_tool_copies_current() {
         ("4", ".config/opencode/skills"),
     ] {
         let (_tmp, a) = prepared();
-        script(&a, &format!("\n2\n{key}\n1\n1\ny\n5\n"), true, "");
+        script(&a, &format!("2\n{key}\n1\ns\n1\ny\n5\n"), true, "");
         let target = a.join("home").join(destination).join("alpha/SKILL.md");
         let before = std::fs::read(&target).unwrap();
         let modified = std::fs::metadata(&target).unwrap().modified().unwrap();
         super::tests::skill(&a, "beta", "A newly collected unrelated skill.");
-        script(&a, "\n1\nfrom claude\ny\n5\n", true, "");
+        script(&a, "1\nfrom claude\ny\nn\n5\n", true, "");
         let beta_target = a.join("home").join(destination).join("beta/SKILL.md");
         let beta_before = std::fs::read(&beta_target).ok();
-        let output = script(&a, &format!("\n2\n{key}\n1\n1\ny\n5\n"), true, "");
+        let output = script(&a, &format!("2\n{key}\n1\ns\n1\ny\n5\n"), true, "");
         assert!(output.contains("Already current (managed)"));
         assert!(!output.contains("bounded recovery authority"));
         assert_eq!(std::fs::read(&target).unwrap(), before);
@@ -191,8 +192,8 @@ fn filtered_all_selects_only_filtered_items_and_preserves_original_numbers() {
         "---\nname: beta\ndescription: Another test skill.\n---\nPreserve beta.\n",
     )
     .unwrap();
-    script(&a, "\n1\nfrom pi\ny\n5\n", true, "");
-    let output = script(&a, "\n2\n4\n1\n/alpha\nall\ny\n5\n", true, "");
+    script(&a, "1\nfrom pi\ny\nn\n5\n", true, "");
+    let output = script(&a, "2\n4\n1\ns\n/alpha\nall\ny\n5\n", true, "");
     assert!(output.contains("1. alpha"));
     assert!(
         a.join("home/.config/opencode/skills/alpha/SKILL.md")
@@ -211,7 +212,7 @@ fn large_preview_is_paged_and_hostile_labels_cannot_inject_prompt_lines() {
         input: io::Cursor::new("n\n"),
         output: Vec::new(),
         color: false,
-        single_key: false,
+        terminal_input: false,
     };
     assert!(!super::application_preview::confirm(&mut dialog, &encoded).unwrap());
     let output = String::from_utf8(dialog.output).unwrap();
@@ -223,7 +224,7 @@ fn large_preview_is_paged_and_hostile_labels_cannot_inject_prompt_lines() {
         input: io::Cursor::new("n\n"),
         output: Vec::new(),
         color: false,
-        single_key: false,
+        terminal_input: false,
     };
     assert!(!super::application_preview::confirm(&mut dialog, &encoded).unwrap());
     let output = String::from_utf8(dialog.output).unwrap();
@@ -270,11 +271,11 @@ fn opencode_version_prompt_tracks_selected_asset_kinds_including_pack_leaves() {
     kitrove_core::commit_pack_creation(&pack, &a.join("collection"), CaptureLimits::default())
         .unwrap();
     // Skill-only selection ignores the unselected gated instruction and pack.
-    let skill = script(&a, "\n2\n4\n1\n2\nn\n5\n", true, "");
+    let skill = script(&a, "2\n4\n1\ns\n2\nn\n5\n", true, "");
     assert!(!skill.contains("Absolute trusted"));
     // Both a direct instruction and the instruction reached through a pack need V2 evidence.
     for selection in ["1", "3"] {
-        let gated = script(&a, &format!("\n2\n4\n1\n{selection}\n\n5\n"), true, "");
+        let gated = script(&a, &format!("2\n4\n1\ns\n{selection}\n\n5\n"), true, "");
         assert!(gated.contains("Absolute trusted opencode2 executable path"));
         assert!(!gated.contains("Add to tools — preview"));
     }
@@ -291,17 +292,16 @@ fn ready_shortcut_excludes_unmanaged_conflicts_without_touching_them() {
         "---\nname: beta\ndescription: Another skill.\n---\nKeep beta.\n",
     )
     .unwrap();
-    script(&a, "\n1\nfrom pi\ny\n5\n", true, "");
+    script(&a, "1\nfrom pi\ny\nn\n5\n", true, "");
     let conflict = a.join("home/.config/opencode/skills/alpha/SKILL.md");
     std::fs::create_dir_all(conflict.parent().unwrap()).unwrap();
     std::fs::write(&conflict, "User-owned alpha.\n").unwrap();
-    let output = script(&a, "\n2\n4\n1\nready\ny\n5\n", true, "");
-    assert!(output.contains("Compare existing copy"));
-    assert!(output.contains("Ready to add"));
+    let output = script(&a, "2\n4\n1\n\ny\n5\n", true, "");
     assert!(
-        output.contains("This page: 1 ready · 1 compare existing copy"),
+        output.contains("1 of 2 selected skills ready to add"),
         "{output}"
     );
+    assert!(!output.contains("Skills and packs ·"), "{output}");
     assert!(output.contains("1 destination"), "{output}");
     assert!(
         a.join("home/.config/opencode/skills/beta/SKILL.md")
@@ -322,14 +322,14 @@ fn incompatible_bulk_selection_offers_ready_preview_without_automatic_applicatio
         "---\nname: beta\n---\nA description inferred from Claude's first paragraph.\n",
     )
     .unwrap();
-    script(&a, "\n1\nfrom claude\ny\n5\n", true, "");
+    script(&a, "1\nfrom claude\ny\nn\n5\n", true, "");
     assert_eq!(
         super::tests::manifest(&a).assets[&AssetId::parse("beta").unwrap()].compatibility
             [&HarnessId::OpenCode]
             .fidelity(),
         kitrove_model::Fidelity::Partial
     );
-    let declined = script(&a, "\n2\n4\n1\nall\nr\n\n5\n", true, "");
+    let declined = script(&a, "2\n4\n1\ns\nall\nr\n\n5\n", true, "");
     assert!(
         declined.contains("Preview ready items from this selection"),
         "{declined}"
@@ -342,8 +342,8 @@ fn incompatible_bulk_selection_offers_ready_preview_without_automatic_applicatio
     assert!(declined.contains("Application skipped"));
     assert!(!a.join("home/.config/opencode/skills").exists());
 
-    let output = script(&a, "\n2\n4\n1\nall\nr\ny\n5\n", true, "");
-    assert!(output.contains("Selection blocked"));
+    let output = script(&a, "2\n4\n1\ns\nall\nr\ny\n5\n", true, "");
+    assert!(output.contains("Some items are incompatible"));
     assert!(output.contains("Choose different items"));
     assert!(output.contains("Not compatible with the selected tools"));
     assert!(!a.join("home/.config/opencode/skills/beta").exists());
@@ -366,13 +366,13 @@ fn bulk_ready_preview_respects_filter_and_exclusions_with_unmanaged_conflict() {
     for name in ["alpha-added", "alpha-excluded", "other"] {
         super::tests::skill(&a, name, "A saved skill for scoped selection.");
     }
-    script(&a, "\n1\nfrom claude\ny\n5\n", true, "");
+    script(&a, "1\nfrom claude\ny\nn\n5\n", true, "");
     let target = a.join("home/.config/opencode/skills");
     let existing = target.join("alpha/SKILL.md");
     std::fs::create_dir_all(existing.parent().unwrap()).unwrap();
     std::fs::write(&existing, "User-owned alpha.").unwrap();
 
-    let output = script(&a, "\n2\n4\n1\nhelp\n/alpha\nall,-3\nr\ny\n5\n", true, "");
+    let output = script(&a, "2\n4\n1\ns\nhelp\n/alpha\nall,-3\nr\ny\n5\n", true, "");
     assert!(output.contains("Selection help"));
     assert!(
         output.contains("Previewing 1 of 2 selected items"),
@@ -400,7 +400,7 @@ fn structured_preview_keeps_removals_and_later_page_connection_effects_visible()
         input: io::Cursor::new("n\n"),
         output: Vec::new(),
         color: false,
-        single_key: false,
+        terminal_input: false,
     };
     assert!(!super::application_preview::confirm(&mut dialog, &encoded).unwrap());
     let output = String::from_utf8(dialog.output).unwrap();
@@ -446,7 +446,7 @@ fn core_recovery_guard_is_not_hidden_by_advisory_destination_readiness() {
         "apply.batch_journal_invalid"
     );
     let before = std::fs::read(&journal).unwrap();
-    let output = script(&a, "\n2\n4\n1\n1\n", true, "apply.batch_journal_invalid");
+    let output = script(&a, "2\n4\n1\ns\n1\n", true, "apply.batch_journal_invalid");
     assert!(output.contains("Compare existing copy"));
     assert_eq!(std::fs::read(journal).unwrap(), before);
     assert_eq!(
@@ -466,8 +466,8 @@ fn saved_pack_is_first_and_applies_all_members_with_one_preview() {
     .unwrap();
     kitrove_core::commit_pack_creation(&pack, &a.join("collection"), CaptureLimits::default())
         .unwrap();
-    let output = script(&a, "\n2\n4\n1\n1\ny\n5\n", true, "");
-    assert!(output.contains("2. Add skills or packs to a tool"));
+    let output = script(&a, "2\n4\n1\ns\n1\ny\n5\n", true, "");
+    assert!(output.contains("[2] Add saved skills or packs to a tool"));
     assert!(
         output.contains("1. z-review-pack [Pack · 1 item]"),
         "{output}"
@@ -497,7 +497,7 @@ fn prepared_scripted_skill_bytes(bytes: &[u8]) -> (tempfile::TempDir, PathBuf) {
         "Use helper.py only when the tool user permits it.",
     );
     std::fs::write(a.join("home/.claude/skills/rv/helper.py"), bytes).unwrap();
-    let output = script(&a, "\n1\nfrom claude\ny\n5\n", true, "");
+    let output = script(&a, "1\nfrom claude\ny\nn\n5\n", true, "");
     assert!(output.contains("Adopted 1 skills"), "{output}");
     let state: kitrove_model::LocalState =
         serde_json::from_slice(&std::fs::read(a.join("state/state.json")).unwrap()).unwrap();
@@ -517,7 +517,7 @@ fn scripted_skill_needs_separate_exact_local_approval_for_each_tool() {
         let native = std::fs::read(a.join("home/.claude/skills/rv/helper.py")).unwrap();
         // A managed destination must be empty; native evidence remains in collection.
         std::fs::remove_dir_all(a.join("home/.claude/skills/rv")).unwrap();
-        let output = script(&a, &format!("\n2\n{tool}\n1\n2\ny\ny\n5\n"), true, "");
+        let output = script(&a, &format!("2\n{tool}\n1\ns\n2\ny\ny\n5\n"), true, "");
         assert!(output.contains("Script-containing skill: rv"), "{output}");
         assert!(
             output.find("Exact bundle approved locally").unwrap()
@@ -556,7 +556,7 @@ fn skipping_script_approval_keeps_entire_pack_unapplied_and_trust_empty() {
     .unwrap();
     kitrove_core::commit_pack_creation(&pack, &a.join("collection"), CaptureLimits::default())
         .unwrap();
-    let output = script(&a, "\n2\n4\n1\n1\n\n5\n", true, "");
+    let output = script(&a, "2\n4\n1\ns\n1\n\n5\n", true, "");
     assert!(output.contains("Selection was not applied"));
     assert!(!a.join("home/.config/opencode/skills").exists());
     let state: kitrove_model::LocalState =
@@ -570,7 +570,7 @@ fn skipping_script_approval_keeps_entire_pack_unapplied_and_trust_empty() {
 fn stored_script_file_inspection_escapes_controls_pages_long_lines_and_grants_no_trust() {
     let bytes = format!("# stored source \u{1b}[2J{}\n", "a".repeat(300));
     let (_tmp, a) = prepared_scripted_skill_bytes(bytes.as_bytes());
-    let output = script(&a, "\n2\n4\n1\n2\nf\n2\n\n\n5\n", true, "");
+    let output = script(&a, "2\n4\n1\ns\n2\nf\n2\n\n\n5\n", true, "");
     assert!(output.contains("Stored file:"));
     assert!(output.contains("\\u{1b}[2J"));
     assert!(!output.contains('\u{1b}'));
@@ -603,7 +603,7 @@ fn next_actions_compare_exact_unmanaged_copy_without_claiming_ownership() {
     std::fs::write(destination.join("SKILL.md"), document).unwrap();
     let state_before = std::fs::read(a.join("state/state.json")).unwrap();
     let manifest_before = std::fs::read(a.join("collection/kitrove.toml")).unwrap();
-    let output = script(&a, "\n2\n4\n1\ncompare 1\nn\n5\n", true, "");
+    let output = script(&a, "2\n4\n1\ns\ncompare 1\nn\n5\n", true, "");
     assert!(output.contains("Compare existing copy"), "{output}");
     assert!(output.contains("Exact bundle contents match"), "{output}");
     let encoded_destination = destination.to_str().unwrap();
@@ -630,7 +630,7 @@ fn next_actions_compare_exact_unmanaged_copy_without_claiming_ownership() {
         std::fs::read(a.join("collection/kitrove.toml")).unwrap(),
         manifest_before
     );
-    let refused = script(&a, "\n2\n4\n1\n1\n", true, "apply.destination_unmanaged");
+    let refused = script(&a, "2\n4\n1\ns\n1\n", true, "apply.destination_unmanaged");
     assert!(refused.contains("Compare existing copy"));
     assert_eq!(
         std::fs::read(a.join("state/state.json")).unwrap(),
@@ -659,7 +659,7 @@ fn next_actions_compare_detects_supporting_file_difference() {
     let extra = destination.join("NOTES.md");
     std::fs::write(&extra, "Keep this user-owned supporting file.\n").unwrap();
     let state_before = std::fs::read(a.join("state/state.json")).unwrap();
-    let output = script(&a, "\n2\n4\n1\ncompare 1\nn\n5\n", true, "");
+    let output = script(&a, "2\n4\n1\ns\ncompare 1\nn\n5\n", true, "");
     assert!(output.contains("Different bundle contents"), "{output}");
     assert!(!output.contains("Exact bundle contents match"));
     assert_eq!(
@@ -685,14 +685,14 @@ fn next_actions_why_explains_stored_incompatibility_without_applying() {
         "---\nname: beta\n---\nA description inferred from Claude's first paragraph.\n",
     )
     .unwrap();
-    script(&a, "\n1\nfrom claude\ny\n5\n", true, "");
+    script(&a, "1\nfrom claude\ny\nn\n5\n", true, "");
     let manifest = super::tests::manifest(&a);
     let reasons = manifest.assets[&AssetId::parse("beta").unwrap()].compatibility
         [&HarnessId::OpenCode]
         .reasons();
     assert!(!reasons.is_empty());
     let state_before = std::fs::read(a.join("state/state.json")).unwrap();
-    let output = script(&a, "\n2\n4\n1\nwhy 2\nn\n5\n", true, "");
+    let output = script(&a, "2\n4\n1\ns\nwhy 2\nn\n5\n", true, "");
     assert!(output.contains("(why 2)"), "{output}");
     assert!(output.contains(&safe(&reasons[0].message)), "{output}");
     assert!(
@@ -710,7 +710,7 @@ fn next_actions_why_explains_stored_incompatibility_without_applying() {
 #[test]
 fn next_actions_review_keeps_script_trust_separate_from_placement_approval() {
     let (_tmp, a) = prepared_scripted_skill();
-    let output = script(&a, "\n2\n4\n1\nreview 2\ny\n\n5\n", true, "");
+    let output = script(&a, "2\n4\n1\ns\nreview 2\ny\n\n5\n", true, "");
     assert!(output.contains("Review scripts"), "{output}");
     assert!(
         output.contains("This page: 1 ready · 1 review scripts"),
@@ -746,7 +746,7 @@ fn next_actions_compare_keeps_symlink_destination_unverified() {
     std::fs::create_dir_all(destination.parent().unwrap()).unwrap();
     std::os::unix::fs::symlink(&external, &destination).unwrap();
     let state_before = std::fs::read(a.join("state/state.json")).unwrap();
-    let output = script(&a, "\n2\n4\n1\ncompare 1\nn\n5\n", true, "");
+    let output = script(&a, "2\n4\n1\ns\ncompare 1\nn\n5\n", true, "");
     assert!(
         output.contains("Existing bundle contents could not be verified"),
         "{output}"
@@ -767,7 +767,7 @@ fn next_actions_reject_hidden_or_invalid_original_numbers_without_side_effects()
     let state_before = std::fs::read(a.join("state/state.json")).unwrap();
     let output = script(
         &a,
-        "\n2\n4\n1\n/missing\ncompare 1\nreview 0\nwhy 99\nn\n5\n",
+        "2\n4\n1\ns\n/missing\ncompare 1\nreview 0\nwhy 99\nn\n5\n",
         true,
         "",
     );
@@ -799,11 +799,11 @@ fn next_actions_page_summary_keeps_off_page_checks_explicit() {
         "---\nname: s12\nmodel: test-model\n---\nA description inferred from Claude's first paragraph.\n",
     )
     .unwrap();
-    script(&a, "\n1\nfrom claude\ny\n5\n", true, "");
+    script(&a, "1\nfrom claude\ny\nn\n5\n", true, "");
     let state_before = std::fs::read(a.join("state/state.json")).unwrap();
     let manifest_before = std::fs::read(a.join("collection/kitrove.toml")).unwrap();
 
-    let initial = script(&a, "\n2\n4\n1\nn\n5\n", true, "");
+    let initial = script(&a, "2\n4\n1\ns\nn\n5\n", true, "");
     assert!(initial.contains("This page: 12 ready"), "{initial}");
     assert!(
         !initial.contains("1 incompatible"),
@@ -811,7 +811,7 @@ fn next_actions_page_summary_keeps_off_page_checks_explicit() {
     );
     assert!(!initial.contains("13. s12"));
 
-    let explained = script(&a, "\n2\n4\n1\nwhy 13\nnext\nready\nn\n5\n", true, "");
+    let explained = script(&a, "2\n4\n1\ns\nwhy 13\nnext\nready\nn\n5\n", true, "");
     assert!(explained.contains("Destination check: s12"), "{explained}");
     assert!(
         explained.contains("claude.description_first_paragraph"),
@@ -845,7 +845,7 @@ fn next_actions_compact_rows_keep_description_and_reason_in_selected_details() {
     let description = "Long description for reviewing the selected skill. ".repeat(4);
     let description: String = description.chars().take(160).collect();
     std::fs::write(a.join("home/.claude/skills/beta/SKILL.md"), format!("---\nname: beta\ndescription: {description}\nmodel: test-model\n---\nKeep exact native fields.\n")).unwrap();
-    script(&a, "\n1\nfrom claude\ny\n5\n", true, "");
+    script(&a, "1\nfrom claude\ny\nn\n5\n", true, "");
     let state_before = std::fs::read(a.join("state/state.json")).unwrap();
     let manifest_before = std::fs::read(a.join("collection/kitrove.toml")).unwrap();
     let manifest = super::tests::manifest(&a);
@@ -854,7 +854,7 @@ fn next_actions_compact_rows_keep_description_and_reason_in_selected_details() {
         .reasons()[0];
     assert_eq!(reason.code, "skill.native_field_omitted");
 
-    let initial = script(&a, "\n2\n4\n1\nn\n5\n", true, "");
+    let initial = script(&a, "2\n4\n1\ns\nn\n5\n", true, "");
     assert!(
         !initial.contains(&description),
         "default rows should keep long descriptions in selected details: {initial}"
@@ -869,7 +869,7 @@ fn next_actions_compact_rows_keep_description_and_reason_in_selected_details() {
     );
     assert!(!initial.contains(&reason.code));
 
-    let explained = script(&a, "\n2\n4\n1\nwhy 2\nn\n5\n", true, "");
+    let explained = script(&a, "2\n4\n1\ns\nwhy 2\nn\n5\n", true, "");
     assert_eq!(
         explained.matches(&description).count(),
         1,

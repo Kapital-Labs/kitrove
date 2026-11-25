@@ -43,32 +43,41 @@ pub(super) fn existing(
     }
 }
 
-pub(super) fn grouped<R: PromptInput, W: Write>(
+pub(super) fn page<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
     candidates: &[&ScanEntry],
+    filter: &str,
+    start: &mut usize,
+    advance: bool,
 ) -> Result<(), CliError> {
-    let mut groups = std::collections::BTreeMap::<_, Vec<_>>::new();
-    for (index, entry) in candidates.iter().enumerate() {
-        groups.entry(name(entry)).or_default().push((index, *entry));
-    }
-    for (name, entries) in groups.into_iter().take(20) {
-        let copies = if entries.len() == 1 {
-            "source copy"
+    const PAGE_SIZE: usize = 10;
+    let matches: Vec<_> = candidates
+        .iter()
+        .enumerate()
+        .filter(|(_, entry)| name(entry).to_ascii_lowercase().contains(filter))
+        .collect();
+    if advance {
+        *start = if *start + PAGE_SIZE < matches.len() {
+            *start + PAGE_SIZE
         } else {
-            "source copies"
+            0
         };
-        dialog.say(&format!("{} · {} {copies}", safe(name), entries.len()))?;
-        for (index, entry) in entries.iter().take(8) {
-            dialog.say(&format!(
-                "  {}. {} [{:?}]",
-                index + 1,
-                entry.harness.as_str(),
-                entry.scope
-            ))?;
-        }
-        if entries.len() > 8 {
-            dialog.hint("More copies are available under v; original numbers stay unchanged.")?;
-        }
     }
-    Ok(())
+    let end = (*start + PAGE_SIZE).min(matches.len());
+    dialog.say(&format!(
+        "Source copies · {}–{end} of {}",
+        if matches.is_empty() { 0 } else { *start + 1 },
+        matches.len()
+    ))?;
+    for &(index, entry) in &matches[*start..end] {
+        dialog.say(&format!(
+            "  {}. {} [{} / {:?}]",
+            index + 1,
+            safe(name(entry)),
+            entry.harness.as_str(),
+            entry.scope
+        ))?;
+    }
+    dialog
+        .hint("Use the original numbers to select skills. Type /name to filter or next to browse.")
 }

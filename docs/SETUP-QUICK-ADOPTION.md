@@ -1,14 +1,12 @@
-# Quick skill collection (RC5.22)
+# Quick skill collection
 
-These instructions assume RC5.22. Quick collection was introduced in RC5.6;
-RC5.5 has the older per-item prompts. Check
-`kitrove --version` before following these shortcuts. This guide does not itself
-establish publication or update an installed binary. Use the current download
-and installation guidance, with verification before executing a new artifact.
+This guide describes the CLI in this source tree. For the installed RC5.22
+preview, see its [versioned quick collection guide](https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.22/docs/SETUP-QUICK-ADOPTION.md).
 
-In `kitrove init` or `kitrove configure`, choose **Collect skills from this computer**.
-Setup shows counts and the first 20 numbered observations. Enter previews recommendations;
-it does not write them yet. `v` shows the full inventory and numbered list.
+Run `kitrove` and choose **Find or collect skills**, or use **Collect skills
+from this computer** in `kitrove configure`. The scan summarizes eligible
+source copies first. Enter previews the eligible set. Type `v` to browse
+numbered copies, `/name` to filter by skill name and `next` to page.
 
 At the selection prompt:
 
@@ -38,20 +36,19 @@ or use individual review to rename it explicitly.
 
 After preview:
 
-- Enter or `y` approves just the displayed ready set after a nonempty preview.
+- Type `y` and press Enter to save the displayed ready set. Enter alone skips saving.
 - `s` chooses again using the same scan. An empty preview offers no adoption approval
-  or zero-item success; Enter chooses again instead.
+  or zero-item success. Enter chooses again for an empty preview.
 - `d` shows complete skipped-item details. Ready plans always retain full
   source/fidelity/loss details; the summary improvements below separate
   occupied names and named blockers without listing every unselected copy.
-- `r` walks through the original selection. Enter or `y` accepts the current
-  single plan, `n` skips it, and `r` changes its collection name before a new
-  preview. Invalid or occupied names must be renamed or skipped.
+- `r` walks through the original selection. Type `y` and press Enter to save
+  the current skill. Enter alone skips it. Type `r` and press Enter to rename it
+  before a new preview. Invalid or occupied names must be renamed or skipped.
 - `n` skips collection; `q` or end of input stops setup.
 
-Closed menus accept a single displayed key without Enter. Selection expressions,
-paths, names and URLs remain text prompts: type the value and press Enter.
-An Enter left over from an earlier prompt cannot approve a later preview.
+Enter submits a menu selection or a typed value. Arrow keys and shortcuts can
+highlight decisions in supported terminals. Queued input cannot approve a later preview.
 
 Bulk approval is not an all-or-nothing transaction. Each item uses the existing
 exact-plan approval and fresh source/state checks. A stale source, changed
@@ -81,7 +78,7 @@ source/fidelity/loss details. The summary improvements below keep
 unselected-copy counts out of the default summary.
 An empty preview does not ask for adoption approval or report success. Enter or
 `s` chooses again using the same scan, `r` reviews individually, and `n` skips.
-For a nonempty preview, `s` also chooses again; Enter approves only its displayed ready set.
+For a nonempty preview, `s` chooses again and Enter alone skips saving.
 These source-selection and choose-again improvements were introduced in RC5.8.
 RC5.7 and earlier binaries do not include them.
 

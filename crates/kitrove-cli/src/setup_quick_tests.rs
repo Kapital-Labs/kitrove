@@ -37,7 +37,7 @@ fn quick_adoption_defaults_preview_then_one_y_commits_only_included_items() {
     let output = script(
         &a,
         &format!(
-            "1\n{}\na\ny\nall,-2\nd\ny\n5\n",
+            "1\n{}\na\ny\nall,-2\nd\ny\nn\n5\n",
             a.join("collection").display()
         ),
         false,
@@ -74,11 +74,12 @@ fn quick_adoption_defaults_preview_then_one_y_commits_only_included_items() {
 }
 
 #[test]
-fn quick_preview_n_eof_and_quit_never_authorize_bulk_writes() {
+fn quick_preview_skip_enter_eof_and_quit_never_authorize_bulk_writes() {
     for (index, decision, error) in [
         (0, "n\n5\n", ""),
         (1, "", "setup.cancelled"),
         (2, "q\n", "setup.cancelled"),
+        (3, "\n5\n", ""),
     ] {
         let tmp = kitrove_testkit::trusted_tempdir(".setup-no-bulk-consent-");
         let root = std::fs::canonicalize(tmp.path()).unwrap();
@@ -99,7 +100,7 @@ fn quick_preview_n_eof_and_quit_never_authorize_bulk_writes() {
 }
 
 #[test]
-fn enter_adopts_only_the_displayed_nonempty_set_and_preserves_other_sources() {
+fn explicit_approval_adopts_only_the_displayed_set_and_preserves_other_sources() {
     let tmp = kitrove_testkit::trusted_tempdir(".setup-enter-preview-");
     let root = std::fs::canonicalize(tmp.path()).unwrap();
     let a = machine(&root, "a");
@@ -109,7 +110,7 @@ fn enter_adopts_only_the_displayed_nonempty_set_and_preserves_other_sources() {
     let output = script(
         &a,
         &format!(
-            "1\n{}\na\ny\nfrom pi,-2\n\n5\n",
+            "1\n{}\na\ny\nfrom pi,-2\ny\nn\n5\n",
             a.join("collection").display()
         ),
         false,
@@ -157,13 +158,13 @@ fn collection_questions_and_actions_are_separate_readable_prompt_lines() {
     assert!(output.contains("\n  Enter         Preview eligible skills\n"));
     assert!(output.contains("\n  from TOOL     Use only that tool's copies\n"));
     assert!(output.contains("? Collect these skills?\n"));
-    assert!(output.contains("\n  Enter/y       Collect the previewed skills\n"));
+    assert!(output.contains("\n  y             Save the previewed skills\n"));
     assert!(!output.contains("Enter does not approve bulk writes"));
     assert!(manifest(&a).assets.is_empty());
 }
 
 #[test]
-fn individual_review_accepts_enter_and_skips_n_without_a_name_prompt() {
+fn individual_review_uses_explicit_approval_and_skips_without_a_name_prompt() {
     let tmp = kitrove_testkit::trusted_tempdir(".setup-individual-");
     let root = std::fs::canonicalize(tmp.path()).unwrap();
     let a = machine(&root, "a");
@@ -172,7 +173,7 @@ fn individual_review_accepts_enter_and_skips_n_without_a_name_prompt() {
     let output = script(
         &a,
         &format!(
-            "1\n{}\na\nyes\n\nr\n\nn\n5\n",
+            "1\n{}\na\nyes\n\nr\ny\nn\nn\n5\n",
             a.join("collection").display()
         ),
         false,
@@ -206,7 +207,7 @@ fn recommendations_never_choose_between_same_named_native_sources() {
     unique_skill(&a, "unique");
     let output = script(
         &a,
-        &format!("1\n{}\na\nyes\n\ny\n5\n", a.join("collection").display()),
+        &format!("1\n{}\na\nyes\n\ny\nn\n5\n", a.join("collection").display()),
         false,
         "",
     );
@@ -233,7 +234,7 @@ fn individual_rename_preserves_both_exact_native_sources() {
     let output = script(
         &a,
         &format!(
-            "1\n{}\na\nyes\n\nr\nr\nfirst-copy\n\nr\nfirst-copy\nsecond-copy\n\n5\n",
+            "1\n{}\na\nyes\n\nr\nr\nfirst-copy\ny\nr\nfirst-copy\nsecond-copy\ny\nn\n5\n",
             a.join("collection").display()
         ),
         false,
@@ -268,7 +269,7 @@ fn bulk_preview_retains_partial_reasons_and_omits_unsupported_executable_content
     let output = script(
         &a,
         &format!(
-            "1\n{}\na\nyes\n1\nd\ny\n5\n",
+            "1\n{}\na\nyes\n1\nd\ny\nn\n5\n",
             a.join("collection").display()
         ),
         false,
@@ -307,9 +308,9 @@ fn bulk_preview_retains_partial_reasons_and_omits_unsupported_executable_content
         "\x7fELFsynthetic-unsupported-binary\n",
     )
     .unwrap();
-    let output = script(&a, "\n1\nall\nd\ny\nn\n5\n", true, "");
+    let output = script(&a, "1\nall\nd\ny\nn\n5\n", true, "");
     assert!(output.contains("No skills ready to collect"));
-    assert!(!output.contains("Collect the previewed skills"));
+    assert!(!output.contains("Save the previewed skills"));
     assert!(
         output.contains("contains unsupported executable content or native lifecycle directives")
     );
@@ -333,7 +334,7 @@ fn short_confirmations_do_not_change_other_blank_defaults() {
             input: io::Cursor::new(input),
             output: Vec::new(),
             color: false,
-            single_key: false,
+            terminal_input: false,
         };
         assert!(dialog.confirm("change?").unwrap());
     }
@@ -342,7 +343,7 @@ fn short_confirmations_do_not_change_other_blank_defaults() {
             input: io::Cursor::new(input),
             output: Vec::new(),
             color: false,
-            single_key: false,
+            terminal_input: false,
         };
         assert!(!dialog.confirm("change?").unwrap());
     }
@@ -350,7 +351,7 @@ fn short_confirmations_do_not_change_other_blank_defaults() {
         input: io::Cursor::new("maybe\ny\n"),
         output: Vec::new(),
         color: false,
-        single_key: false,
+        terminal_input: false,
     };
     assert!(dialog.confirm("change?").unwrap());
     assert!(
@@ -377,7 +378,7 @@ fn compact_inventory_and_exclusions_use_the_same_numbering_after_view() {
         false,
         "",
     );
-    assert!(output.contains("Showing the first 20"));
+    assert!(output.contains("Source copies · 1–10 of 21"));
     assert!(output.contains("21. skill-21"));
     assert!(output.contains("Excluded: 1. skill-01"));
     assert!(output.contains("Excluded: 21. skill-21"));
@@ -392,7 +393,6 @@ fn real_bulk_loop_refuses_stale_sources_and_stops_after_partial_progress() {
         "manifest",
         "journal",
         "source-filter",
-        "enter-before",
     ] {
         let tmp = kitrove_testkit::trusted_tempdir(".setup-race-");
         let root = std::fs::canonicalize(tmp.path()).unwrap();
@@ -428,7 +428,7 @@ impl Write for RaceWriter {
         let trigger = if self.mode == "after-first" {
             "Adopted alpha."
         } else {
-            "Collect the previewed skills"
+            "Save the previewed skills"
         };
         if !self.mutated && text.contains(trigger) {
             if self.mode == "journal" {
@@ -482,7 +482,7 @@ fn race_child() {
         input: io::Cursor::new(std::env::var("KITROVE_TEST_SETUP_INPUT").unwrap()),
         output: Vec::new(),
         color: false,
-        single_key: false,
+        terminal_input: false,
     };
     run(
         &mut init,
@@ -495,15 +495,13 @@ fn race_child() {
     let state_path = collection.parent().unwrap().join("state/state.json");
     let state = std::fs::read(&state_path).unwrap();
     let mut dialog = Dialog {
-        input: io::Cursor::new(if mode == "enter-before" {
-            "\n\n"
-        } else if mode == "source-filter" {
+        input: io::Cursor::new(if mode == "source-filter" {
             "from pi\ny\n"
         } else {
             "\ny\n"
         }),
         color: false,
-        single_key: false,
+        terminal_input: false,
         output: RaceWriter {
             output: Vec::new(),
             collection: collection.clone(),
@@ -552,7 +550,7 @@ fn empty_preview_explains_existing_names_and_each_blocker_without_exclusion_nois
     script(
         &a,
         &format!(
-            "1\n{}\nfixture\ny\nfrom pi\ny\n5\n",
+            "1\n{}\nfixture\ny\nfrom pi\ny\nn\n5\n",
             a.join("collection").display()
         ),
         false,
@@ -563,7 +561,7 @@ fn empty_preview_explains_existing_names_and_each_blocker_without_exclusion_nois
     std::fs::write(&executable, "\x7fELFsynthetic-unsupported-binary\n").unwrap();
     std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
     skill(&a, "outside-selection", "Unselected source.");
-    let output = script(&a, "\n1\nfrom pi\nn\n5\n", true, "");
+    let output = script(&a, "1\nfrom pi\nn\n5\n", true, "");
     assert!(
         output.contains("2 skill names · 2 source copies selected · 0 ready to collect"),
         "{output}"

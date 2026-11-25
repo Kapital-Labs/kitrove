@@ -76,7 +76,7 @@ class Session:
             mode = dict(mode_errno=code)
         context = dict(child_exit=self.process.poll(), mode=mode, inputs=self.inputs,
                        output_tail=self.output[-4096:])
-        return "menu did not advance without Enter: " + repr(marker[:160]) + "; " + reason + "; " + repr(context)
+        return "menu did not reach the expected screen: " + repr(marker[:160]) + "; " + reason + "; " + repr(context)
 
     def send(self, value):
         self.inputs.append((round(time.monotonic() - self.started, 6), value[:16].hex(), len(value)))
@@ -95,7 +95,7 @@ class Session:
         deadline = time.monotonic() + 5
         while termios.tcgetattr(self.slave)[3] & termios.ICANON:
             if time.monotonic() >= deadline:
-                raise AssertionError("numbered menu never enabled immediate input")
+                raise AssertionError("inline menu never enabled picker input")
             time.sleep(0.01)
 
     def finish(self, expected):
@@ -115,9 +115,12 @@ def initial_menu():
         root = Path(tmp).resolve()
         session = Session(root, ["init"])
         try:
-            session.until(b"Choose 1-5:")
+            session.until(b"How would you like to start?")
             session.menu_ready()
             session.send(b"1")
+            session.until(b"> [1] Set up my first computer")
+            assert b"Where should your portable collection live?" not in session.output
+            session.send(b"\r")
             session.until(b"Where should your portable collection live?")
             session.restored()
             session.send(b"q\n")
@@ -133,10 +136,10 @@ def quit_menu(key):
         root = Path(tmp).resolve()
         session = Session(root, ["init"])
         try:
-            session.until(b"Choose 1-5:")
+            session.until(b"How would you like to start?")
             session.menu_ready()
             session.send(key)
-            session.finish(1)
+            session.finish(0 if key == b"q\r" else 1)
             assert not (root / "state").exists()
         finally:
             session.close()
@@ -157,9 +160,7 @@ def configuration_menu(key):
         before = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob("*") if p.is_file()}
         session = Session(root, ["configure", "--environment", str(root / "collection")])
         try:
-            session.until(b"Existing collection path")
-            session.send(b"\n")
-            session.until(b"Choose 1-5 [5]:")
+            session.until(b"What would you like to do?")
             session.menu_ready()
             session.send(key)
             session.finish(0)
@@ -187,37 +188,37 @@ def adoption_decision(key, adopt, source_answer=b"from pi\n"):
         before = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob("*") if p.is_file()}
         session = Session(root, ["configure", "--environment", str(root / "collection")])
         try:
-            session.until(b"Existing collection path")
-            session.send(b"\n")
-            session.until(b"Choose 1-5 [5]:")
+            session.until(b"What would you like to do?")
             session.menu_ready()
-            session.send(b"1")
+            session.send(b"1\r")
             session.until(b"? Choose skills")
             session.restored()
             session.send(source_answer)
             session.prompt(b"Adoption preview")
-            session.menu_ready()
+            session.restored()
             session.output = b""
             session.send(key)
-            if key == b"s":
+            if key == b"s\r":
                 session.prompt(b"? Choose skills")
                 session.restored()
                 session.send(b"n\n")
-            elif key == b"d":
+            elif key == b"d\r":
                 session.prompt(b"Collect these skills?")
-                session.menu_ready()
+                session.restored()
                 session.output = b""
-                session.send(b"n")
+                session.send(b"n\r")
             elif key.startswith(b"r"):
                 session.prompt(b"Adopt this skill?")
-                session.menu_ready()
+                session.restored()
                 session.output = b""
-                session.send(b"n")
+                session.send(b"n\r")
             if adopt:
-                session.until(b"Adopted 1 skills")
-            session.prompt(b"Choose 1-5 [5]:")
+                session.prompt(b"Next: add the collected skills to a tool?")
+                session.menu_ready()
+                session.send(b"n\r")
+            session.prompt(b"What would you like to do?")
             session.menu_ready()
-            session.send(b"5")
+            session.send(b"5\r")
             session.finish(0)
             after = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob("*") if p.is_file()}
             if adopt:
@@ -248,28 +249,30 @@ def duplicate_source_decision(key, adopt):
         before = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob("*") if p.is_file()}
         session = Session(root, ["configure", "--environment", str(root / "collection")])
         try:
-            session.prompt(b"Existing collection path")
-            session.send(b"\n")
-            session.prompt(b"Choose 1-5 [5]:")
+            session.prompt(b"What would you like to do?")
             session.menu_ready()
-            session.send(b"1")
+            session.send(b"1\r")
             session.prompt(b"? Choose skills")
             session.send(b"all\n")
             session.prompt(b"Choose a tool's copies to preview")
-            session.menu_ready()
+            session.restored()
             assert b"1. claude (1 selected copy)" in session.output
             assert b"Omitted:" not in session.output
             session.output = b""
             session.send(key)
             session.prompt(b"Collect these skills?")
-            session.menu_ready()
+            session.restored()
             # Choosing a source (even with a trailing Enter) cannot approve it.
             assert before == {str(p.relative_to(root)): p.read_bytes() for p in root.rglob("*") if p.is_file()}
             session.output = b""
-            session.send(b"y" if adopt else b"n")
-            session.prompt(b"Choose 1-5 [5]:")
+            session.send(b"y\r" if adopt else b"n\r")
+            if adopt:
+                session.prompt(b"Next: add the collected skills to a tool?")
+                session.menu_ready()
+                session.send(b"n\r")
+            session.prompt(b"What would you like to do?")
             session.menu_ready()
-            session.send(b"5")
+            session.send(b"5\r")
             session.finish(0)
             after = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob("*") if p.is_file()}
             if adopt:
@@ -305,13 +308,13 @@ def scan_inventory_menu():
             assert b"skill metadata could not be read" not in session.output
             session.menu_ready()
             session.output = b""
-            session.send(b"1")
+            session.send(b"1\r")
             session.prompt(b"Browse skills")
             assert b"ready-01" in session.output
             assert b"ready-13" not in session.output
             session.menu_ready()
             session.output = b""
-            session.send(b"n")
+            session.send(b"n\r")
             session.prompt(b"Browse skills")
             assert b"ready-13" in session.output
             session.menu_ready()
@@ -320,21 +323,21 @@ def scan_inventory_menu():
             session.prompt(b"Next action")
             session.menu_ready()
             session.output = b""
-            session.send(b"2")
+            session.send(b"2\r")
             session.prompt(b"Browse skills")
             assert b"broken" in session.output
             assert b"skill metadata could not be read" in session.output
             session.menu_ready()
             session.output = b""
-            session.send(b"b")
+            session.send(b"b\r")
             session.prompt(b"Next action")
             session.menu_ready()
             session.output = b""
-            session.send(b"d")
+            session.send(b"d\r")
             session.prompt(b"Next action")
             assert b"Findings (grouped)" in session.output
             session.menu_ready()
-            session.send(b"q")
+            session.send(b"q\r")
             session.finish(3)
             after = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
             assert before == after, "inventory navigation changed the fixture"
@@ -357,7 +360,7 @@ def scan_arrow_navigation(quit_from_group=False):
         try:
             session.prompt(b"Next action")
             session.menu_ready()
-            assert b"Up/Down to move" in session.output
+            assert b"Up/Down or shortcut" in session.output
             assert b"\x1b[1;" not in session.output, "NO_COLOR must suppress color"
             session.output = b""
             # Deliver one key event; fragmented decoder reads are covered by Rust unit tests.
@@ -376,7 +379,7 @@ def scan_arrow_navigation(quit_from_group=False):
                 assert not (root / "state").exists()
                 return
             session.output = b""
-            session.send(b"b")
+            session.send(b"b\r")
             session.prompt(b"Next action")
             session.menu_ready()
             # An uncompleted Escape exits promptly and restores exact terminal flags.
@@ -405,7 +408,7 @@ def scan_issues_and_rescan():
             skill.unlink()
             skill.parent.rmdir()
             session.output = b""
-            session.send(b"r")
+            session.send(b"r\r")
             session.prompt(b"Next action")
             assert b"0 skills listed" in session.output, session.output
             assert b"unselected" not in session.output
@@ -429,7 +432,7 @@ def scan_issues_and_rescan():
             session.menu_ready()
             assert b"0 skills listed" in session.output
             assert b"(missing)" not in session.output
-            session.send(b"i")
+            session.send(b"i\r")
             session.prompt(b"After checking the folder")
             session.menu_ready()
             assert b"folder could not be scanned" in session.output
@@ -437,11 +440,11 @@ def scan_issues_and_rescan():
             linked.unlink()
             linked.mkdir()
             session.output = b""
-            session.send(b"r")
+            session.send(b"r\r")
             session.prompt(b"Next action")
             session.menu_ready()
             assert b"scan issues" not in session.output
-            session.send(b"q")
+            session.send(b"q\r")
             session.finish(0)
             assert not (root / "state").exists()
         finally:
@@ -483,12 +486,12 @@ def scan_collect_menu(adopt, context="user", fresh=False, stale=False, cancel=Fa
             session.menu_ready()
             assert b"[a] Add skills to collection" in session.output, (context, session.output)
             if context == "user":
-                session.send(b"1")
+                session.send(b"1\r")
                 session.prompt(b"Browse skills")
                 assert b"[a] Add skills to collection" in session.output, "scan must offer a direct collection handoff"
                 session.menu_ready()
             session.output = b""
-            session.send(b"a\nyes\n" if cancel else b"a")
+            session.send(b"a\nyes\n" if cancel else b"a\r")
             session.prompt(b"Where should your portable collection live?")
             assert not (root / "yes").exists(), "queued input escaped the scan menu"
             if cancel:
@@ -508,22 +511,22 @@ def scan_collect_menu(adopt, context="user", fresh=False, stale=False, cancel=Fa
                 session.send(b"y\n")
             session.prompt(b"Choose skills to collect")
             assert b"other-tool" not in session.output, "handoff widened the harness filter"
-            assert b"1 selectable" in session.output, session.output
+            assert b"1 available to preview" in session.output, session.output
             preview_before = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
             session.send(b"\n")
             session.prompt(b"Collect these skills?")
-            session.menu_ready()
+            session.restored()
             assert preview_before == {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}, "preview must not mutate"
             if not fresh:
                 assert before == preview_before, "existing collection handoff must not mutate"
             session.output = b""
             if stale:
                 source.write_bytes(original + b"Changed after preview.\n")
-            session.send(b"y" if adopt else b"n")
+            session.send(b"y\r" if adopt else b"n\r")
             if adopt and not stale:
                 session.prompt(b"Next: add the collected skills to a tool?")
                 session.menu_ready()
-                session.send(b"n")
+                session.send(b"n\r")
             session.until(b"Previously confirmed steps are retained" if stale else b"Collection step finished.")
             session.finish(1 if stale else 3)
             manifest = (root / "collection/kitrove.toml").read_text()
@@ -561,29 +564,29 @@ def tool_first_application(tool, *, project=False, approve=True, stale=False, ch
                     session.restored()
                 session.output = b""
                 session.send(value)
-            answer(b"Choose 1-5:", b"1", True)
+            answer(b"How would you like to start?", b"1\r", True)
             answer(b"Where should your portable collection live?", str(root / "collection").encode() + b"\n")
             answer(b"Name this computer", b"tools-test\n")
-            answer(b"y/yes confirms", b"y\n")
+            answer(b"Create an empty collection", b"y\n")
             answer(b"Choose skills to collect", b"from pi\n")
-            answer(b"Collect these skills?", b"y", True)
+            answer(b"Collect these skills?", b"y\r")
             session.until(b"Adopted 1 skills")
             # Only the synthetic source is removed to create an empty Pi destination too.
             assert source.read_bytes() == original
             shutil.rmtree(source.parent)
-            answer(b"Choose 1-5 [5]:", b"2", True)
+            answer(b"Next: add the collected skills to a tool?", b"\r", True)
             answer(b"Which AI tools", str(tool).encode() + b"\r", True)
-            answer(b"Where should these items", b"2" if project else b"1", True)
+            answer(b"Where should these items", b"2\r" if project else b"1\r", True)
             if project:
                 answer(b"Absolute project folder", str(root).encode() + b"\n")
             if change_collection:
-                session.prompt(b"Which saved items")
+                session.prompt(b"What would you like to add?")
                 beta = root / "home/.pi/agent/skills/beta/SKILL.md"
                 beta.parent.mkdir(parents=True)
                 beta.write_bytes(b"---\nname: beta\ndescription: Concurrent fixture addition.\n---\nKeep beta.\n")
                 result = subprocess.run([BINARY, "adopt", "beta", "--harness", "pi", "--scope", "user", "--environment", str(root / "collection"), "--json"], cwd=root, env=session.env, input=b"yes\n", stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
                 assert result.returncode == 0, result.stderr
-            answer(b"Which saved items", b"\n")
+            answer(b"What would you like to add?", b"\r", True)
             if change_collection:
                 session.until(b"the collection changed during selection")
                 session.finish(1)
@@ -592,7 +595,7 @@ def tool_first_application(tool, *, project=False, approve=True, stale=False, ch
                 assert not (root / "home/.config/opencode/skills/alpha").exists()
                 return
             session.prompt(b"Add the previewed items?")
-            session.menu_ready()
+            session.restored()
             assert b"Absolute trusted" not in session.output
             destination = {
                 1: ".claude/skills", 2: ".agents/skills",
@@ -610,9 +613,9 @@ def tool_first_application(tool, *, project=False, approve=True, stale=False, ch
                 session.finish(1)
                 assert target.read_bytes() == b"Unmanaged content created after the preview.\n"
             else:
-                session.prompt(b"Choose 1-5 [5]:")
+                session.prompt(b"What would you like to do?")
                 session.menu_ready()
-                session.send(b"5")
+                session.send(b"5\r")
                 session.finish(0)
                 assert target.exists() == approve
                 if approve:
@@ -646,26 +649,25 @@ print("PASS: scan handoff preserves harness/project/explicit roots; preview/skip
 
 
 scan_inventory_menu()
-print("PASS: scan sections and pages open without Enter; diagnostics are on demand; scan stays read-only")
+print("PASS: scan uses Enter to open sections and pages, with diagnostics on demand")
 initial_menu()
-print("PASS: 1 advances immediately; path stays line based; cancellation restores terminal")
-for key in (b"q", b"\x03", b"\x04", b"\x1b"):
+print("PASS: a number highlights; Enter advances and restores line input")
+for key in (b"q\r", b"\x03", b"\x04", b"\x1b"):
     quit_menu(key)
-print("PASS: q/Ctrl-C/Ctrl-D/Escape cancel immediately and restore terminal")
-for key in (b"5", b"\r", b"\n"):
+print("PASS: Quit and cancellation controls restore the terminal")
+for key in (b"5\r", b"\r", b"\n"):
     configuration_menu(key)
-print("PASS: 5/Enter finish immediately without changing fixture bytes")
-for key in (b"y", b"\r", b"y\r"):
-    adoption_decision(key, True)
-print("PASS: single y or Enter adopts only the displayed preview without another key")
-for key in (b"n", b"s", b"d", b"r", b"r\r"):
+print("PASS: picking Finish leaves fixture bytes intact")
+adoption_decision(b"y\r", True)
+print("PASS: an explicit approval submits the displayed collection preview")
+for key in (b"\r", b"n\r", b"s\r", b"d\r", b"r\r"):
     adoption_decision(key, False)
-print("PASS: n/s/d/r act immediately without adoption; native fixture bytes unchanged")
-adoption_decision(b"n", False, source_answer=b"from pi\n\n")
-print("PASS: a pasted trailing Enter cannot confirm a not-yet-displayed preview")
-for key, adopt in ((b"1", False), (b"1", True), (b"1\r", False)):
+print("PASS: Enter alone and other read-only choices leave the collection intact")
+adoption_decision(b"n\r", False, source_answer=b"from pi\n\ny\n")
+print("PASS: queued input cannot confirm a not-yet-displayed preview")
+for key, adopt in ((b"1\r", False), (b"1\r", True), (b"1\r\ny\r", False)):
     duplicate_source_decision(key, adopt)
-print("PASS: duplicate-source keys preview immediately; only separate approval adopts; read-ahead cannot approve")
+print("PASS: source selection requires a separate, fresh approval")
 
 
 def bare_apply_pack(approve):
@@ -700,14 +702,14 @@ def bare_apply_pack(approve):
                     session.restored()
                 session.output = b""
                 session.send(value)
-            answer(b"Existing collection path", b"\n")
-            answer(b"Which AI tools", b"4", True)
-            answer(b"Where should these items", b"1", True)
+            answer(b"Which AI tools", b"4\r", True)
+            answer(b"Where should these items", b"1\r", True)
+            answer(b"What would you like to add?", b"s\r", True)
             session.prompt(b"Which saved items")
             assert b"1. z-review [Pack" in session.output
             assert b"2. alpha [Skill]" in session.output
             session.send(b"1\n")
-            answer(b"Add the previewed items?", b"y" if approve else b"\r", True)
+            answer(b"Add the previewed items?", b"y\r" if approve else b"\r")
             session.finish(0)
             target = root / "home/.config/opencode/skills/alpha/SKILL.md"
             assert target.exists() == approve
@@ -736,7 +738,7 @@ def scan_plain_fallback():
             session = Session(root, ["scan", "--harness", "pi", "--scope", "user"], term=term, columns=columns)
             try:
                 session.prompt(b"Next action")
-                session.menu_ready()
+                session.restored()
                 assert b"Up/Down" not in session.output
                 assert b"\x1b" not in session.output
                 assert b"> [q] Quit" in session.output
@@ -748,3 +750,75 @@ def scan_plain_fallback():
 
 
 scan_plain_fallback()
+
+
+def launcher_opens_plain_help_tasks_without_touching_storage():
+    with tempfile.TemporaryDirectory(prefix="kitrove-launcher-", dir=FIXTURE_BASE) as tmp:
+        root = Path(tmp).resolve()
+        session = Session(root, [], term="dumb")
+        try:
+            session.prompt(b"What would you like to do?")
+            session.restored()
+            assert b"Find or collect skills" in session.output
+            assert b"Check collection storage" in session.output
+            assert b"Open the task menu" not in session.output
+            assert b"^[" not in session.output
+            session.send(b"q\n")
+            session.finish(0)
+            assert not (root / "state").exists()
+        finally:
+            session.close()
+
+
+def storage_menu(approve):
+    with tempfile.TemporaryDirectory(prefix="kitrove-storage-menu-", dir=FIXTURE_BASE) as tmp:
+        root = Path(tmp).resolve()
+        home = root / "home"
+        home.mkdir()
+        collection, private = home / "Kitrove", root / "state"
+        env = os.environ.copy()
+        env.pop("KITROVE_ENV", None)
+        env.update(HOME=str(home), USERPROFILE=str(home), KITROVE_STATE_HOME=str(private))
+        subprocess.run(
+            [BINARY, "init", "--environment", str(collection), "--machine-id", "storage-menu"],
+            cwd=root, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True,
+        )
+        retained = []
+        for storage in (collection, private):
+            directory = storage / ".kitrove" / "removal-quarantine"
+            directory.mkdir(mode=0o700, exist_ok=True)
+            path = directory / "synthetic-retained-entry"
+            path.write_bytes(b"byte-for-byte preserved")
+            path.chmod(0o600)
+            identity = path.stat()
+            name = f".kitrove-removed-v1-unix-f-{identity.st_dev ^ 1:016x}-{identity.st_ino:016x}-{1:032x}"
+            path.rename(directory / name)
+            retained.append((directory, name))
+        previous = [(collection / "kitrove.toml").read_bytes(), (private / "state.json").read_bytes()]
+        session = Session(root, [])
+        try:
+            session.prompt(b"What would you like to do?")
+            session.menu_ready()
+            session.send(b"4\r")
+            session.prompt(b"Preserve the listed directories?")
+            session.restored()
+            assert b"Collection" in session.output and b"Private state" in session.output
+            assert all((directory / name).is_file() for directory, name in retained)
+            session.send(b"y\r" if approve else b"\r")
+            if approve:
+                session.until(b"Kitrove doctor: inspected checks passed")
+            session.finish(0 if approve else 3)
+            for directory, name in retained:
+                hold = directory.with_name("removal-quarantine-preserved-v1")
+                assert directory.exists() != approve
+                assert hold.exists() == approve
+                assert ((hold if approve else directory) / name).read_bytes() == b"byte-for-byte preserved"
+            assert previous == [(collection / "kitrove.toml").read_bytes(), (private / "state.json").read_bytes()]
+        finally:
+            session.close()
+
+
+launcher_opens_plain_help_tasks_without_touching_storage()
+if sys.platform == "darwin":
+    storage_menu(approve=False)
+    storage_menu(approve=True)

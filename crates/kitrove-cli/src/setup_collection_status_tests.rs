@@ -8,13 +8,16 @@ fn grouped_sources_keep_their_original_inventory_numbers_and_no_default_winner()
     skill(&a, "alpha", "Original source.");
     let output = script(
         &a,
-        &format!("1\n{}\na\ny\nall\nn\n5\n", a.join("collection").display()),
+        &format!(
+            "1\n{}\na\ny\nv\nall\nn\n5\n",
+            a.join("collection").display()
+        ),
         false,
         "",
     );
-    assert!(output.contains("alpha · 2 source copies"));
-    assert!(output.contains("1. claude"));
-    assert!(output.contains("2. opencode"));
+    assert!(output.contains("Source copies · 1–2 of 2"));
+    assert!(output.contains("1. alpha [claude"));
+    assert!(output.contains("2. alpha [opencode"));
     assert!(super::tests::manifest(&a).assets.is_empty());
 }
 
@@ -27,17 +30,17 @@ fn matching_and_changed_native_content_are_distinct_collection_statuses() {
     script(
         &a,
         &format!(
-            "1\n{}\na\ny\nfrom claude\ny\n5\n",
+            "1\n{}\na\ny\nfrom claude\ny\nn\n5\n",
             a.join("collection").display()
         ),
         false,
         "",
     );
     let before = std::fs::read(a.join("collection/kitrove.toml")).unwrap();
-    let matched = script(&a, "\n1\nfrom claude\nn\n5\n", true, "");
+    let matched = script(&a, "1\nfrom claude\nn\n5\n", true, "");
     assert!(matched.contains("already collected (exact native content matches)"));
     skill(&a, "alpha", "Changed source.");
-    let changed = script(&a, "\n1\nfrom claude\nn\n5\n", true, "");
+    let changed = script(&a, "1\nfrom claude\nn\n5\n", true, "");
     assert!(changed.contains("same name, different native content"));
     assert_eq!(
         std::fs::read(a.join("collection/kitrove.toml")).unwrap(),
@@ -56,7 +59,7 @@ fn missing_native_evidence_or_other_tool_variants_never_count_as_matching_conten
     script(
         &a,
         &format!(
-            "1\n{}\na\ny\nfrom claude\ny\n5\n",
+            "1\n{}\na\ny\nfrom claude\ny\nn\n5\n",
             a.join("collection").display()
         ),
         false,
@@ -123,7 +126,7 @@ fn repeated_matching_collection_review_skips_rename_and_points_to_tools() {
     script(
         &a,
         &format!(
-            "1\n{}\na\ny\nfrom claude\ny\n5\n",
+            "1\n{}\na\ny\nfrom claude\ny\nn\n5\n",
             a.join("collection").display()
         ),
         false,
@@ -131,8 +134,11 @@ fn repeated_matching_collection_review_skips_rename_and_points_to_tools() {
     );
     let before = std::fs::read(a.join("collection/kitrove.toml")).unwrap();
     let original = std::fs::read(a.join("home/.claude/skills/alpha/SKILL.md")).unwrap();
-    let output = script(&a, "\n1\nfrom claude\nr\n5\n", true, "");
-    assert!(output.contains("Add skills or packs to a tool"), "{output}");
+    let output = script(&a, "1\nfrom claude\nr\n5\n", true, "");
+    assert!(
+        output.contains("Run kitrove apply to add them to a tool"),
+        "{output}"
+    );
     assert!(output.contains("Skipped 1 already-collected"), "{output}");
     assert!(!output.contains("New collection name"), "{output}");
     assert!(!output.contains("Adopted 0"));
@@ -147,7 +153,7 @@ fn repeated_matching_collection_review_skips_rename_and_points_to_tools() {
     assert!(!a.join("home/.config/opencode/skills/alpha").exists());
     // A changed copy still needs the existing explicit rename/review path.
     skill(&a, "alpha", "Changed source.");
-    let changed = script(&a, "\n1\nfrom claude\nr\nn\n5\n", true, "");
+    let changed = script(&a, "1\nfrom claude\nr\nn\n5\n", true, "");
     assert!(changed.contains("New collection name"), "{changed}");
     assert!(!changed.contains("Skipped 1 already-collected"));
     assert_eq!(

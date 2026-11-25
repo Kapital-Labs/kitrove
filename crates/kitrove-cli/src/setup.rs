@@ -30,6 +30,7 @@ mod inventory;
 mod menu_input;
 mod navigation;
 mod presentation;
+mod storage;
 
 pub(crate) use inventory::browse_scan;
 
@@ -56,7 +57,7 @@ struct Dialog<R, W> {
     input: R,
     output: W,
     color: bool,
-    single_key: bool,
+    terminal_input: bool,
 }
 
 impl Dialog<TerminalInput, io::Stdout> {
@@ -65,44 +66,23 @@ impl Dialog<TerminalInput, io::Stdout> {
             input: TerminalInput(io::stdin()),
             output: io::stdout(),
             color: presentation::detect(io::stdout().is_terminal()),
-            single_key: true,
+            terminal_input: true,
         }
     }
 }
 
 impl<R: PromptInput, W: Write> Dialog<R, W> {
-    fn menu(&mut self, message: &str, default_finish: bool) -> Result<String, CliError> {
-        self.decision(
-            &format!("{message}\nPress 1-5 (no Enter needed); q stops."),
-            b"12345",
-            default_finish,
-        )
+    fn decision(&mut self, message: &str) -> Result<String, CliError> {
+        self.menu_answer(message, false)
     }
 
-    fn decision(
-        &mut self,
-        message: &str,
-        keys: &[u8],
-        accept_enter: bool,
-    ) -> Result<String, CliError> {
-        if !self.single_key {
-            return self.ask(message);
+    fn menu_answer(&mut self, message: &str, quit_option: bool) -> Result<String, CliError> {
+        // Start each decision with fresh terminal input. A line queued while
+        // the previous screen was active cannot approve this one.
+        if self.terminal_input {
+            menu_input::discard_pending().map_err(|_| io_error())?;
         }
-        // A key queued before this question is not consent for its new preview.
-        menu_input::discard_pending().map_err(|_| io_error())?;
-        presentation::prompt(&mut self.output, self.color, message).map_err(|_| io_error())?;
-        self.output.flush().map_err(|_| io_error())?;
-        let mut mode = menu_input::Mode::enter().map_err(|_| io_error())?;
-        let answer = self
-            .input
-            .with_reader(|reader| menu_input::read(reader, keys, accept_enter));
-        let discarded = menu_input::discard_pending();
-        // Restore before any next prompt, output or operation, including cancellation.
-        mode.restore().map_err(|_| io_error())?;
-        discarded.map_err(|_| io_error())?;
-        writeln!(self.output, "{}", answer.as_deref().unwrap_or_default())
-            .map_err(|_| io_error())?;
-        answer
+        self.read_answer(message, quit_option)
     }
 
     fn report(&mut self, text: &str) -> Result<(), CliError> {
@@ -190,9 +170,13 @@ impl<R: PromptInput, W: Write> Dialog<R, W> {
     }
 
     fn ask(&mut self, message: &str) -> Result<String, CliError> {
+        self.read_answer(message, false)
+    }
+
+    fn read_answer(&mut self, message: &str, quit_option: bool) -> Result<String, CliError> {
         presentation::prompt(&mut self.output, self.color, message).map_err(|_| io_error())?;
         self.output.flush().map_err(|_| io_error())?;
-        let single_key = self.single_key;
+        let terminal_input = self.terminal_input;
         let bytes = self.input.with_reader(|input| {
             let mut bytes = Vec::new();
             // Bound input without reading an unlimited line, and never accept EOF as consent.
@@ -205,7 +189,7 @@ impl<R: PromptInput, W: Write> Dialog<R, W> {
                     .iter()
                     .position(|b| *b == b'\n')
                     .map_or(available.len(), |n| n + 1);
-                let consumed = if single_key && available.get(count - 1) == Some(&b'\n') {
+                let consumed = if terminal_input && available.get(count - 1) == Some(&b'\n') {
                     // Pasted later answers are not consent for an unseen preview.
                     available.len()
                 } else {
@@ -227,7 +211,7 @@ impl<R: PromptInput, W: Write> Dialog<R, W> {
         })?;
         let value = String::from_utf8(bytes).map_err(|_| io_error())?;
         let value = value.trim();
-        if value == "q" {
+        if value == "q" && !quit_option {
             return Err(cancelled());
         }
         if value.chars().any(char::is_control) {
@@ -239,8 +223,8 @@ impl<R: PromptInput, W: Write> Dialog<R, W> {
     fn confirm(&mut self, message: &str) -> Result<bool, CliError> {
         loop {
             match self
-                .ask(&format!(
-                    "{message}\ny/yes confirms; n or Enter skips; q stops."
+                .decision(&format!(
+                    "{message}\n[y] Continue\n[n] Skip [default]\nEnter submits."
                 ))?
                 .to_ascii_lowercase()
                 .as_str()
@@ -311,13 +295,13 @@ fn existing_collection<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
     environment: Option<PathBuf>,
 ) -> Result<PathBuf, CliError> {
-    let suggested = match environment {
-        Some(root) => resolve_required_environment_root(Some(&root))?,
-        None => match resolve_required_environment_root(None) {
-            Ok(root) => root,
-            Err(error) if error.code == "cli.environment_missing" => default_collection()?,
-            Err(error) => return Err(error),
-        },
+    if let Some(root) = environment.as_deref() {
+        return resolve_required_environment_root(Some(root));
+    }
+    let suggested = match resolve_required_environment_root(None) {
+        Ok(root) => root,
+        Err(error) if error.code == "cli.environment_missing" => default_collection()?,
+        Err(error) => return Err(error),
     };
     let response = dialog.ask(&format!(
         "Existing collection path [{}]:",
@@ -346,6 +330,74 @@ fn check_collection<R: PromptInput, W: Write>(
         ));
     }
     Ok(())
+}
+
+pub(crate) fn launch() -> u8 {
+    let mut dialog = Dialog::terminal();
+    let task = navigation::choose(
+        &mut dialog,
+        "What would you like to do?",
+        &[
+            (b'1', "Find or collect skills"),
+            (b'2', "Add saved skills or packs to a tool"),
+            (b'3', "Share a collection between computers"),
+            (b'4', "Check collection storage"),
+            (b'5', "Set up Kitrove"),
+            (b'q', "Quit"),
+        ],
+        0,
+    );
+    match task {
+        Ok(b'1') => {
+            let selection = ScanArgs {
+                harnesses: tier_one_harnesses(),
+                scope: ScopeSelection::User,
+                project_root: None,
+                roots: Vec::new(),
+                environment: None,
+                json: false,
+                verbose: false,
+            };
+            let result = crate::registry::try_tier_one_registry()
+                .map_err(|_| io_error())
+                .and_then(|registry| crate::scan::run_scan(selection, &registry));
+            match result {
+                Ok(status) => status,
+                Err(error) => report_result(Err(error)),
+            }
+        }
+        Ok(b'2') => apply_entry(None),
+        Ok(b'3') => report_result(share(&mut dialog)),
+        Ok(b'4') => match storage::inspect(&mut dialog, None) {
+            Ok(status) => status,
+            Err(error) => report_result(Err(error)),
+        },
+        Ok(b'5') => entry(None, false),
+        Ok(_) => 0,
+        Err(error) => report_result(Err(error)),
+    }
+}
+
+fn share(dialog: &mut Dialog<impl PromptInput, impl Write>) -> Result<(), CliError> {
+    let choice = navigation::choose(
+        dialog,
+        "How would you like to share?",
+        &[
+            (b'1', "Keep both collections in sync"),
+            (b'2', "Copy selected items once"),
+            (b'n', "Back"),
+        ],
+        2,
+    )?;
+    if choice == b'n' {
+        return Ok(());
+    }
+    let root = existing_collection(dialog, None)?;
+    check_collection(dialog, &root)?;
+    match choice {
+        b'1' => synchronize(dialog, &root, true),
+        _ => import(dialog, &root),
+    }
 }
 
 pub(crate) fn apply_entry(environment: Option<PathBuf>) -> u8 {
@@ -411,18 +463,27 @@ fn run<R: PromptInput, W: Write>(
 ) -> Result<(), CliError> {
     dialog.heading("Kitrove setup")?;
     dialog.hint("Kitrove previews changes before asking you to approve. Press q to quit.")?;
-    let mut start = if configure {
-        String::new()
+    let start = if configure {
+        b'0'
     } else {
-        loop {
-            let choice = dialog.menu("How would you like to start?\n  1. Set up my first computer\n  2. Connect a second computer to the whole collection\n  3. Import specific items on a second computer\n  4. Combine this computer's skills with an existing collection\n  5. Inspect this computer without changing anything\nChoose 1-5:", false)?;
-            if matches!(choice.as_str(), "1" | "2" | "3" | "4" | "5") {
-                break choice;
-            }
-            dialog.say("Choose a number from 1 to 5.")?;
-        }
+        navigation::choose(
+            dialog,
+            "How would you like to start?",
+            &[
+                (b'1', "Set up my first computer"),
+                (b'2', "Sync with a collection on another computer"),
+                (b'3', "Copy selected items from another collection"),
+                (b'4', "Combine skills with an existing collection"),
+                (b'5', "Find skills on this computer"),
+                (b'q', "Quit"),
+            ],
+            5,
+        )?
     };
-    if start == "5" {
+    if start == b'q' {
+        return Ok(());
+    }
+    if start == b'5' {
         let report = scan_report(
             ScanArgs {
                 harnesses: tier_one_harnesses(),
@@ -437,6 +498,7 @@ fn run<R: PromptInput, W: Write>(
         )?;
         return dialog.report(&crate::scan_display::render(&report));
     }
+    let mut start = start;
     let root = if configure {
         existing_collection(dialog, environment)?
     } else {
@@ -445,17 +507,17 @@ fn run<R: PromptInput, W: Write>(
         };
         if resumed {
             // Resume reaches the ordinary menu, not the selected new-machine action.
-            start.clear();
+            start = b'0';
         }
         root
     };
     check_collection(dialog, &root)?;
     let mut just_collected = Vec::new();
-    match start.as_str() {
-        "1" => just_collected = collect(dialog, &root, registry)?,
-        "2" => synchronize(dialog, &root, false)?,
-        "3" => import(dialog, &root)?,
-        "4" => {
+    match start {
+        b'1' => just_collected = collect(dialog, &root, registry)?,
+        b'2' => synchronize(dialog, &root, false)?,
+        b'3' => import(dialog, &root)?,
+        b'4' => {
             dialog.say("First connect this empty collection to the existing one. Then select local skills to add, and review publishing those additions. Existing agent files remain untouched.")?;
             if let Some(backend) = remote(dialog, false)?
                 && synchronize_with(dialog, &root, backend.clone())?
@@ -468,17 +530,27 @@ fn run<R: PromptInput, W: Write>(
     }
     loop {
         if !just_collected.is_empty() {
-            dialog.hint(
-                "To use the skills you just collected, choose option 2 or run kitrove apply.",
-            )?;
+            application::offer(dialog, &root, &just_collected)?;
+            just_collected.clear();
         }
-        match dialog.menu("What would you like to do?\n1. Collect skills from this computer\n2. Add skills or packs to a tool\n3. Sync this collection with another computer\n4. Copy selected items from another collection\n5. Finish for now\nChoose 1-5 [5]:", true)?.as_str() {
-            "1" => just_collected = collect(dialog, &root, registry)?,
-            "2" => application::apply(dialog, &root, &just_collected)?,
-            "3" => synchronize(dialog, &root, true)?,
-            "4" => import(dialog, &root)?,
-            "" | "5" => break,
-            _ => dialog.say("Choose a number from 1 to 5.")?,
+        let choice = navigation::choose(
+            dialog,
+            "What would you like to do?",
+            &[
+                (b'1', "Collect skills from this computer"),
+                (b'2', "Add saved skills or packs to a tool"),
+                (b'3', "Sync this collection with another computer"),
+                (b'4', "Copy selected items from another collection"),
+                (b'5', "Finish for now"),
+            ],
+            4,
+        )?;
+        match choice {
+            b'1' => just_collected = collect(dialog, &root, registry)?,
+            b'2' => application::apply(dialog, &root, &[])?,
+            b'3' => synchronize(dialog, &root, true)?,
+            b'4' => import(dialog, &root)?,
+            _ => break,
         }
     }
     dialog.success(&format!(
@@ -504,7 +576,7 @@ fn remote<R: PromptInput, W: Write>(
         "Use a folder or Git repository reserved for Kitrove. Credentials stay on this computer.",
     )?;
     loop {
-        match dialog.decision("Where is the shared collection stored?\n1. Shared folder or drive\n2. Git repository\nn. Not now\nChoose 1-2 [n]:", b"12n", true)?.as_str() {
+        match dialog.decision("Where is the shared collection stored?\n1. Shared folder or drive\n2. Git repository\nn. Not now\nChoose 1-2 [n]:")?.as_str() {
             "" | "n" => return Ok(None),
             "1" => return Ok(Some(SyncRemoteArgs::Filesystem(PathBuf::from(dialog.ask("Shared Kitrove folder path:")?)))),
             "2" => return git_remote(dialog, offer_new_repository),
@@ -554,7 +626,7 @@ fn git_remote<R: PromptInput, W: Write>(
                 continue;
             }
             let scheme = loop {
-                match dialog.decision("How should Kitrove connect?\n1. HTTPS\n2. SSH\nn. Not now\nChoose 1-2 [n]:", b"12n", true)?.as_str() {
+                match dialog.decision("How should Kitrove connect?\n1. HTTPS\n2. SSH\nn. Not now\nChoose 1-2 [n]:")?.as_str() {
                     "" | "n" => return Ok(None),
                     "1" => break "https",
                     "2" => break "ssh",
@@ -847,7 +919,7 @@ mod tests {
             input: io::Cursor::new(input),
             output: Vec::new(),
             color: false,
-            single_key: false,
+            terminal_input: false,
         };
         let result = run(
             &mut dialog,
@@ -949,7 +1021,7 @@ mod tests {
         skill(&a, "beta", "Preserve beta instructions.");
         let original = std::fs::read(a.join("home/.claude/skills/alpha/SKILL.md")).unwrap();
         let input = format!(
-            "1\n{}\nmachine-a\nyes\n1,2\nyes\n3\n1\n{}\nyes\n5\n",
+            "1\n{}\nmachine-a\nyes\n1,2\nyes\nn\n3\n1\n{}\nyes\n5\n",
             a.join("collection").display(),
             remote.display()
         );
@@ -985,10 +1057,10 @@ mod tests {
         let local = std::fs::read_to_string(c.join("state/state.json")).unwrap();
         assert!(local.contains("machine-c"));
         assert!(!local.contains("machine-a"));
-        script(&c, "\n2\n2\n1\n1\n\n5\n", true, "");
+        script(&c, "2\n2\n1\ns\n1\n\n5\n", true, "");
         assert!(!c.join("home/.agents/skills/alpha").exists());
         // Configure applies only the selected item, using receipt-backed normal APIs.
-        script(&c, "\n2\n2\n1\n1\nyes\n5\n", true, "");
+        script(&c, "2\n2\n1\ns\n1\nyes\n5\n", true, "");
         assert!(c.join("home/.agents/skills/alpha/SKILL.md").is_file());
         assert!(!c.join("home/.agents/skills/beta").exists());
         // A second computer can start with its own independent skill, then merge.
@@ -1001,7 +1073,7 @@ mod tests {
         script(
             &d,
             &format!(
-                "4\n{}\nmachine-d\nyes\n1\n{}\nyes\n1\nyes\nyes\n5\n",
+                "4\n{}\nmachine-d\nyes\n1\n{}\nyes\n1\nyes\nyes\nn\n5\n",
                 d.join("collection").display(),
                 remote.display()
             ),
@@ -1011,7 +1083,7 @@ mod tests {
         assert_eq!(manifest(&d).assets.len(), 3);
         script(
             &a,
-            &format!("\n3\n1\n{}\nyes\n5\n", remote.display()),
+            &format!("3\n1\n{}\nyes\n5\n", remote.display()),
             true,
             "",
         );
@@ -1050,7 +1122,12 @@ mod tests {
         let root = std::fs::canonicalize(tmp.path()).unwrap();
         let a = machine(&root, "a");
         skill(&a, "example", "Default-home fixture instructions.");
-        script(&a, "1\n\na\nyes\n1\nyes\n2\n2\n1\n1\nyes\n5\n", false, "");
+        script(
+            &a,
+            "1\n\na\nyes\n1\nyes\na\n2\n1\ns\n1\nyes\n5\n",
+            false,
+            "",
+        );
         assert!(a.join("home/Kitrove/kitrove.toml").is_file());
         assert!(a.join("home/.agents/skills/example/SKILL.md").is_file());
     }
@@ -1068,7 +1145,7 @@ mod tests {
         script(
             &a,
             &format!(
-                "1\n{}\na\nyes\n1\nyes\n3\n1\n{}\nyes\n5\n",
+                "1\n{}\na\nyes\n1\nyes\nn\n3\n1\n{}\nyes\n5\n",
                 a.join("collection").display(),
                 remote.display()
             ),
@@ -1082,28 +1159,28 @@ mod tests {
             "",
         );
         let before = manifest(&b);
-        script(&b, "\n1\n1\nn\n5\n", true, "");
+        script(&b, "1\n1\nn\n5\n", true, "");
         assert_eq!(manifest(&b), before);
         script(
             &b,
-            &format!("\n4\n1\n{}\nall\n\n5\n", remote.display()),
+            &format!("4\n1\n{}\nall\n\n5\n", remote.display()),
             true,
             "",
         );
         assert_eq!(manifest(&b), before);
-        script(&b, "\n1\n1\nyes\n5\n", true, "");
+        script(&b, "1\n1\nyes\nn\n5\n", true, "");
         let local = manifest(&b);
         let source = manifest(&a);
         script(
             &b,
-            &format!("\n4\n1\n{}\nall\n", remote.display()),
+            &format!("4\n1\n{}\nall\n", remote.display()),
             true,
             "collection.identity_conflict",
         );
         assert_eq!(manifest(&b), local);
         assert_eq!(manifest(&a), source);
         // Full sync also refuses to choose a winner, and returns to the menu.
-        let output = script(&b, &format!("\n3\n1\n{}\n5\n", remote.display()), true, "");
+        let output = script(&b, &format!("3\n1\n{}\n5\n", remote.display()), true, "");
         assert!(output.contains("blocked"));
         assert_eq!(manifest(&b), local);
     }
@@ -1123,7 +1200,7 @@ mod tests {
                 input: io::Cursor::new(input),
                 output: Vec::new(),
                 color: false,
-                single_key: false,
+                terminal_input: false,
             };
             assert!(dialog.confirm("change?").is_err());
         }
@@ -1131,7 +1208,7 @@ mod tests {
             input: io::Cursor::new("\n"),
             output: Vec::new(),
             color: false,
-            single_key: false,
+            terminal_input: false,
         };
         assert!(!dialog.confirm("change?").unwrap());
     }
@@ -1156,7 +1233,7 @@ mod tests {
             input: io::Cursor::new(format!("{}\n", "x".repeat(8192))),
             output: Vec::new(),
             color: false,
-            single_key: false,
+            terminal_input: false,
         };
         assert_eq!(dialog.ask("input").unwrap_err().code, "setup.input_limit");
     }

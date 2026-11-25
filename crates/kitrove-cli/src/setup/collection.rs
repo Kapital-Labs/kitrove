@@ -11,7 +11,7 @@ const SELECTION_PROMPT: &str = concat!(
     "Enter         Preview eligible skills\n",
     "1,4,7         Preview specific skills\n",
     "from TOOL     Use only that tool's copies\n",
-    "v             View the full inventory\n",
+    "v             Browse source copies\n",
     "help          All selection commands\n",
     "n             Skip\n",
     "q             Quit",
@@ -23,17 +23,17 @@ const SELECTION_HELP: &str = concat!(
     "1,4,7         Preview listed skills by number\n",
     "all,-3,-8     All except 3 and 8 (or -3,-8)\n",
     "from codex,-3 Use Codex copies except number 3\n",
-    "v             View the full inventory\n",
+    "v             Browse source copies (/name filters, next pages)\n",
     "n             Skip\n",
     "q             Quit",
 );
 const READY_PROMPT: &str = concat!(
     "Collect these skills?\n",
-    "Enter/y       Collect the previewed skills\n",
+    "y             Save the previewed skills\n",
     "s             Choose again\n",
     "r             Review individually\n",
     "d             Full preview details\n",
-    "n             Skip\n",
+    "Enter/n       Skip [default]\n",
     "q             Quit",
 );
 const EMPTY_PROMPT: &str = concat!(
@@ -46,8 +46,8 @@ const EMPTY_PROMPT: &str = concat!(
 );
 const INDIVIDUAL_PROMPT: &str = concat!(
     "Adopt this skill?\n",
-    "Enter/y       Adopt this skill\n",
-    "n             Skip\n",
+    "y             Save this skill\n",
+    "Enter/n       Skip [default]\n",
     "r             Rename\n",
     "q             Quit",
 );
@@ -104,40 +104,92 @@ pub(super) fn collect_report<R: PromptInput, W: Write>(
         .iter()
         .filter(|entry| selectable(entry))
         .collect();
-    dialog.say(&format!("Collection scan (read-only): {} skills observed; {} selectable; {} not selectable.\nOriginal files remain unchanged. No skills are applied, executed or synchronized.", report.entries.len(), candidates.len(), report.entries.len() - candidates.len()))?;
-    super::collection_status::grouped(dialog, &candidates)?;
+    let observed = report
+        .entries
+        .iter()
+        .filter(|entry| !crate::scan_display::folder_issue(entry))
+        .count();
+    dialog.heading("Collect skills")?;
+    dialog.say(&format!(
+        "{observed} found · {} available to preview",
+        candidates.len()
+    ))?;
     if candidates.is_empty() {
-        dialog.say("No skills available to collect. Use scan --verbose for findings.")?;
+        dialog.hint("Run kitrove scan to see why nothing is available to collect.")?;
         return Ok(Vec::new());
-    }
-    if candidates.len() > 20 {
-        dialog.say(
-            "Showing the first 20 skill names; v shows every source copy and original number.",
-        )?;
     }
     collection_selection::show_sources(dialog, &candidates)?;
     let mut next_selection = None;
+    let mut inventory_start = 0;
+    let mut inventory_filter = String::new();
     'selection: loop {
         let selected = if let Some(indices) = next_selection.take() {
             indices
         } else {
             loop {
-                let mut response = dialog.ask(SELECTION_PROMPT)?;
+                let prompt = if inventory_filter.is_empty() {
+                    SELECTION_PROMPT.to_owned()
+                } else {
+                    format!(
+                        "{SELECTION_PROMPT}\nSelection limited to names matching {}. Type / to clear.",
+                        safe(&inventory_filter)
+                    )
+                };
+                let mut response = dialog.ask(&prompt)?;
                 while matches!(response.as_str(), "help" | "?") {
                     response = dialog.ask(SELECTION_HELP)?;
                 }
-                if response == "v" {
-                    dialog.say(&crate::scan_display::render(report))?;
-                    for (index, entry) in candidates.iter().enumerate() {
-                        dialog.say(&format!("  {}. {}", index + 1, label(entry)))?;
+                match response.as_str() {
+                    "v" => {
+                        super::collection_status::page(
+                            dialog,
+                            &candidates,
+                            &inventory_filter,
+                            &mut inventory_start,
+                            false,
+                        )?;
+                        continue;
                     }
-                    continue;
+                    "next" => {
+                        super::collection_status::page(
+                            dialog,
+                            &candidates,
+                            &inventory_filter,
+                            &mut inventory_start,
+                            true,
+                        )?;
+                        continue;
+                    }
+                    value if value.starts_with('/') => {
+                        inventory_filter = value[1..].trim().to_ascii_lowercase();
+                        inventory_start = 0;
+                        super::collection_status::page(
+                            dialog,
+                            &candidates,
+                            &inventory_filter,
+                            &mut inventory_start,
+                            false,
+                        )?;
+                        continue;
+                    }
+                    _ => {}
                 }
-                if response.is_empty() {
-                    break (0..candidates.len()).collect::<Vec<_>>();
-                }
-                match collection_selection::select(&response, &candidates) {
-                    Some(indices) => break indices,
+                let indices = if response.is_empty() {
+                    Some((0..candidates.len()).collect::<Vec<_>>())
+                } else {
+                    collection_selection::select(&response, &candidates)
+                };
+                match indices {
+                    Some(indices) => {
+                        break indices
+                            .into_iter()
+                            .filter(|index| {
+                                name(candidates[*index])
+                                    .to_ascii_lowercase()
+                                    .contains(&inventory_filter)
+                            })
+                            .collect::<Vec<_>>();
+                    }
                     None => {
                         dialog.say("Use a displayed tool (from codex), shown numbers, all,-3,-8 or -3,-8. Do not mix positive and negative numbers. Nothing has changed.")?;
                     }
@@ -158,7 +210,9 @@ pub(super) fn collect_report<R: PromptInput, W: Write>(
         if items.is_empty() {
             dialog.say("No skills ready to collect. Nothing has changed.")?;
             if skipped.has_matching() {
-                dialog.hint("Matching skills are already in your collection. Use option 2 in setup: Add skills or packs to a tool (kitrove configure). Individual review skips exact matches.")?;
+                dialog.hint(
+                    "Matching skills are already saved. Run kitrove apply to add them to a tool.",
+                )?;
             } else if sources.is_empty() {
                 dialog.hint("Choose r to review or rename selected skills, or s to choose different skills.")?;
             } else {
@@ -174,9 +228,7 @@ pub(super) fn collect_report<R: PromptInput, W: Write>(
             } else {
                 READY_PROMPT
             };
-            let mut keys = b"ysrdn".to_vec();
-            keys.extend_from_slice(&b"1234"[..sources.len()]);
-            let response = dialog.decision(prompt, &keys, true)?.to_ascii_lowercase();
+            let response = dialog.decision(prompt)?.to_ascii_lowercase();
             if let Some((_, indices)) = response
                 .parse::<usize>()
                 .ok()
@@ -187,20 +239,28 @@ pub(super) fn collect_report<R: PromptInput, W: Write>(
                 continue 'selection;
             }
             match response.as_str() {
-                "" | "y" | "yes" if !items.is_empty() => {
+                "y" | "yes" if !items.is_empty() => {
                     for (completed, item) in items.iter().enumerate() {
                         if let Err(error) =
                             commit(root, candidates[item.index], item, registry, selection)
                         {
-                            let next = match error.code {
-                                "transaction.cleanup_failed" | "transaction.cleanup_limit" => {
-                                    "Run kitrove doctor with this collection before retrying."
-                                }
-                                _ => "Use kitrove status before continuing.",
-                            };
                             dialog.warning(&format!(
-                                "Stopped after {completed} completed adoptions. {next}"
+                                "Stopped after {completed} completed adoptions."
                             ))?;
+                            if matches!(
+                                error.code,
+                                "transaction.cleanup_failed" | "transaction.cleanup_limit"
+                            ) {
+                                if super::storage::repair(dialog, root)? {
+                                    dialog.hint("Storage checks passed. Collect again to review what remains.")?;
+                                } else {
+                                    dialog.hint(
+                                        "Run kitrove doctor with this collection before retrying.",
+                                    )?;
+                                }
+                            } else {
+                                dialog.hint("Use kitrove status before continuing.")?;
+                            }
                             return Err(error);
                         }
                         dialog.success(&format!("Adopted {}.", item.id.as_str()))?;
@@ -232,7 +292,7 @@ pub(super) fn collect_report<R: PromptInput, W: Write>(
                     }
                     skipped.all(dialog)?;
                 }
-                "n" | "no" => {
+                "" | "n" | "no" => {
                     dialog.say("Collection skipped.")?;
                     return Ok(Vec::new());
                 }
@@ -480,9 +540,9 @@ fn individually<R: PromptInput, W: Write>(
             for line in &details {
                 dialog.detail(line)?;
             }
-            let response = dialog.decision(INDIVIDUAL_PROMPT, b"ynr-", true)?;
+            let response = dialog.decision(INDIVIDUAL_PROMPT)?;
             match response.to_ascii_lowercase().as_str() {
-                "" | "y" | "yes" => {
+                "y" | "yes" => {
                     commit(
                         root,
                         entry,
@@ -499,12 +559,13 @@ fn individually<R: PromptInput, W: Write>(
                     adopted.push(plan.asset().id.clone());
                     break;
                 }
-                "n" | "no" | "-" => {
+                "" | "n" | "no" | "-" => {
                     dialog.say("Skipped this skill.")?;
                     break;
                 }
                 "r" => proposed_name = dialog.ask("New collection name (q stops):")?,
-                _ => dialog.say("Choose Enter/y, n, r or q. Nothing has changed.")?,
+                _ => dialog
+                    .say("Choose y to save, r to rename, or Enter to skip. Nothing has changed.")?,
             }
         }
     }
