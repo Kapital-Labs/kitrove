@@ -89,12 +89,12 @@ class SiteTests(unittest.TestCase):
         home = (ROOT / "index.html").read_text()
         visible = " ".join(" ".join(Page(ROOT / "index.html").text).split())
         self.assertIn("brew install --cask kapital-labs/tap/kitrove</code>", home)
-        self.assertIn("v0.1.0-rc.5.22", home)
+        self.assertIn("v0.1.0-rc.5.23", home)
         self.assertNotIn("v0.1.0-rc.4.1", home)
         self.assertIn("Apple Silicon Macs only", home)
         for command in ("winget install", "choco install", "apt install", "dnf install"):
             self.assertNotIn(command, home)
-        self.assertIn("RC4.2 WinGet submission is not an RC5.22 install path", visible)
+        self.assertIn("RC4.2 WinGet submission is not an RC5.23 install path", visible)
         self.assertIn("No Chocolatey package is published", visible)
         self.assertIn("RC4.2 signed APT or DNF repository", visible)
         self.assertIn("docs/LINUX-INSTALL.md", home)
@@ -104,9 +104,9 @@ class SiteTests(unittest.TestCase):
             page = ROOT / relative
             source = page.read_text()
             visible = " ".join(" ".join(Page(page).text).split())
-            self.assertIn("RC5.22", visible)
+            self.assertIn("RC5.23", visible)
             self.assertIn("RC4.2", visible)
-            self.assertIn("RC4.2 WinGet submission is not an RC5.22 install path", visible)
+            self.assertIn("RC4.2 WinGet submission is not an RC5.23 install path", visible)
             self.assertIn("#ubuntu--apt", source)
             self.assertIn("#fedora--dnf", source)
             self.assertIn("fresh-install evaluation", visible)
@@ -122,17 +122,17 @@ class SiteTests(unittest.TestCase):
         self.assertIn("Cloud-provider sync is roadmap work", docs)
 
     def test_exact_preview_links_and_verification_before_execution(self):
-        release = "https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.22"
-        versioned = "https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.22/"
+        release = "https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.23"
+        versioned = "https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.23/"
         for relative in ("index.html", "docs/index.html"):
             page = Page(ROOT / relative)
             self.assertIn(release, page.refs)
             self.assertIn(versioned + "docs/INSTALLER.md", page.refs)
-            self.assertIn(versioned + "release/notes/v0.1.0-rc.5.22.md", page.refs)
+            self.assertIn(versioned + "release/notes/v0.1.0-rc.5.23.md", page.refs)
             visible = " ".join(" ".join(page.text).split())
             self.assertIn("Verify before running", visible)
             self.assertIn("Homebrew", visible)
-            self.assertIn("do not install RC5.22", visible)
+            self.assertIn("do not install RC5.23", visible)
             self.assertNotIn("Intel Mac and Windows", visible)
             self.assertNotIn("curl |", visible)
             self.assertNotIn("iex", visible)
@@ -166,20 +166,20 @@ class SiteTests(unittest.TestCase):
     def test_current_setup_explains_selection_and_exact_bulk_confirmation(self):
         guide = (ROOT.parent / "docs/GETTING-STARTED.md").read_text()
         docs = " ".join(" ".join(Page(ROOT / "docs/index.html").text).split())
-        for text in (guide, docs):
+        for text in (" ".join(guide.split()), docs):
             self.assertIn("Enter previews", text)
             self.assertIn("all,-3,-8", text)
-            self.assertIn("displayed ready set", text)
+            self.assertIn("ready set", text)
             self.assertIn("sequential", text)
             self.assertIn("stale", text)
-        self.assertIn("Enter or y approves", docs)
-        self.assertNotIn("Enter does not approve bulk", docs)
+        self.assertIn("Type y and press Enter to save it", docs)
+        self.assertIn("Enter alone skips saving", docs)
         self.assertIn("individual", docs)
 
-    def test_current_preview_links_select_rc522(self):
+    def test_current_preview_links_select_rc523(self):
         for relative in ("index.html", "docs/index.html"):
             page = Page(ROOT / relative)
-            self.assertIn("https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.22", page.refs)
+            self.assertIn("https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.23", page.refs)
             self.assertNotIn("https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.6", page.refs)
 
     def test_scan_guide_explains_terminal_navigation_and_read_only_boundary(self):
@@ -206,7 +206,7 @@ class SiteTests(unittest.TestCase):
         guide = (ROOT.parent / "docs/GETTING-STARTED.md").read_text()
         docs = " ".join(" ".join(Page(ROOT / "docs/index.html").text).split())
         for text in (guide, docs):
-            for label in ("Add skills or packs to a tool", "Sync this collection with another computer"):
+            for label in ("Add saved skills or packs to a tool", "Sync this collection with another computer"):
                 self.assertIn(label, text)
             self.assertNotIn("Connect / sync the whole collection", text)
             self.assertIn("NO_COLOR", text)
@@ -232,22 +232,23 @@ class SiteTests(unittest.TestCase):
         self.assertIn("**Add skills to collection**", quick)
         self.assertIn("handoff is included in RC5.17", quick)
         self.assertIn("11 names are already", quick)
-        self.assertIn("Quick skill collection (RC5.22)", quick)
+        self.assertIn("Quick skill collection (RC5.23)", quick)
         self.assertNotIn("Next-preview improvement", quick)
         self.assertNotIn("These improvements require a future release", quick)
 
-    def test_current_setup_distinguishes_closed_keys_from_text_and_write_approval(self):
+    def test_current_setup_requires_explicit_write_approval(self):
         guide = (ROOT.parent / "docs/GETTING-STARTED.md").read_text()
         quick = (ROOT.parent / "docs/SETUP-QUICK-ADOPTION.md").read_text()
         docs = " ".join(" ".join(Page(ROOT / "docs/index.html").text).split())
         for text in (guide, quick, docs):
             normalized = " ".join(text.split())
             with self.subTest(document=normalized[:40]):
-                for guidance in ("without Enter", "text prompts", "displayed ready set",
-                                 "earlier prompt", "Apply and sync"):
-                    self.assertIn(guidance, normalized)
-                self.assertNotIn("Enter does not approve bulk", normalized)
-        self.assertIn("nonempty preview", docs)
+                self.assertIn("Enter submits", normalized)
+                self.assertIn("Enter alone skips", normalized)
+                self.assertNotIn("without Enter", normalized)
+                self.assertNotIn("Enter or y approves", normalized)
+        self.assertIn("Check collection storage", docs)
+        self.assertIn("approve the move", docs)
 
     def test_current_git_setup_explains_existing_repository_and_scheme_choice(self):
         guide = (ROOT.parent / "docs/GETTING-STARTED.md").read_text()
