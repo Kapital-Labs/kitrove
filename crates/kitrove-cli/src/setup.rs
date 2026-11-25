@@ -410,7 +410,7 @@ fn run<R: PromptInput, W: Write>(
     registry: &PolicyRegistry,
 ) -> Result<(), CliError> {
     dialog.heading("Kitrove setup")?;
-    dialog.hint("Credentials, trust and deployment receipts stay on this computer.\nPreview skills together or review individually. Apply and sync are separate approvals.\nType q at any prompt to stop.")?;
+    dialog.hint("Kitrove previews changes before asking you to approve. Press q to quit.")?;
     let mut start = if configure {
         String::new()
     } else {
@@ -468,9 +468,11 @@ fn run<R: PromptInput, W: Write>(
     }
     loop {
         if !just_collected.is_empty() {
-            dialog.hint("Collected skills stay in your collection. Run kitrove apply, or use option 2: Add skills or packs to a tool. Newly collected skills are suggested; preview and approval are separate.")?;
+            dialog.hint(
+                "To use the skills you just collected, choose option 2 or run kitrove apply.",
+            )?;
         }
-        match dialog.menu("What would you like to do?\n1. Add skills from this computer\n2. Add skills or packs to a tool\n3. Share this collection with another computer\n4. Copy selected items from another collection\n5. Finish for now\nChoose 1-5 [5]:", true)?.as_str() {
+        match dialog.menu("What would you like to do?\n1. Collect skills from this computer\n2. Add skills or packs to a tool\n3. Sync this collection with another computer\n4. Copy selected items from another collection\n5. Finish for now\nChoose 1-5 [5]:", true)?.as_str() {
             "1" => just_collected = collect(dialog, &root, registry)?,
             "2" => application::apply(dialog, &root, &just_collected)?,
             "3" => synchronize(dialog, &root, true)?,
@@ -483,7 +485,7 @@ fn run<R: PromptInput, W: Write>(
         "Setup finished. Collection: {}",
         safe(&root.display().to_string())
     ))?;
-    dialog.hint("Nothing runs in the background. Revisit with kitrove configure --environment PATH.\nNo credentials, trust decisions or harness installations are cloned.")
+    dialog.hint("Reopen this menu with kitrove configure.")
 }
 
 fn collect<R: PromptInput, W: Write>(
@@ -593,6 +595,9 @@ fn synchronize<R: PromptInput, W: Write>(
     root: &std::path::Path,
     offer_new_repository: bool,
 ) -> Result<(), CliError> {
+    dialog.hint(
+        "Sync is two-way. Review what this computer will send and receive before approving.",
+    )?;
     match remote(dialog, offer_new_repository)? {
         Some(remote) => synchronize_with(dialog, root, remote).map(|_| ()),
         None => Ok(()),
@@ -604,7 +609,9 @@ fn synchronize_with<R: PromptInput, W: Write>(
     root: &std::path::Path,
     remote: SyncRemoteArgs,
 ) -> Result<bool, CliError> {
-    dialog.hint("Sharing sends and receives collection changes between computers. It does not add skills to your AI tools.\nReview the upload/download plan before approving. Unrelated collections or conflicting items stop without choosing a winner. Nothing runs in the background.")?;
+    dialog.hint(
+        "Sync changes the collection. To add skills to a tool afterward, run kitrove apply.",
+    )?;
     let planned = crate::sync::run_sync_plan(SyncArgs {
         remote: remote.clone(),
         environment: Some(root.to_owned()),
@@ -640,7 +647,7 @@ fn import<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
     root: &std::path::Path,
 ) -> Result<(), CliError> {
-    dialog.say("Selective import is a one-time copy, not ongoing selective sync. The remote is not modified. Differing local identities refuse the import.")?;
+    dialog.say("This copies selected items once. Changes are saved to this collection only.")?;
     match remote(dialog, false)? {
         None => Ok(()),
         Some(SyncRemoteArgs::Filesystem(path)) => import_backend(

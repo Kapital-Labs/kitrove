@@ -23,7 +23,7 @@ fn all_ambiguous_preview_has_no_empty_write_approval_or_success() {
     let output = start(&a, "\nn\n5\n");
     assert!(manifest(&a).assets.is_empty());
     assert!(output.contains("No skills ready to collect. Nothing has changed."));
-    assert!(!output.contains("Adopt the previewed set"));
+    assert!(!output.contains("Collect the previewed skills"));
     assert!(!output.contains("Adopted 0 skills"));
 }
 
@@ -50,7 +50,7 @@ fn explicit_tool_selection_preserves_its_native_bytes_without_merging_other_copi
         std::fs::read(&claude).unwrap(),
         std::fs::read(&codex).unwrap(),
     ];
-    let output = start(&a, "from claude\ny\n5\n");
+    let output = start(&a, "from claude\nd\ny\n5\n");
     let adopted = manifest(&a);
     let id = AssetId::parse("shared".to_owned()).unwrap();
     assert_eq!(adopted.assets.len(), 1);
@@ -70,7 +70,10 @@ fn explicit_tool_selection_preserves_its_native_bytes_without_merging_other_copi
     );
     assert_eq!(std::fs::read(&claude).unwrap(), before[0]);
     assert_eq!(std::fs::read(&codex).unwrap(), before[1]);
-    assert!(output.contains("Partial"));
+    let (preview, details) = output.split_once("? Collect these skills?").unwrap();
+    assert!(preview.contains("Ready: shared"));
+    assert!(!preview.contains("skill.native_field_omitted"));
+    assert!(details.contains("Partial"));
     assert!(output.contains("skill.native_field_omitted"));
     assert!(output.contains("Adopted 1 skills"));
     let state = kitrove_model::LocalState::from_json(
@@ -132,7 +135,7 @@ fn omission_output_is_bounded_but_details_retain_all_original_entries() {
             assert_eq!(output.matches("Omitted:").count(), 0);
             assert!(output.contains("Show all skipped-item details"));
         }
-        assert!(!output.contains("Adopt the previewed set"));
+        assert!(!output.contains("Collect the previewed skills"));
     }
 }
 
@@ -152,7 +155,7 @@ fn occupied_names_remain_unchanged_and_never_count_as_successful_adoptions() {
     assert!(output.contains("already collected (exact native content matches)"));
     assert!(!output.contains("Choose a tool's copies to preview"));
     assert!(!output.contains("copies share a name across the selected sources"));
-    assert!(!output.contains("Adopt the previewed set"));
+    assert!(!output.contains("Collect the previewed skills"));
     assert!(!output.contains("Adopted 0 skills"));
 }
 
@@ -175,7 +178,7 @@ fn empty_preview_rejects_yes_and_eof_stops_without_writes() {
         );
         assert!(manifest(&a).assets.is_empty());
         assert!(!output.contains("Adopted 0 skills"));
-        assert!(!output.contains("Adopt the previewed set"));
+        assert!(!output.contains("Collect the previewed skills"));
     }
 }
 
@@ -291,7 +294,7 @@ fn guided_source_choice_rejects_unlisted_numbers_and_yes_without_adoption() {
         4
     );
     assert!(output.contains("No skills ready to collect"));
-    assert!(!output.contains("Adopt the previewed set"), "{output}");
+    assert!(!output.contains("Collect the previewed skills"), "{output}");
     assert!(manifest(&a).assets.is_empty());
 }
 
@@ -314,7 +317,7 @@ fn guided_duplicate_choice_can_show_details_or_cancel_without_adoption() {
         );
         assert!(output.contains("Choose a tool's copies to preview"));
         assert!(manifest(&a).assets.is_empty());
-        assert!(!output.contains("Adopt the previewed set"));
+        assert!(!output.contains("Collect the previewed skills"));
         if input.contains("\nd\n") {
             assert!(output.contains("Omitted: 1. shared"));
             assert!(output.contains("Omitted: 2. shared"));

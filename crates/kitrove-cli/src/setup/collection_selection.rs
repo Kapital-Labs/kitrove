@@ -155,11 +155,11 @@ impl Skipped {
         }
         if !self.blockers.is_empty() {
             dialog.say(&format!("  {} blocked:", self.blockers.len()))?;
-            for detail in self.blockers.iter().take(10) {
+            for detail in self.blockers.iter().take(3) {
                 dialog.say(&format!("    - {detail}"))?;
             }
-            if self.blockers.len() > 10 {
-                dialog.hint("Showing the first 10 blocked skills; d shows all details.")?;
+            if self.blockers.len() > 3 {
+                dialog.hint("Showing the first 3 blocked skills. Use d for details.")?;
             }
         }
         if self
@@ -171,7 +171,7 @@ impl Skipped {
             )?;
         }
         if !self.details.is_empty() {
-            dialog.hint("d shows all skipped-item details, including unselected copies.")?;
+            dialog.hint("Use d for skipped details and per-tool compatibility.")?;
         }
         Ok(())
     }

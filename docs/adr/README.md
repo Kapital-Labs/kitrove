@@ -111,4 +111,6 @@ ADRs document foundational decisions and their consequences. Accepted ADRs are a
 
 | [0078](0078-readonly-storage-doctor.md) | Read-only local storage doctor | Accepted for source implementation; validation pending | NS-01, NS-04, NS-07, NS-08, NS-09, NS-10 |
 
+| [0079](0079-preserve-device-mismatched-quarantine.md) | Preserve an intact retained quarantine after a device ID mismatch | Implemented for source review | NS-01, NS-04, NS-07, NS-09, NS-10 |
+
 Use [`0000-template.md`](0000-template.md) for new records.

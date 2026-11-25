@@ -90,6 +90,18 @@ fn locations(explicit: Option<&Path>) -> Result<(PathBuf, PathBuf, PathBuf), Che
     Ok((home, collection, state))
 }
 
+#[cfg(target_os = "macos")]
+pub(crate) fn recovery_locations(explicit: Option<&Path>) -> Result<(PathBuf, PathBuf), CliError> {
+    locations(explicit)
+        .map(|(_, collection, state)| (collection, state))
+        .map_err(|_| {
+            CliError::new(
+                "recover.location_unavailable",
+                "run doctor to check the collection and private storage paths",
+            )
+        })
+}
+
 pub(crate) fn run_doctor(arguments: EnvironmentArgs) -> Result<CompletedCommand, CliError> {
     let (inspection, mutation_access, checks) = match locations(arguments.environment.as_deref()) {
         Err(check) => ("unlocked", "not_tested", vec![check]),

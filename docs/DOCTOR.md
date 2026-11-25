@@ -76,6 +76,7 @@ filename, a stable item ID or authority to delete anything. Boundary failures an
 limits reached before selecting an item have no item number. Doctor stops at the
 first failed invariant per root; it does not claim to find every cleanup issue.
 Do not rename, remove or repair retained files based only on this report.
+For a device-only result on macOS, see [the preservation workflow](QUARANTINE-RECOVERY.md#preserve-device-mismatched-retained-files-on-macos).
 
 ## What a result means
 

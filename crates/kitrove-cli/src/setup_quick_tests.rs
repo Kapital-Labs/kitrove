@@ -156,8 +156,8 @@ fn collection_questions_and_actions_are_separate_readable_prompt_lines() {
     assert!(output.contains("? Choose skills to collect\n"));
     assert!(output.contains("\n  Enter         Preview eligible skills\n"));
     assert!(output.contains("\n  from TOOL     Use only that tool's copies\n"));
-    assert!(output.contains("? Adopt these skills?\n"));
-    assert!(output.contains("\n  Enter/y       Adopt the previewed set\n"));
+    assert!(output.contains("? Collect these skills?\n"));
+    assert!(output.contains("\n  Enter/y       Collect the previewed skills\n"));
     assert!(!output.contains("Enter does not approve bulk writes"));
     assert!(manifest(&a).assets.is_empty());
 }
@@ -267,7 +267,10 @@ fn bulk_preview_retains_partial_reasons_and_omits_unsupported_executable_content
     .unwrap();
     let output = script(
         &a,
-        &format!("1\n{}\na\nyes\n1\ny\n5\n", a.join("collection").display()),
+        &format!(
+            "1\n{}\na\nyes\n1\nd\ny\n5\n",
+            a.join("collection").display()
+        ),
         false,
         "",
     );
@@ -306,7 +309,7 @@ fn bulk_preview_retains_partial_reasons_and_omits_unsupported_executable_content
     .unwrap();
     let output = script(&a, "\n1\nall\nd\ny\nn\n5\n", true, "");
     assert!(output.contains("No skills ready to collect"));
-    assert!(!output.contains("Adopt the previewed set"));
+    assert!(!output.contains("Collect the previewed skills"));
     assert!(
         output.contains("contains unsupported executable content or native lifecycle directives")
     );
@@ -425,7 +428,7 @@ impl Write for RaceWriter {
         let trigger = if self.mode == "after-first" {
             "Adopted alpha."
         } else {
-            "Adopt the previewed set"
+            "Collect the previewed skills"
         };
         if !self.mutated && text.contains(trigger) {
             if self.mode == "journal" {

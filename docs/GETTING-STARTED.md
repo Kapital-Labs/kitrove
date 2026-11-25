@@ -44,6 +44,9 @@ The Kitrove upgrade replaces the Homebrew-managed executable and preserves your
 collection and local state. For the older
 `kitrove-rc` or `kitrove-rc@5.5` casks, see [Existing installations](#existing-installations).
 
+Use `kitrove --help` to find a command. For usage, run the command with
+`--help` (for example, `kitrove apply --help`).
+
 ## Start on your first computer
 
 After installing, run this in a terminal:

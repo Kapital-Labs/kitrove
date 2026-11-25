@@ -383,6 +383,12 @@ pub use storage_doctor::{
 #[path = "../../../support/test-fixtures/probe_fixture.rs"]
 mod probe_fixture;
 
+#[cfg(target_os = "macos")]
+pub use quarantine_cleanup::preservation::{
+    PreservationError, PreservationRoot, QuarantinePreservationPlan, RETAINED_HOLD_PATH,
+    plan_quarantine_preservation, preserve_quarantine,
+};
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;

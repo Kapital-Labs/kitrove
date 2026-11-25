@@ -204,7 +204,7 @@ def adoption_decision(key, adopt, source_answer=b"from pi\n"):
                 session.restored()
                 session.send(b"n\n")
             elif key == b"d":
-                session.prompt(b"Adopt these skills?")
+                session.prompt(b"Collect these skills?")
                 session.menu_ready()
                 session.output = b""
                 session.send(b"n")
@@ -261,7 +261,7 @@ def duplicate_source_decision(key, adopt):
             assert b"Omitted:" not in session.output
             session.output = b""
             session.send(key)
-            session.prompt(b"Adopt these skills?")
+            session.prompt(b"Collect these skills?")
             session.menu_ready()
             # Choosing a source (even with a trailing Enter) cannot approve it.
             assert before == {str(p.relative_to(root)): p.read_bytes() for p in root.rglob("*") if p.is_file()}
@@ -511,7 +511,7 @@ def scan_collect_menu(adopt, context="user", fresh=False, stale=False, cancel=Fa
             assert b"1 selectable" in session.output, session.output
             preview_before = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
             session.send(b"\n")
-            session.prompt(b"Adopt these skills?")
+            session.prompt(b"Collect these skills?")
             session.menu_ready()
             assert preview_before == {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}, "preview must not mutate"
             if not fresh:
@@ -566,7 +566,7 @@ def tool_first_application(tool, *, project=False, approve=True, stale=False, ch
             answer(b"Name this computer", b"tools-test\n")
             answer(b"y/yes confirms", b"y\n")
             answer(b"Choose skills to collect", b"from pi\n")
-            answer(b"Adopt these skills?", b"y", True)
+            answer(b"Collect these skills?", b"y", True)
             session.until(b"Adopted 1 skills")
             # Only the synthetic source is removed to create an empty Pi destination too.
             assert source.read_bytes() == original
