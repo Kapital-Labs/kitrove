@@ -2,7 +2,11 @@
 
 Notable changes to Kitrove are recorded here.
 
-## Unreleased
+## 0.1.0-rc.5.23
+
+Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.
+
+### Changed
 
 - Open an interactive task menu from bare `kitrove` and use Enter to submit
   guided choices. Collecting and adding skills each require an explicit

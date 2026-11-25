@@ -116,6 +116,10 @@
     {
       "version": "0.1.0-rc.5.22",
       "rollback_compatible_predecessors": []
+    },
+    {
+      "version": "0.1.0-rc.5.23",
+      "rollback_compatible_predecessors": []
     }
   ]
 }
