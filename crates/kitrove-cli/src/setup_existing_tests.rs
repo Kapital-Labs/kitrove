@@ -8,7 +8,7 @@ fn initialized(root: &Path) -> PathBuf {
     script(
         &machine,
         &format!(
-            "1\n{}\noriginal-machine\nyes\n1\nyes\n5\n",
+            "1\n{}\noriginal-machine\nyes\n1\nyes\nn\n5\n",
             machine.join("collection").display()
         ),
         false,
@@ -62,7 +62,7 @@ fn existing_setup_resumes_only_after_consent_without_reinitializing_or_running_s
         assert!(output.contains("What would you like to do?"));
         assert!(!output.contains("Name this computer"));
         assert!(!output.contains("Create an empty collection"));
-        assert!(!output.contains("Collection scan"));
+        assert!(!output.contains("available to preview"));
         assert!(!output.contains("Backend 1-3"));
         assert_eq!(snapshot(&a), before);
     }

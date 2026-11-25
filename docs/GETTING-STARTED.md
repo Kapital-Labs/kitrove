@@ -14,7 +14,7 @@ kitrove --version
 ```
 
 The package is named `kitrove`; the installed version still identifies itself as
-`0.1.0-rc.5.21`. This is an evaluation preview, not stable support. Use a new isolated
+`0.1.0-rc.5.22`. This is an evaluation preview, not stable support. Use a new isolated
 collection and empty destinations with synthetic or disposable capabilities.
 Homebrew checks the pinned archive checksum; you trust Homebrew and the reviewed
 [tap](https://github.com/Kapital-Labs/homebrew-tap) to select the package. It does
@@ -49,7 +49,10 @@ Use `kitrove --help` to find a command. For usage, run the command with
 
 ## Start on your first computer
 
-After installing, run this in a terminal:
+The guided screens below describe the CLI in this source tree. If you installed
+RC5.22, use its [versioned setup guide](https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.22/docs/GETTING-STARTED.md).
+
+To browse tasks, run `kitrove` in a terminal. For initial setup, run this in a terminal:
 
 ```sh
 kitrove init
@@ -61,11 +64,10 @@ Before creating anything it shows both the collection and machine-local state
 locations. On macOS the default local state location is
 `~/Library/Application Support/kitrove`.
 
-Kitrove then scans your user-level skills and groups same-name source copies,
-keeping their original inventory numbers.
-Enter previews the recommended eligible set without writing it. Use `v` to see
-the full inventory, `1,4,7` to choose only those entries, or `all,-3,-8` (also
-`-3,-8`) for everything except entries 3 and 8. Numbers belong to this scan.
+Kitrove then scans your user-level skills and summarizes the sources.
+Enter previews eligible skills. Type `v` to browse numbered copies, `/name` to
+filter, and `next` to page. Use `1,4,7` to choose specific copies or
+`all,-3,-8` to exclude copies 3 and 8. Numbers belong to this scan.
 The same directory can appear through multiple tools; review source tools and
 scopes, not just names. Ambiguous names do not silently pick a source.
 
@@ -81,37 +83,32 @@ Ready plans still show complete source, fidelity and loss details. An empty
 preview offers no adoption approval or zero-item success. Enter or `s` chooses
 again using the same scan; `s` also works after a nonempty preview.
 
-Review the preview's fidelity and loss warnings. Enter or `y` approves only the
-displayed ready set after a nonempty preview. Use `r` for individual
-review: Enter/y accepts the current shown plan, n skips, and r renames before a
-new preview. `n` at selection skips collection. Original source files stay in place.
+Review the preview's fidelity and loss warnings. Type `y` and press Enter to
+save the ready set. Enter alone skips the save. Use `r` for individual review,
+where `y` then Enter saves the current skill. Original source files stay in place.
 
 Bulk adoption is sequential, not atomic. A stale source, changed collection,
 pending recovery or failed commit stops later items; completed items remain and
 are reported. See the [quick collection flow](SETUP-QUICK-ADOPTION.md) for omitted
 items, naming conflicts and exact confirmation semantics.
 
-Run `kitrove apply` for a guided tool and pack picker, or select **Add skills or packs to a tool** in setup. Choose Claude Code, Codex, Pi
-or OpenCode, then all projects or one project. Select saved items by number,
-filter names with `/word`, or use `ready` for skills the planner can add/update.
-`all` includes needs-review and already-current items; it does not bypass checks.
-Ready refers to the destination folder, not whether a tool already discovers a copy.
-After collecting, Enter selects the just-collected suggestions. Review the exact
-destinations and press `y` to approve; Enter skips tool changes. The
-[tool-first guide](ADD-TO-TOOLS.md) explains shared folders and advanced items.
+After saving skills, choose a tool to preview adding them. Kitrove offers to
+preview ready skills from what you just saved. It also lets you check the
+whole collection or select specific skills and packs. Run `kitrove apply`
+to return directly. Review the destinations and type `y` then Enter to
+approve the exact preview. The [tool-first guide](ADD-TO-TOOLS.md) explains
+shared folders and advanced items.
 
 Ordinary skills do not need an executable path. Selected Pi extensions and
 OpenCode advanced items can require an explicit trusted executable for the
 existing bounded version probe. Script-containing skills have a separate exact local review before placement.
 Native extensions retain their existing explicit trust workflow. Setup installs no prerequisites.
 
-Closed menus accept a single displayed key without Enter. Selection expressions,
-paths, names and URLs remain text prompts: type the value and press Enter.
-An Enter left over from an earlier prompt cannot approve a later preview.
-Apply and sync keep separate confirmations; Enter skips those writes.
-`q` stops at any prompt. Previously confirmed steps
-remain completed if you stop later. Setup is not a single transaction covering
-all earlier choices, and nothing starts running in the background.
+Enter submits the current choice or text. In a supported terminal, arrow
+keys and shortcuts can highlight a menu choice before you submit.
+A key left over from an earlier prompt cannot approve a later preview.
+Saving skills, adding them to a tool, and syncing each require their own
+approval. Press Ctrl+C to leave; earlier confirmed steps remain completed.
 
 Skills with eligible text helper scripts can be collected as data. Before adding
 one to a tool, review its exact stored bundle and approve that version locally.
@@ -132,7 +129,7 @@ kitrove configure
 The walkthrough asks for your existing collection. The menu separates these goals:
 
 1. **Collect skills from this computer** copies selected skills into your collection.
-2. **Add skills or packs to a tool** previews applying a selection locally.
+2. **Add saved skills or packs to a tool** previews adding a selection locally.
 3. **Sync this collection with another computer** reviews bidirectional sync.
 4. **Copy selected items from another collection** performs a one-time import.
 5. **Finish for now** leaves setup.

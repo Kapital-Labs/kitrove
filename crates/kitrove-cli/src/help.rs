@@ -4,19 +4,21 @@ use std::ffi::OsString;
 pub(crate) const INDEX: &str = "Kitrove | Carry your AI tool skills between tools and computers
 
 Start here
+  kitrove              Open the task menu in a terminal
   kitrove init         Set up your first or another computer
   kitrove configure    Open the menu for an existing collection
   kitrove scan         See skills on this computer
   kitrove apply        Add saved skills or packs to a tool
   kitrove doctor       Check collection and private storage
 
-Other commands
-  Collect and place    adopt, plan, remove
-  Share and organize   sync, pack
-  Review and repair    trust, status, recover, lock, versions
-  About Kitrove        about, north-star, invariants, --version
+Other useful commands
+  kitrove trust audit  Check local script approvals
+  kitrove recover --help
+                       See retained-file recovery options
+  kitrove --version    Show the installed version
+  kitrove north-star  Read Kitrove's product principles
 
-Use kitrove <command> --help for details, or kitrove help --all.
+Run kitrove help --all for the full command reference.
 ";
 
 struct Topic {

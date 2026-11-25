@@ -108,7 +108,7 @@ pub(super) fn confirm<R: PromptInput, W: Write>(
             if items.is_empty() { 0 } else { start + 1 }
         ))?;
         page(dialog, &items[start..end])?;
-        match dialog.decision(&format!("Add the previewed items?\ny        Approve all {} destinations\nd        Full plan details\n] / [    Next / previous page\nEnter/n  Skip\nq        Quit", items.len()), b"ydn[]", true)?.as_str() {
+        match dialog.decision(&format!("Add the previewed items?\ny        Add to all {} previewed destinations\nd        Full plan details\n] / [    Next / previous page\nEnter/n  Back [default]\nq        Quit", items.len()))?.as_str() {
             "y" | "yes" => return Ok(true),
             "" | "n" | "no" => return Ok(false),
             "d" => dialog.summary(encoded)?,

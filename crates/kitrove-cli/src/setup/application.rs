@@ -42,18 +42,48 @@ pub(super) fn apply<R: PromptInput, W: Write>(
     if targets.contains(&HarnessId::Claude) {
         dialog.hint("OpenCode may also find skills in Claude's folder.")?;
     }
-    let (scope, project_root) = match dialog.decision(
-        "Where should these items be available?\n1. All projects on this computer\n2. This project only\nEnter/n  Not now\nq        Quit", b"12n", true)?.as_str() {
-        "1" => (HarnessScope::User, None),
-        "2" => {
-            let path = dialog.ask("Absolute project folder path (Enter skips):")?;
-            if path.is_empty() { return Ok(()); }
+    let scope_choice = navigation::choose(
+        dialog,
+        "Where should these items be available?",
+        &[
+            (b'1', "All projects on this computer"),
+            (b'2', "This project only"),
+            (b'n', "Back"),
+        ],
+        2,
+    )?;
+    let (scope, project_root) = match scope_choice {
+        b'1' => (HarnessScope::User, None),
+        b'2' => {
+            let path = dialog.ask("Absolute project folder path (Enter goes back):")?;
+            if path.is_empty() {
+                return Ok(());
+            }
             let path = PathBuf::from(path);
-            if !path.is_absolute() { return Err(CliError::new("setup.project_path_invalid", "choose an absolute project folder path")); }
+            if !path.is_absolute() {
+                return Err(CliError::new(
+                    "setup.project_path_invalid",
+                    "choose an absolute project folder path",
+                ));
+            }
             (HarnessScope::Project, Some(path))
         }
         _ => return Ok(()),
     };
+    let target_labels = targets
+        .iter()
+        .map(HarnessId::as_str)
+        .collect::<Vec<_>>()
+        .join(", ");
+    dialog.heading(&format!("Add to {target_labels}"))?;
+    if let Some(project) = &project_root {
+        dialog.say(&format!(
+            "Project · {}",
+            safe(&project.display().to_string())
+        ))?;
+    } else {
+        dialog.say("All projects on this computer")?;
+    }
     let destination_args = MaterializeArgs {
         profile: None,
         assets: BTreeSet::new(),
@@ -66,10 +96,14 @@ pub(super) fn apply<R: PromptInput, W: Write>(
         json: true,
     };
     let mut preview_ready: Option<Vec<AssetId>> = None;
+    let mut browse_items = false;
+    let mut retry_selection = None;
     loop {
         let manifest = load_manifest(root)?;
         let mut args = destination_args.clone();
-        let ItemSelection { ids, bulk } = if let Some(previous) = preview_ready.take() {
+        let ItemSelection { ids, bulk } = if let Some(selection) = retry_selection.take() {
+            selection
+        } else if let Some(previous) = preview_ready.take() {
             let ready = ready_items(root, &manifest, previous.iter(), &args);
             if ready.is_empty() {
                 dialog.say("None of the selected skills are ready. Choose other items or check the reasons beside each skill.")?;
@@ -81,8 +115,11 @@ pub(super) fn apply<R: PromptInput, W: Write>(
                 previous.len()
             ))?;
             ready.into()
-        } else {
+        } else if browse_items {
             choose_items(dialog, root, &manifest, suggested, &args)?
+        } else {
+            browse_items = true;
+            select_items(dialog, root, &manifest, suggested, &args)?
         };
         if ids.is_empty() {
             return Ok(());
@@ -90,8 +127,13 @@ pub(super) fn apply<R: PromptInput, W: Write>(
         for id in &ids {
             if manifest.packs.contains_key(id) {
                 args.packs.insert(id.clone());
-            } else {
+            } else if manifest.assets.contains_key(id) {
                 args.assets.insert(id.clone());
+            } else {
+                return Err(CliError::new(
+                    "apply.plan_stale",
+                    "the collection changed during selection; choose items again",
+                ));
             }
         }
         let mut assets = args.assets.clone();
@@ -126,13 +168,13 @@ pub(super) fn apply<R: PromptInput, W: Write>(
         // final fresh plan; a separate preflight must not hide its authoritative error
         // or block recovery of a previously approved operation.
         super::application_preview::discovery(dialog, root, &manifest, &assets, &args)?;
-        super::application_preview::compatibility(dialog, &manifest, &assets, &args.targets)?;
         let mut prompt_error = None;
         let mut preview_offered = false;
         let mut result = apply_with_preview(
             dialog,
             root,
             &manifest,
+            &assets,
             args.clone(),
             &mut prompt_error,
             &mut preview_offered,
@@ -152,6 +194,7 @@ pub(super) fn apply<R: PromptInput, W: Write>(
                 dialog,
                 root,
                 &manifest,
+                &assets,
                 args,
                 &mut prompt_error,
                 &mut preview_offered,
@@ -190,22 +233,97 @@ pub(super) fn apply<R: PromptInput, W: Write>(
                     }
                     _ => "Some skills need separate script approval.",
                 };
-                dialog.warning(&format!("Selection blocked. {reason}"))?;
-                match dialog.decision(
-                    "What would you like to do?\nr        Preview ready items from this selection\nEnter/s  Choose different items\nn        Go back\nq        Quit",
-                    b"rsn", true,
-                )?.as_str() {
-                    "r" => {
-                        preview_ready = Some(ids);
-                        continue;
+                dialog.warning(&format!("{reason} No files changed."))?;
+                loop {
+                    match navigation::choose(
+                        dialog,
+                        "What would you like to do?",
+                        &[
+                            (b'r', "Preview ready items from this selection"),
+                            (b's', "Choose different items"),
+                            (b'd', "Show compatibility details"),
+                            (b'n', "Back"),
+                        ],
+                        0,
+                    )? {
+                        b'r' => {
+                            preview_ready = Some(ids);
+                            break;
+                        }
+                        b'd' => super::application_preview::compatibility(
+                            dialog,
+                            &manifest,
+                            &assets,
+                            &destination_args.targets,
+                        )?,
+                        b's' => break,
+                        _ => return Ok(()),
                     }
-                    "" | "s" => continue,
-                    _ => Ok(()),
                 }
+                continue;
+            }
+            Err(error) if error.code == "apply.batch_storage_failed" => {
+                dialog.warning("Storage prevented this selection from being added.")?;
+                if super::storage::repair(dialog, root)? {
+                    dialog.hint("Review a fresh preview before adding these items.")?;
+                    retry_selection = Some(ItemSelection { ids, bulk });
+                    continue;
+                }
+                dialog.hint("Run kitrove doctor with this collection to check storage.")?;
+                Err(error)
             }
             Err(error) => Err(error),
         };
     }
+}
+
+fn select_items<R: PromptInput, W: Write>(
+    dialog: &mut Dialog<R, W>,
+    root: &std::path::Path,
+    manifest: &EnvironmentManifest,
+    suggested: &[AssetId],
+    args: &MaterializeArgs,
+) -> Result<ItemSelection, CliError> {
+    let total = manifest.assets.len() + manifest.packs.len();
+    dialog.say(&format!("{total} saved items"))?;
+    let mut choices = Vec::new();
+    if !suggested.is_empty() {
+        choices.push((
+            b'j',
+            format!("Preview ready from {} just collected", suggested.len()),
+        ));
+    }
+    choices.extend([
+        (
+            b'r',
+            "Preview ready skills across this collection".to_owned(),
+        ),
+        (b's', "Choose specific items or review a blocker".to_owned()),
+        (b'n', "Back".to_owned()),
+    ]);
+    let choice = navigation::choose(dialog, "What would you like to add?", &choices, 0)?;
+    let candidates = match choice {
+        b'j' => suggested.to_vec(),
+        b'r' => manifest
+            .assets
+            .iter()
+            .filter(|(_, asset)| asset.kind == AssetKind::Skill)
+            .map(|(id, _)| id.clone())
+            .collect(),
+        b's' => return choose_items(dialog, root, manifest, suggested, args),
+        _ => return Ok(ItemSelection::default()),
+    };
+    let ready = ready_items(root, manifest, candidates.iter(), args);
+    dialog.say(&format!(
+        "{} of {} selected skills ready to add",
+        ready.len(),
+        candidates.len()
+    ))?;
+    if ready.is_empty() {
+        dialog.hint("No skills ready in this selection. Browse items to see their status.")?;
+        return choose_items(dialog, root, manifest, suggested, args);
+    }
+    Ok(ready.into())
 }
 
 fn choose_items<R: PromptInput, W: Write>(
@@ -305,14 +423,7 @@ fn choose_items<R: PromptInput, W: Write>(
                 readiness.label()
             ))?;
         }
-        let enter = if suggested.is_empty() {
-            "Skip"
-        } else {
-            "Preview just-collected items"
-        };
-        let prompt = format!(
-            "Which saved items would you like to add?\nready        Preview skills ready to add or update\n1,4,7        Preview specific items\nhelp         All selection commands\nEnter        {enter}\nq            Quit"
-        );
+        let prompt = "Which saved items would you like to add?\nready        Preview skills ready to add or update\n1,4,7        Preview specific items\nhelp         All selection commands\nEnter        Skip adding items\nq            Quit";
         let paging = match (start > 0, end < shown.len()) {
             (true, true) => "\nnext/back    Browse pages",
             (false, true) => "\nnext         Next page",
@@ -332,15 +443,7 @@ fn choose_items<R: PromptInput, W: Write>(
                 }
             }
             "back" => start = start.saturating_sub(PAGE_SIZE),
-            "" => {
-                return Ok(ids
-                    .iter()
-                    .filter(|id| suggested.contains(id) && id.as_str().contains(&filter))
-                    .cloned()
-                    .collect::<Vec<_>>()
-                    .into());
-            }
-            "n" => return Ok(ItemSelection::default()),
+            "" | "n" => return Ok(ItemSelection::default()),
             "ready" => {
                 let ready = ready_items(root, manifest, shown.iter().map(|(_, id)| *id), args);
                 if !ready.is_empty() {
@@ -522,8 +625,13 @@ pub(super) fn offer<R: PromptInput, W: Write>(
     root: &std::path::Path,
     adopted: &[AssetId],
 ) -> Result<(), CliError> {
-    match dialog.decision("Next: add the collected skills to a tool?\na        Choose a tool\nEnter/n  Finish collection\nq        Quit", b"an", true)?.as_str() {
-        "a" => apply(dialog, root, adopted),
+    match navigation::choose(
+        dialog,
+        "Next: add the collected skills to a tool?",
+        &[(b'a', "Choose a tool"), (b'n', "Finish collection")],
+        0,
+    )? {
+        b'a' => apply(dialog, root, adopted),
         _ => Ok(()),
     }
 }
@@ -531,24 +639,30 @@ pub(super) fn offer<R: PromptInput, W: Write>(
 fn choose_tools<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
 ) -> Result<BTreeSet<HarnessId>, CliError> {
-    loop {
-        let response = dialog.decision("Which AI tools should receive these items?\n1. Claude Code\n2. Codex\n3. Pi\n4. OpenCode\nm        Multiple tools\nEnter/n  Skip\nq        Quit", b"1234mn", true)?;
-        match response.as_str() {
-            "" | "n" => return Ok(BTreeSet::new()),
-            "m" => {
-                let labels = ["Claude Code", "Codex", "Pi", "OpenCode"].map(str::to_owned);
-                return Ok(dialog
-                    .choose("Choose tools", &labels)?
-                    .into_iter()
-                    .map(|index| TOOLS[index].clone())
-                    .collect());
-            }
-            "1" | "2" | "3" | "4" => {
-                let index = response.as_bytes()[0] - b'1';
-                return Ok(BTreeSet::from([TOOLS[usize::from(index)].clone()]));
-            }
-            _ => dialog.say("Choose a displayed tool, m for several, or n to skip.")?,
+    let choice = navigation::choose(
+        dialog,
+        "Which AI tools should receive these items?",
+        &[
+            (b'1', "Claude Code"),
+            (b'2', "Codex"),
+            (b'3', "Pi"),
+            (b'4', "OpenCode"),
+            (b'm', "Multiple tools"),
+            (b'n', "Back"),
+        ],
+        5,
+    )?;
+    match choice {
+        b'1'..=b'4' => Ok(BTreeSet::from([TOOLS[usize::from(choice - b'1')].clone()])),
+        b'm' => {
+            let labels = ["Claude Code", "Codex", "Pi", "OpenCode"].map(str::to_owned);
+            Ok(dialog
+                .choose("Choose tools", &labels)?
+                .into_iter()
+                .map(|index| TOOLS[index].clone())
+                .collect())
         }
+        _ => Ok(BTreeSet::new()),
     }
 }
 
@@ -556,10 +670,12 @@ fn apply_with_preview<R: PromptInput, W: Write>(
     dialog: &mut Dialog<R, W>,
     root: &std::path::Path,
     manifest: &EnvironmentManifest,
+    assets: &BTreeSet<AssetId>,
     args: MaterializeArgs,
     prompt_error: &mut Option<CliError>,
     preview_offered: &mut bool,
 ) -> Result<crate::portable::CompletedCommand, CliError> {
+    let targets = args.targets.clone();
     crate::materialize::run_apply(args, |plan| {
         *preview_offered = true;
         let decision = load_manifest(root).and_then(|current| {
@@ -569,6 +685,7 @@ fn apply_with_preview<R: PromptInput, W: Write>(
                     "the collection changed during selection; choose items again",
                 ));
             }
+            super::application_preview::compatibility(dialog, manifest, assets, &targets)?;
             super::application_preview::confirm(dialog, plan)
         });
         match decision {
@@ -611,7 +728,7 @@ fn review_scripted_skills<R: PromptInput, W: Write>(
                     file.bytes
                 ))?;
             }
-            match dialog.decision("Approve this exact bundle on this computer?\ny        Approve local placement of this version\nv        Next file page\nf        Inspect a stored file\nEnter/n  Skip this selection\nq        Quit", b"yvfn", true)?.as_str() {
+            match dialog.decision("Approve this exact bundle on this computer?\ny        Approve local placement of this version\nv        Next file page\nf        Inspect a stored file\nEnter/n  Skip this selection\nq        Quit")?.as_str() {
                 "y" => { review.commit()?; changed = true; dialog.success("Exact bundle approved locally. File placement still needs its own preview and approval.")?; break; }
                 "f" => inspect_review_file(dialog, &review)?,
                 "v" => start = if end == review.files.len() { 0 } else { end },
@@ -676,7 +793,7 @@ fn inspect_review_file<R: PromptInput, W: Write>(
         for line in &lines[start..end] {
             dialog.say(&format!("  | {line}"))?;
         }
-        match dialog.decision("Inspect file\nn        Next page\nb        Previous page\nEnter    Back to approval\nq        Quit", b"nb", true)?.as_str() {
+        match dialog.decision("Inspect file\nn        Next page\nb        Previous page\nEnter    Back to approval\nq        Quit")?.as_str() {
             "n" if end < lines.len() => start = end,
             "b" => start = start.saturating_sub(20),
             "n" => {},

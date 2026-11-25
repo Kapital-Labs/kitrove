@@ -50,7 +50,7 @@ fn explicit_tool_selection_preserves_its_native_bytes_without_merging_other_copi
         std::fs::read(&claude).unwrap(),
         std::fs::read(&codex).unwrap(),
     ];
-    let output = start(&a, "from claude\nd\ny\n5\n");
+    let output = start(&a, "from claude\nd\ny\nn\n5\n");
     let adopted = manifest(&a);
     let id = AssetId::parse("shared".to_owned()).unwrap();
     assert_eq!(adopted.assets.len(), 1);
@@ -91,7 +91,7 @@ fn source_choice_exclusions_bind_original_inventory_numbers() {
     let a = machine(&root, "a");
     skill(&a, "alpha", "Alpha.");
     skill(&a, "beta", "Beta.");
-    let output = start(&a, "v\nfrom claude,-2\nd\ny\n5\n");
+    let output = start(&a, "v\nfrom claude,-2\nd\ny\nn\n5\n");
     assert_eq!(
         manifest(&a)
             .assets
@@ -110,9 +110,9 @@ fn empty_preview_can_choose_a_source_without_rescanning_or_restarting_setup() {
     let root = std::fs::canonicalize(tmp.path()).unwrap();
     let a = machine(&root, "a");
     skill(&a, "shared", "Keep original.");
-    let output = start(&a, "\n\nfrom claude\ny\n5\n");
+    let output = start(&a, "\n\nfrom claude\ny\nn\n5\n");
     assert_eq!(manifest(&a).assets.len(), 1);
-    assert_eq!(output.matches("Collection scan (read-only)").count(), 1);
+    assert_eq!(output.matches("available to preview").count(), 1);
     assert!(output.contains("No skills ready to collect"));
     assert!(!output.contains("Adopted 0 skills"));
 }
@@ -145,9 +145,9 @@ fn occupied_names_remain_unchanged_and_never_count_as_successful_adoptions() {
     let root = std::fs::canonicalize(tmp.path()).unwrap();
     let a = machine(&root, "a");
     skill(&a, "shared", "Keep original.");
-    start(&a, "1\ny\n5\n");
+    start(&a, "1\ny\nn\n5\n");
     let before = std::fs::read(a.join("collection/kitrove.toml")).unwrap();
-    let output = script(&a, "\n1\nall\nn\n5\n", true, "");
+    let output = script(&a, "1\nall\nn\n5\n", true, "");
     assert_eq!(
         std::fs::read(a.join("collection/kitrove.toml")).unwrap(),
         before
@@ -211,7 +211,7 @@ fn empty_duplicate_preview_offers_numbered_sources_and_requires_a_new_approval()
         let output = start(
             &a,
             if approve {
-                "all\n2\ny\n5\n"
+                "all\n2\ny\nn\n5\n"
             } else {
                 "all\n2\nn\n5\n"
             },
@@ -221,7 +221,7 @@ fn empty_duplicate_preview_offers_numbered_sources_and_requires_a_new_approval()
         assert!(output.contains("2. codex (1 selected copy)"));
         assert!(output.contains("Choosing a tool only previews; nothing is collected yet."));
         assert!(!output.contains("Omitted:"), "details should be opt-in");
-        assert_eq!(output.matches("Collection scan (read-only)").count(), 1);
+        assert_eq!(output.matches("available to preview").count(), 1);
         let adopted = manifest(&a);
         assert_eq!(adopted.assets.len(), usize::from(approve));
         if approve {
@@ -269,7 +269,7 @@ fn guided_source_choice_preserves_original_number_exclusions() {
         .unwrap();
     }
     // Original index 2 is Claude beta, still excluded after choosing Claude.
-    let output = start(&a, "all,-2\n1\ny\n5\n");
+    let output = start(&a, "all,-2\n1\ny\nn\n5\n");
     assert!(output.contains("Choose a tool's copies to preview"));
     assert_eq!(
         manifest(&a)

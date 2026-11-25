@@ -11,6 +11,12 @@ fn invoke(arguments: &[&str]) -> Output {
 fn index_and_topics_are_separate_from_the_full_reference() {
     let index = invoke(&["--help"]);
     assert!(index.status.success());
+    let bare = invoke(&[]);
+    assert!(bare.status.success());
+    assert_eq!(
+        bare.stdout, index.stdout,
+        "redirected bare command remains help"
+    );
     let index = String::from_utf8(index.stdout).unwrap();
     assert!(index.lines().count() <= 24);
     assert!(!index.contains("--expected-prior"));

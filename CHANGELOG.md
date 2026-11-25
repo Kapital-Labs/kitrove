@@ -2,6 +2,16 @@
 
 Notable changes to Kitrove are recorded here.
 
+## Unreleased
+
+- Open an interactive task menu from bare `kitrove` and use Enter to submit
+  guided choices. Collecting and adding skills each require an explicit
+  confirmation.
+- Offer a direct handoff from collecting skills to adding them to a tool.
+  Preview only ready skills from the chosen group or browse specific items.
+- Offer guided macOS storage recovery when retained directories can be preserved.
+  A fresh preview and separate approval precede any retried placement.
+
 ## 0.1.0-rc.5.22
 
 Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.
