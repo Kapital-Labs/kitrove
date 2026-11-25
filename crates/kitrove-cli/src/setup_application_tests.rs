@@ -80,7 +80,7 @@ fn project_scope_for_each_tool_writes_only_the_confirmed_project() {
         }
         assert!(output.contains("This project"));
         if key == "2" {
-            assert!(output.contains("Pi and OpenCode may also discover"));
+            assert!(output.contains("Pi and OpenCode may also find"));
         }
     }
 }
@@ -124,7 +124,11 @@ fn newly_collected_items_can_go_directly_to_a_tool_with_separate_confirmation() 
         false,
         "",
     );
-    assert!(output.contains("use option 2: Add skills or packs to a tool"));
+    assert!(
+        output.contains(
+            "To use the skills you just collected, choose option 2 or run kitrove apply."
+        )
+    );
     assert!(output.contains("just collected"));
     assert!(output.contains("additional managed copies in the OpenCode destination"));
     assert!(output.contains("matching IDs may override"));

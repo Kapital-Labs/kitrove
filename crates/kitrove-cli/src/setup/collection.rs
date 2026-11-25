@@ -9,20 +9,30 @@ use kitrove_model::EnvironmentManifest;
 const SELECTION_PROMPT: &str = concat!(
     "Choose skills to collect\n",
     "Enter         Preview eligible skills\n",
+    "1,4,7         Preview specific skills\n",
     "from TOOL     Use only that tool's copies\n",
-    "              Example: from codex,-3,-8\n",
-    "1,4,7         Select specific skills\n",
-    "all,-3,-8     All except these (or -3,-8)\n",
+    "v             View the full inventory\n",
+    "help          All selection commands\n",
+    "n             Skip\n",
+    "q             Quit",
+);
+const SELECTION_HELP: &str = concat!(
+    "Collection selection help\n",
+    "Enter         Preview eligible skills\n",
+    "from TOOL     Use only that tool's copies (for example, from codex)\n",
+    "1,4,7         Preview listed skills by number\n",
+    "all,-3,-8     All except 3 and 8 (or -3,-8)\n",
+    "from codex,-3 Use Codex copies except number 3\n",
     "v             View the full inventory\n",
     "n             Skip\n",
     "q             Quit",
 );
 const READY_PROMPT: &str = concat!(
-    "Adopt these skills?\n",
-    "Enter/y       Adopt the previewed set\n",
+    "Collect these skills?\n",
+    "Enter/y       Collect the previewed skills\n",
     "s             Choose again\n",
     "r             Review individually\n",
-    "d             Show all skipped-item details\n",
+    "d             Full preview details\n",
     "n             Skip\n",
     "q             Quit",
 );
@@ -48,6 +58,7 @@ struct PreviewedItem {
     index: usize,
     id: AssetId,
     digest: ContentHash,
+    details: Vec<String>,
 }
 
 fn label(entry: &ScanEntry) -> String {
@@ -111,7 +122,10 @@ pub(super) fn collect_report<R: PromptInput, W: Write>(
             indices
         } else {
             loop {
-                let response = dialog.ask(SELECTION_PROMPT)?;
+                let mut response = dialog.ask(SELECTION_PROMPT)?;
+                while matches!(response.as_str(), "help" | "?") {
+                    response = dialog.ask(SELECTION_HELP)?;
+                }
                 if response == "v" {
                     dialog.say(&crate::scan_display::render(report))?;
                     for (index, entry) in candidates.iter().enumerate() {
@@ -178,7 +192,15 @@ pub(super) fn collect_report<R: PromptInput, W: Write>(
                         if let Err(error) =
                             commit(root, candidates[item.index], item, registry, selection)
                         {
-                            dialog.warning(&format!("Stopped after {completed} completed adoptions; later items did not run. Use status before continuing."))?;
+                            let next = match error.code {
+                                "transaction.cleanup_failed" | "transaction.cleanup_limit" => {
+                                    "Run kitrove doctor with this collection before retrying."
+                                }
+                                _ => "Use kitrove status before continuing.",
+                            };
+                            dialog.warning(&format!(
+                                "Stopped after {completed} completed adoptions. {next}"
+                            ))?;
                             return Err(error);
                         }
                         dialog.success(&format!("Adopted {}.", item.id.as_str()))?;
@@ -202,7 +224,14 @@ pub(super) fn collect_report<R: PromptInput, W: Write>(
                 }
                 "s" => continue 'selection,
                 "" if items.is_empty() => continue 'selection,
-                "d" => skipped.all(dialog)?,
+                "d" => {
+                    for item in &items {
+                        for line in &item.details {
+                            dialog.detail(line)?;
+                        }
+                    }
+                    skipped.all(dialog)?;
+                }
                 "n" | "no" => {
                     dialog.say("Collection skipped.")?;
                     return Ok(Vec::new());
@@ -249,12 +278,7 @@ fn occupied(manifest: &EnvironmentManifest, id: &AssetId) -> bool {
     manifest.assets.contains_key(id) || manifest.packs.contains_key(id)
 }
 
-fn show_plan<R: PromptInput, W: Write>(
-    dialog: &mut Dialog<R, W>,
-    index: usize,
-    entry: &ScanEntry,
-    plan: &AdoptionPlan,
-) -> Result<(), CliError> {
+fn plan_details(index: usize, entry: &ScanEntry, plan: &AdoptionPlan) -> Vec<String> {
     let fidelity = plan
         .asset()
         .compatibility
@@ -262,23 +286,23 @@ fn show_plan<R: PromptInput, W: Write>(
         .map(|(harness, result)| format!("{}={:?}", harness.as_str(), result.fidelity()))
         .collect::<Vec<_>>()
         .join(", ");
-    dialog.detail(&format!(
+    let mut details = vec![format!(
         "  {}. {} -> {} | {fidelity}",
         index + 1,
         label(entry),
         plan.asset().id.as_str()
-    ))?;
+    )];
     for (harness, result) in &plan.asset().compatibility {
-        for reason in result.reasons() {
-            dialog.detail(&format!(
+        details.extend(result.reasons().iter().map(|reason| {
+            format!(
                 "     {}: {}: {}",
                 harness.as_str(),
                 safe(&reason.code),
                 safe(&reason.message)
-            ))?;
-        }
+            )
+        }));
     }
-    Ok(())
+    details
 }
 
 fn preview<R: PromptInput, W: Write>(
@@ -292,7 +316,6 @@ fn preview<R: PromptInput, W: Write>(
     let mut items = Vec::new();
     let mut skipped = Skipped::default();
     dialog.heading("Adoption preview (no writes)")?;
-    dialog.hint("Review the skills below before adding them. If one addition fails, earlier completed additions remain and later items stop.")?;
     for (index, entry) in candidates.iter().enumerate() {
         if !selected.contains(&index) {
             skipped.push(
@@ -329,11 +352,11 @@ fn preview<R: PromptInput, W: Write>(
         let id = id.map_err(|_| io_error())?;
         match plan(report, entry, id.clone(), &manifest)? {
             AdoptionPlanOutcome::Ready(plan) => {
-                show_plan(dialog, index, entry, &plan)?;
                 items.push(PreviewedItem {
                     index,
                     id,
                     digest: plan.digest().clone(),
+                    details: plan_details(index, entry, &plan),
                 });
                 manifest = plan.proposed_manifest().clone();
             }
@@ -350,6 +373,18 @@ fn preview<R: PromptInput, W: Write>(
         .collect::<BTreeSet<_>>()
         .len();
     skipped.summary(dialog, selected.len(), selected_names, items.len())?;
+    if !items.is_empty() {
+        for item in items.iter().take(6) {
+            dialog.say(&format!("  Ready: {}", item.id.as_str()))?;
+        }
+        if items.len() > 6 {
+            dialog.hint(&format!(
+                "  {} more ready. Use d to see all names and per-tool compatibility.",
+                items.len() - 6
+            ))?;
+        }
+        dialog.hint("If collection stops partway, completed skills stay saved.")?;
+    }
     Ok((items, skipped))
 }
 
@@ -441,7 +476,10 @@ fn individually<R: PromptInput, W: Write>(
                 }
             };
             dialog.heading("Adoption preview (no writes)")?;
-            show_plan(dialog, index, entry, &plan)?;
+            let details = plan_details(index, entry, &plan);
+            for line in &details {
+                dialog.detail(line)?;
+            }
             let response = dialog.decision(INDIVIDUAL_PROMPT, b"ynr-", true)?;
             match response.to_ascii_lowercase().as_str() {
                 "" | "y" | "yes" => {
@@ -452,6 +490,7 @@ fn individually<R: PromptInput, W: Write>(
                             index,
                             id,
                             digest: plan.digest().clone(),
+                            details: Vec::new(),
                         },
                         registry,
                         selection,

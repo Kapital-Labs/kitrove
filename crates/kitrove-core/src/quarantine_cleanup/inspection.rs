@@ -738,6 +738,75 @@ pub(super) fn is_empty_directory(directory: &Dir) -> Result<bool, QuarantineInsp
     is_empty_directory_detailed(directory).map_err(|error| error.coarse)
 }
 
+/// Inspect a quarantine for relocation only. It never returns deletion candidates.
+#[cfg(target_os = "macos")]
+pub(super) fn inspect_for_preservation(
+    quarantine: &Dir,
+    budget: &mut QuarantineCleanupBudget,
+    fingerprint: &mut blake3::Hasher,
+) -> Result<(usize, usize), super::preservation::PreservationError> {
+    use super::preservation::PreservationError as Error;
+    use std::os::unix::ffi::OsStrExt as _;
+
+    budget.try_root().map_err(|_| Error::InspectionLimit)?;
+    let portion = QuarantineWorkPortion::CleanupInspection;
+    let entries = quarantine.entries().map_err(|_| Error::UnsupportedEntry)?;
+    let entries = collect_bounded_sorted_directory_entries(
+        entries,
+        budget.remaining_top_level_entries(portion),
+    )
+    .map_err(|_| Error::UnsupportedEntry)?;
+    let BoundedDirectoryEntries::Complete(entries) = entries else {
+        return Err(Error::InspectionLimit);
+    };
+    let count = entries.len();
+    let mut drifted = 0;
+    for entry in entries {
+        budget
+            .try_top_level_entry(portion)
+            .map_err(|_| Error::InspectionLimit)?;
+        let name = entry.file_name();
+        if CleanupPendingName::parse(&name).is_some() || CleanupBatchName::parse(&name).is_some() {
+            return Err(Error::IncompleteCleanup);
+        }
+        let authority = RemovalTombstoneName::parse(&name).ok_or(Error::UnsupportedEntry)?;
+        let metadata = entry.full_metadata().map_err(|_| Error::UnsupportedEntry)?;
+        validate_kind(authority.kind, &metadata).map_err(|_| Error::UnsupportedEntry)?;
+        let current = MetadataIdentity::from_metadata(&metadata);
+        if authority.identity.inode != current.inode {
+            return Err(Error::FileIdentityChanged);
+        }
+        drifted += usize::from(authority.identity.device != current.device);
+        match authority.kind {
+            RemovedObjectKind::File => {
+                let handle = open_verified_file_detailed(quarantine, &name, &metadata)
+                    .map_err(|_| Error::UnsupportedEntry)?;
+                require_single_link(&handle).map_err(|_| Error::UnsupportedEntry)?;
+            }
+            RemovedObjectKind::Directory => {
+                let directory = open_verified_directory_detailed(quarantine, &name, &metadata)
+                    .map_err(|_| Error::UnsupportedEntry)?;
+                inspect_descendants_detailed(directory, budget, portion).map_err(|failure| {
+                    match failure.coarse {
+                        QuarantineInspectionError::Budget(_) => Error::InspectionLimit,
+                        _ => Error::UnsupportedEntry,
+                    }
+                })?;
+            }
+        }
+        let name = name.as_bytes();
+        fingerprint.update(&(name.len() as u64).to_le_bytes());
+        fingerprint.update(name);
+        fingerprint.update(&current.device.to_le_bytes());
+        fingerprint.update(&current.inode.to_le_bytes());
+        fingerprint.update(&metadata.len().to_le_bytes());
+    }
+    if drifted == 0 {
+        return Err(Error::NoDeviceMismatch);
+    }
+    Ok((count, drifted))
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;

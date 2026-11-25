@@ -18,6 +18,7 @@ mod adapters;
 mod args;
 mod batch_recovery;
 mod doctor;
+mod help;
 mod init;
 mod materialize;
 mod pack;
@@ -25,6 +26,7 @@ mod portable;
 #[cfg(test)]
 #[path = "probe_fixture.rs"]
 mod probe_fixture;
+mod recover;
 mod registry;
 mod removal;
 mod scan;
@@ -41,10 +43,7 @@ use std::ffi::OsString;
 use std::io::{self, IsTerminal as _, Write as _};
 use std::process::ExitCode;
 
-use args::{
-    ADDITIONAL_MCP_HELP, ADDITIONAL_PACK_HELP, ADDITIONAL_SYNC_HELP, Command, DOCTOR_HELP, HELP,
-    parse_args,
-};
+use args::{Command, DOCTOR_HELP, parse_args};
 use init::run_init;
 use materialize::{run_apply, run_confirmed_apply, run_plan};
 use pack::{
@@ -83,17 +82,21 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         arguments.next();
     }
     let arguments: Vec<_> = arguments.collect();
+    if let Some(text) = help::requested(&arguments) {
+        out!("{text}");
+        return 0;
+    }
+    if matches!(arguments.as_slice(), [command, flag] if command == "help" && flag == "--all") {
+        out!("{}", help::reference());
+        return 0;
+    }
     let guided_apply = !json_errors && bare_apply_requested(&arguments);
-    let command = match parse_args(arguments) {
+    let command = match parse_args(arguments.iter().cloned()) {
         Ok(command) => command,
         Err(error) => {
-            if json_errors {
-                report_error(true, error.code, &error, 2);
-            } else {
-                eprintln!(
-                    "error[{}]: {error}\n\n{HELP}{ADDITIONAL_MCP_HELP}{ADDITIONAL_SYNC_HELP}{ADDITIONAL_PACK_HELP}",
-                    error.code
-                );
+            report_error(json_errors, error.code, &error, 2);
+            if !json_errors {
+                eprintln!("{}", help::error_hint(&arguments));
             }
             return 2;
         }
@@ -137,31 +140,19 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
                 }
             }
         }
-        Command::Help => {
-            outln!(
-                "MACHINE-READABLE ERRORS:\n    kitrove --json-errors <command> [arguments]\n    Emits versioned error codes on stderr; use --json for command results.\n    Does not change approval, recovery or interactive behavior.\n"
-            );
-            outln!(
-                "AUTHORED PACKS:\n    kitrove pack create --authored --pack <id> --member <id>... --plan --json\n    Repeat --authored and the same selection with --confirm <digest>.\n    Member provenance is preserved; update retains the selected pack mode.\n    Without --authored, create requires one shared distribution source.\n"
-            );
-            outln!(
-                "PACK IMPORT APPROVAL:\n    kitrove pack adopt|rollback [selection] --plan --json\n    kitrove pack adopt|rollback [same selection] --confirm <digest> --json\n    These flags conflict with legacy --yes; rollback requires --expected-prior and --to.\n"
-            );
-            outln!(
-                "ADOPTION APPROVAL:\n    kitrove adopt [selection] <observation-id> --plan --json\n    kitrove adopt [same selection] <observation-id> --confirm <digest> --json\n    Updates also require --update <asset-id> --expected-prior <content-hash>.\n    Approval never authorizes pending recovery or executable trust.\n"
-            );
-            outln!(
-                "REMOVAL APPROVAL:\n    kitrove remove [selection] --plan --json\n    kitrove remove [same selection] --confirm <batch_digest> --json\n    kitrove pack remove [selection including --expected-prior] --plan --json\n    kitrove pack remove [same selection] --confirm <batch_digest> --json\n"
-            );
-            outln!(
-                "AGENT APPROVAL:\n    kitrove plan [selection] --json\n    kitrove apply [same selection] --confirm <batch_digest> [--json]\n    Approval uses the complete batch_digest, never an individual plan_digest.\n    kitrove pack create|update [selection] --plan --json\n    kitrove pack create|update [same selection] --confirm <digest> --json\n    Pack update still requires --expected-prior <pack-revision>.\n    Pending recovery requires explicit handling and a fresh plan.\n"
-            );
-            outln!(
-                "GUIDED SETUP:\n    kitrove init        Interactive first/second computer setup\n    kitrove configure [--environment <path>]    Revisit setup\n    kitrove scan --verbose    Full diagnostic text (JSON unchanged)\n    kitrove adopt <skill-name> --harness <tool>    Select an exact unique name\n"
-            );
-            out!("{HELP}{ADDITIONAL_MCP_HELP}{ADDITIONAL_SYNC_HELP}{ADDITIONAL_PACK_HELP}")
-        }
+        Command::Help => out!("{}", help::INDEX),
         Command::DoctorHelp => out!("{DOCTOR_HELP}"),
+        Command::RecoverHelp => out!("{}", recover::HELP),
+        Command::Recover(arguments) => match recover::run(arguments) {
+            Ok(completed) => {
+                out!("{}", completed.output);
+                return completed.status;
+            }
+            Err(error) => {
+                report_error(json_errors, error.code, &error, 1);
+                return 1;
+            }
+        },
         Command::About => outln!(
             "Kitrove {} — bidirectional agent capability portability",
             env!("CARGO_PKG_VERSION")

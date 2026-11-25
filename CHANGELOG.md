@@ -2,7 +2,23 @@
 
 Notable changes to Kitrove are recorded here.
 
-## Unreleased
+## 0.1.0-rc.5.22
+
+Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.
+
+### Added
+
+- Provide a separate macOS recovery preview and explicit confirmation for
+  preserving a whole retained quarantine after a device-only identity mismatch.
+
+### Changed
+
+- Put everyday commands on one help screen. Each command has focused help,
+  and syntax errors point to the relevant help page.
+- Lead collection previews with what is ready, already saved, or blocked.
+  Open the details to see per-tool compatibility and the full selection.
+- Clarify the distinction between collecting skills, adding them to a tool,
+  syncing a collection, and copying selected items once.
 
 ## 0.1.0-rc.5.21
 

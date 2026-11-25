@@ -140,7 +140,7 @@ fn inspect_missing_pack_is_typed_and_help_documents_the_workflow() {
     assert!(String::from_utf8_lossy(&missing.stderr).contains("error[pack.missing]"));
 
     let help = Command::new(env!("CARGO_BIN_EXE_kitrove"))
-        .arg("--help")
+        .args(["pack", "--help"])
         .output()
         .unwrap();
     assert!(help.status.success());

@@ -48,3 +48,39 @@ reported the failure.
 A future general repair workflow must have a separate design, explicit confirmation, bounded work,
 and independently reviewed deletion authority. It must not infer ownership from a prefix or turn an
 inspection-only platform into a destructive one.
+
+## Preserve device-mismatched retained files on macOS
+
+This source workflow is for a reported device-only mismatch. Run the read-only
+plan for each affected root before deciding whether to proceed:
+
+```sh
+kitrove recover plan --environment "$HOME/Kitrove" --root collection
+kitrove recover plan --environment "$HOME/Kitrove" --root private-state
+```
+
+The plan checks the collection, lock, object hashes and private state, and
+requires both roots to be clear of pending transactions. It inspects all the
+retained entries in the selected root. It accepts recognized completed
+tombstones whose file ID matches, including device-only mismatches. It stops
+on file-ID changes, unknown entries, unsafe filesystem boundaries, or unfinished
+cleanup batches.
+
+After reviewing the counts, preserve one root by passing its plan digest:
+
+```sh
+kitrove recover preserve --environment "$HOME/Kitrove" --root collection --confirm '<digest>'
+```
+
+Plan again for the private state before confirming that separate operation.
+Use the same collection path and private-state location for both operations.
+Each confirmation moves one entire retained directory into
+`.kitrove/removal-quarantine-preserved-v1` under the chosen root. The move keeps
+the directory and files intact, including their original retained names. Keep
+this private holding directory in place. Kitrove will refuse a second move to
+the same holding location.
+
+Run `kitrove doctor` once both roots have been reviewed. If it reports a blocker,
+pause and share the report. If preservation reports `recover.preserved_needs_review`,
+check the holding directory with a recovery reviewer before attempting another
+write. The rename may have completed before final verification failed.

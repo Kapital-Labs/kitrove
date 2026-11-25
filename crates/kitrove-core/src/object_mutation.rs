@@ -3824,6 +3824,95 @@ impl ObjectStore {
         Ok(quarantine)
     }
 
+    /// Pins a private source directory and its private parent for a preservation operation.
+    #[cfg(target_os = "macos")]
+    pub(crate) fn pin_quarantine_for_preservation(
+        &self,
+    ) -> Result<(Dir, Dir), ObjectMutationError> {
+        use crate::quarantine_cleanup::preservation::HOLD_NAME;
+        self.require_ambient_root_identity()?;
+        let control = open_child_directory(
+            &self.root,
+            OsStr::new(crate::local_state_authority::CONTROL_DIRECTORY),
+        )?;
+        inspect_control_directory_protection(&control, true)?;
+        match control.symlink_metadata(HOLD_NAME) {
+            Ok(_) => {
+                return Err(ObjectMutationError {
+                    code: "recover.hold_exists",
+                    message: "a previous preservation hold already exists",
+                    inspection_reason: None,
+                    #[cfg(test)]
+                    test_stage: None,
+                });
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(_) => return Err(unsafe_path()),
+        }
+        let quarantine = open_child_directory(&control, OsStr::new("removal-quarantine"))?;
+        prepare_private_directory(&quarantine, PrivateDirectoryAccess::Inspect)?;
+        let parent =
+            MetadataIdentity::from_metadata(&control.dir_metadata().map_err(|_| mutation_io())?);
+        let child =
+            MetadataIdentity::from_metadata(&quarantine.dir_metadata().map_err(|_| mutation_io())?);
+        if parent.device != self.root_identity.device || child.device != parent.device {
+            return Err(unsafe_path());
+        }
+        self.require_ambient_root_identity()?;
+        Ok((control, quarantine))
+    }
+
+    /// Checks both names still resolve to the exact held directory capabilities.
+    #[cfg(target_os = "macos")]
+    pub(crate) fn revalidate_preservation_source(
+        &self,
+        control: &Dir,
+        quarantine: &Dir,
+    ) -> Result<(), ObjectMutationError> {
+        let (current_control, current_quarantine) = self.pin_quarantine_for_preservation()?;
+        for (old, current) in [
+            (control, &current_control),
+            (quarantine, &current_quarantine),
+        ] {
+            let old = old.dir_metadata().map_err(|_| mutation_io())?;
+            let current = current.dir_metadata().map_err(|_| mutation_io())?;
+            if MetadataIdentity::from_metadata(&old) != MetadataIdentity::from_metadata(&current) {
+                return Err(unsafe_path());
+            }
+        }
+        Ok(())
+    }
+
+    #[cfg(target_os = "macos")]
+    pub(crate) fn verify_preservation_destination(
+        &self,
+        control: &Dir,
+        quarantine: &Dir,
+    ) -> Result<(), ObjectMutationError> {
+        use crate::quarantine_cleanup::preservation::HOLD_NAME;
+        self.require_ambient_root_identity()?;
+        let current = open_child_directory(
+            &self.root,
+            OsStr::new(crate::local_state_authority::CONTROL_DIRECTORY),
+        )?;
+        inspect_control_directory_protection(&current, true)?;
+        let hold = open_child_directory(&current, OsStr::new(HOLD_NAME))?;
+        prepare_private_directory(&hold, PrivateDirectoryAccess::Inspect)?;
+        for (before, after) in [(control, &current), (quarantine, &hold)] {
+            let before = before.dir_metadata().map_err(|_| mutation_io())?;
+            let after = after.dir_metadata().map_err(|_| mutation_io())?;
+            if MetadataIdentity::from_metadata(&before) != MetadataIdentity::from_metadata(&after) {
+                return Err(unsafe_path());
+            }
+        }
+        match current.symlink_metadata("removal-quarantine") {
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                self.require_ambient_root_identity()
+            }
+            _ => Err(unsafe_path()),
+        }
+    }
+
     fn open_existing_parent(
         &self,
         path: &PortablePath,

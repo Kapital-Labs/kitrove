@@ -1587,7 +1587,7 @@ dependencies = [
 
 [[package]]
 name = "kitrove-adapter-api"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "blake3",
  "kitrove-agent-skills",
@@ -1600,7 +1600,7 @@ dependencies = [
 
 [[package]]
 name = "kitrove-adapter-claude"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "kitrove-adapter-api",
  "kitrove-agent-skills",
@@ -1614,7 +1614,7 @@ dependencies = [
 
 [[package]]
 name = "kitrove-adapter-codex"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "kitrove-adapter-api",
  "kitrove-agent-skills",
@@ -1628,7 +1628,7 @@ dependencies = [
 
 [[package]]
 name = "kitrove-adapter-opencode"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "kitrove-adapter-api",
  "kitrove-agent-skills",
@@ -1642,7 +1642,7 @@ dependencies = [
 
 [[package]]
 name = "kitrove-adapter-pi"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "kitrove-adapter-api",
  "kitrove-agent-skills",
@@ -1654,7 +1654,7 @@ dependencies = [
 
 [[package]]
 name = "kitrove-agent-skills"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "blake3",
  "cap-fs-ext",
@@ -1671,7 +1671,7 @@ dependencies = [
 
 [[package]]
 name = "kitrove-agents"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "blake3",
  "kitrove-frontmatter",
@@ -1684,7 +1684,7 @@ dependencies = [
 
 [[package]]
 name = "kitrove-cli"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "cap-fs-ext",
  "cap-std",
@@ -1709,7 +1709,7 @@ dependencies = [
 
 [[package]]
 name = "kitrove-core"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "blake3",
  "calcifer-macos-acl",
@@ -1759,11 +1759,11 @@ dependencies = [
 
 [[package]]
 name = "kitrove-frontmatter"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 
 [[package]]
 name = "kitrove-installer"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "calcifer-macos-acl",
  "cap-fs-ext",
@@ -1791,7 +1791,7 @@ dependencies = [
 
 [[package]]
 name = "kitrove-instructions"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "blake3",
  "kitrove-model",
@@ -1801,7 +1801,7 @@ dependencies = [
 
 [[package]]
 name = "kitrove-macos-process"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "calcifer-macos-acl",
  "libc",
@@ -1810,7 +1810,7 @@ dependencies = [
 
 [[package]]
 name = "kitrove-macos-signature"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "core-foundation",
  "kitrove-macos-process",
@@ -1821,7 +1821,7 @@ dependencies = [
 
 [[package]]
 name = "kitrove-mcp"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "blake3",
  "jsonc-parser",
@@ -1835,7 +1835,7 @@ dependencies = [
 
 [[package]]
 name = "kitrove-model"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "blake3",
  "kitrove-windows-names",
@@ -1846,7 +1846,7 @@ dependencies = [
 
 [[package]]
 name = "kitrove-prompt-commands"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "blake3",
  "kitrove-frontmatter",
@@ -1858,7 +1858,7 @@ dependencies = [
 
 [[package]]
 name = "kitrove-release-policy"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "kitrove-windows-names",
  "lzma-rust2",
@@ -1875,7 +1875,7 @@ dependencies = [
 
 [[package]]
 name = "kitrove-release-provenance"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "const-oid 0.9.6",
  "der 0.7.10",
@@ -1893,11 +1893,11 @@ dependencies = [
 
 [[package]]
 name = "kitrove-risk"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 
 [[package]]
 name = "kitrove-state-lifecycle"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "calcifer-macos-acl",
  "cap-fs-ext",
@@ -1911,7 +1911,7 @@ dependencies = [
 
 [[package]]
 name = "kitrove-testkit"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "cap-std",
  "kitrove-adapter-api",
@@ -1925,7 +1925,7 @@ dependencies = [
 
 [[package]]
 name = "kitrove-version-probe"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "blake3",
  "kitrove-adapter-api",
@@ -1942,11 +1942,11 @@ dependencies = [
 
 [[package]]
 name = "kitrove-windows-names"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 
 [[package]]
 name = "kitrove-windows-process"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "kitrove-windows-security",
  "windows-sys 0.61.2",
@@ -1954,7 +1954,7 @@ dependencies = [
 
 [[package]]
 name = "kitrove-windows-security"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "kitrove-windows-names",
  "tempfile",
@@ -4087,7 +4087,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.1.0-rc.5.21"
+version = "0.1.0-rc.5.22"
 dependencies = [
  "blake3",
  "cap-fs-ext",

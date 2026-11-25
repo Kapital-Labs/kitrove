@@ -16,6 +16,8 @@ pub(crate) enum Command {
     Remove(RemoveArgs),
     Status(EnvironmentArgs),
     Doctor(EnvironmentArgs),
+    Recover(RecoverArgs),
+    RecoverHelp,
     Lock(EnvironmentArgs),
     Plan(MaterializeArgs),
     Apply(MaterializeArgs),
@@ -46,6 +48,20 @@ pub(crate) enum Command {
 pub(crate) struct EnvironmentArgs {
     pub environment: Option<PathBuf>,
     pub json: bool,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub(crate) enum RecoverRoot {
+    Collection,
+    PrivateState,
+}
+
+#[derive(Debug)]
+pub(crate) struct RecoverArgs {
+    pub root: RecoverRoot,
+    pub environment: Option<PathBuf>,
+    pub json: bool,
+    pub confirm: Option<ContentHash>,
 }
 
 #[derive(Clone, Debug)]
@@ -388,6 +404,7 @@ pub(crate) fn parse_args(
         "remove" => parse_remove(arguments).map(Command::Remove),
         "status" => parse_environment(arguments, "status").map(Command::Status),
         "doctor" => parse_doctor(arguments),
+        "recover" => parse_recover(arguments),
         "lock" => parse_environment(arguments, "lock").map(Command::Lock),
         "plan" => parse_materialize(arguments, "plan").map(|(args, _)| Command::Plan(args)),
         "apply" => parse_materialize(arguments, "apply").map(|(args, confirm)| match confirm {
@@ -1047,6 +1064,83 @@ fn parse_init(mut arguments: impl Iterator<Item = OsString>) -> Result<InitArgs,
     })
 }
 
+fn parse_recover(mut arguments: impl Iterator<Item = OsString>) -> Result<Command, CliError> {
+    let verb = next_utf8(&mut arguments)?;
+    let preserve = match verb.as_deref() {
+        None | Some("--help" | "-h" | "help") => {
+            return finish_information(arguments, Command::RecoverHelp);
+        }
+        Some("plan") => false,
+        Some("preserve") => true,
+        _ => {
+            return Err(CliError::new(
+                "recover.operation_invalid",
+                "choose recover plan or recover preserve",
+            ));
+        }
+    };
+    let mut root = None;
+    let mut environment = None;
+    let mut json = false;
+    let mut confirm = None;
+    while let Some(argument) = next_utf8(&mut arguments)? {
+        match argument.as_str() {
+            "--help" | "-h"
+                if root.is_none() && environment.is_none() && !json && confirm.is_none() =>
+            {
+                return finish_information(arguments, Command::RecoverHelp);
+            }
+            "--root" if root.is_none() => {
+                root = Some(match next_utf8(&mut arguments)?.as_deref() {
+                    Some("collection") => RecoverRoot::Collection,
+                    Some("private-state") => RecoverRoot::PrivateState,
+                    _ => {
+                        return Err(CliError::new(
+                            "recover.root_invalid",
+                            "choose --root collection or --root private-state",
+                        ));
+                    }
+                });
+            }
+            "--environment" => set_environment(&mut environment, &mut arguments)?,
+            "--json" if !json => json = true,
+            "--confirm" if preserve && confirm.is_none() => {
+                let digest = next_utf8(&mut arguments)?.unwrap_or_default();
+                confirm = Some(ContentHash::parse(&digest).map_err(|_| {
+                    CliError::new(
+                        "recover.confirmation_invalid",
+                        "supply the exact digest from recover plan",
+                    )
+                })?);
+            }
+            _ => {
+                return Err(CliError::new(
+                    "recover.argument_invalid",
+                    "check kitrove recover --help",
+                ));
+            }
+        }
+    }
+    let root = root.ok_or_else(|| {
+        CliError::new(
+            "recover.root_required",
+            "choose --root collection or --root private-state",
+        )
+    })?;
+    if preserve && confirm.is_none() {
+        return Err(CliError::new(
+            "recover.confirmation_required",
+            "run recover plan, then supply its digest with --confirm",
+        ));
+    }
+    Ok(Command::Recover(RecoverArgs {
+        root,
+        environment,
+        json,
+        confirm,
+    }))
+}
+
 fn parse_doctor(arguments: impl Iterator<Item = OsString>) -> Result<Command, CliError> {
     let mut arguments = arguments.peekable();
     if arguments
@@ -1451,15 +1545,7 @@ fn parse_root(value: &str) -> Result<ExplicitRoot, CliError> {
     }
 }
 
-pub(crate) const HELP: &str = "Kitrove agent capability portability\n\nADD TO A TOOL:\n    kitrove apply    Choose a tool, then select saved skills or packs (interactive).\n\nUSAGE:\n    kitrove <COMMAND>\n    kitrove init [OPTIONS]\n    kitrove scan [OPTIONS]\n    kitrove adopt [OPTIONS] <observation-id>\n    kitrove adopt --update <asset-id> --expected-prior <content-hash> [OPTIONS] <observation-id>\n    kitrove remove --asset <asset-id> --target <harness> [OPTIONS]\n    kitrove plan [--profile <profile-id> | --asset <asset-id> | --pack <pack-id>]... [--target <harness>]... [OPTIONS]\n    kitrove apply [--profile <profile-id> | --asset <asset-id> | --pack <pack-id>]... [--target <harness>]... [OPTIONS]\n    kitrove sync plan (--filesystem <path> | --git <https-url>) [OPTIONS]\n    kitrove sync apply (--filesystem <path> | --git <https-url>) --confirm <plan-digest> [OPTIONS]\n    kitrove trust plan --asset <asset-id> --decision <trusted|denied> [OPTIONS]\n    kitrove trust apply --asset <asset-id> --decision <trusted|denied> --confirm <plan-digest> [OPTIONS]\n    kitrove trust audit [--asset <asset-id>] [OPTIONS]\n    kitrove versions probe --harness <pi|opencode> --binary <absolute-path> [--json]\n    kitrove doctor [--environment <path>] [--json]\n    kitrove status [--environment <path>] [--json]\n    kitrove lock [--environment <path>] [--json]\n\nCOMMANDS:\n    init         Create empty portable and machine-local authority after a read-only scan\n    scan         Inspect local harness capabilities without making changes\n    adopt        Adopt or explicitly update one current accepted observation\n    remove       Remove one exact receipt-backed local projection\n    plan         Plan receipt-backed materialization without writing\n    apply        Add saved skills or packs to a tool; run bare for guided selection\n    sync         Plan or apply conditional cross-machine synchronization\n    trust        Plan, apply, or audit machine-local exact-content executable trust\n    versions     Explicitly probe reviewed harness version evidence\n    doctor       Observe portable integrity and storage without making changes\n    status       Verify manifest, generated lock, objects, and recovery state\n    lock         Regenerate only the manifest-derived lock\n    about        Show the product description\n    north-star   Print the durable product invariants\n    invariants   Print the architectural invariants\n    help         Show this help\n\nSCAN AND ADOPT SELECTION OPTIONS:\n    --harness <claude|codex|pi|opencode>    Select a harness; may repeat\n    --scope <user|project|all>              Select one scope\n    --root <harness>:<user|project>:<path>  Add an explicit root; may repeat\n\nPLAN, APPLY, AND REMOVE SELECTION OPTIONS:\n    --profile <profile-id>                  Select one inherited portable profile\n    --asset <asset-id>                      Select an asset; may repeat for plan/apply\n    --pack <pack-id>                        Select a pack; may repeat for plan/apply\n    --target <claude|codex|pi|opencode>     Select a target; may repeat for plan/apply\n    --scope <user|project>                  Select destination scope (default: user)\n    --version-binary <absolute-path>        Supply a required harness binary; may repeat\n\nINIT OPTIONS:\n    --machine-id <machine-id>               Set the local machine identity\n\nSYNC OPTIONS:\n    --filesystem <path>                     Select an existing filesystem remote\n    --git <https-url>                       Select a canonical HTTPS Git remote\n    --confirm <plan-digest>                 Confirm the exact recomputed sync plan\n\nTRUST OPTIONS:\n    --asset <asset-id>                      Select a script-containing skill or native executable asset\n    --decision <trusted|denied>             Select the planned local decision\n    --confirm <plan-digest>                 Confirm the exact recomputed trust plan\n\nSHARED OPTIONS:\n    --project-root <path>                   Supply the project boundary\n    --environment <path>                    Select a Kitrove environment\n    --json                                  Emit canonical JSON\n\nADOPT OPTIONS:\n    --id <asset-id>                         Choose an ID for first adoption\n    --update <asset-id>                     Explicitly update an existing asset\n    --expected-prior <content-hash>         Require the exact prior asset revision\n";
-
 pub(crate) const DOCTOR_HELP: &str = "Kitrove doctor: read-only diagnosis\nUsage: kitrove doctor [--environment <path>] [--json]\nDefault collection: ~/Kitrove\n    --environment <path>  Inspect this collection\n    --json                Emit closed, redacted checks\n    --help, -h            Show this help\nWrite access and lock availability are not tested.\n";
-
-pub(crate) const ADDITIONAL_MCP_HELP: &str = "\nADDITIONAL MCP ADOPT OPTIONS:\n    --binding <binding-name>    Map a native MCP environment reference to a logical binding\n";
-
-pub(crate) const ADDITIONAL_SYNC_HELP: &str = "\nADDITIONAL SYNC OPTIONS:\n    kitrove sync plan --git <https-url> --git-env-credentials [OPTIONS]\n    kitrove sync plan --ssh <ssh-url> --known-hosts <path> [OPTIONS]\n    kitrove sync apply --ssh <ssh-url> --known-hosts <path> --confirm <plan-digest> [OPTIONS]\n\n    --git-env-credentials    Read KITROVE_GIT_USERNAME and KITROVE_GIT_TOKEN\n    --ssh <ssh-url>          Select a canonical SSH Git remote\n    --known-hosts <path>     Select explicit SSH host-key authority\n";
-
-pub(crate) const ADDITIONAL_PACK_HELP: &str = "\nPACK COMMANDS:\n    kitrove apply                         Choose a tool and a saved pack (interactive)\n    kitrove apply --pack <pack-id> --target <harness> [OPTIONS]\n    kitrove pack discover (--filesystem <path> | --git <https-url> | --ssh <ssh-url> --known-hosts <path>) [--json]\n    kitrove pack adopt --pack <pack-id> (--filesystem <path> | --git <https-url> | --ssh <ssh-url> --known-hosts <path>) [OPTIONS]\n    kitrove pack create --pack <pack-id> --member <asset-or-pack-id>... [OPTIONS]\n    kitrove pack update --pack <pack-id> --expected-prior <content-hash> --member <asset-or-pack-id>... [OPTIONS]\n    kitrove pack rollback --pack <pack-id> --expected-prior <content-hash> --to <content-hash> (--filesystem <path> | --git <https-url> | --ssh <ssh-url> --known-hosts <path>) [OPTIONS]\n    kitrove pack remove --pack <pack-id> --expected-prior <content-hash> [OPTIONS]\n    kitrove pack list [--environment <path>] [--json]\n    kitrove pack inspect --pack <pack-id> [--environment <path>] [--json]\n\n    discover              List packs in current verified distribution authority without mutation\n    adopt                 Import one exact pack closure and its verified immutable objects\n    create                Group members sharing one exact non-harness distribution source\n    update                Replace exact-prior membership and re-derive affected parent packs\n    rollback              Restore one exact pack revision from verified remote history\n    remove                Release exact local pack claims and remove unshared projections\n    list                  List first-class packs without expanding their components\n    inspect               Inspect one validated pack and its bounded component graph\n    --pack <pack-id>      Select one first-class pack\n    --member <id>         Select a direct pack member; may repeat\n    --expected-prior      Require the exact current pack revision for update, rollback, or removal\n    --to <content-hash>   Select the exact historical pack revision\n    --yes                 Confirm adoption or rollback non-interactively\n";
 
 #[cfg(test)]
 mod tests {

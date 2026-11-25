@@ -29,20 +29,18 @@ pub(super) fn apply<R: PromptInput, W: Write>(
 ) -> Result<(), CliError> {
     let manifest = load_manifest(root)?;
     if manifest.assets.is_empty() && manifest.packs.is_empty() {
-        return dialog.say("Your collection is empty. Add skills from this computer first.");
+        return dialog.say("Your collection is empty. Collect skills from this computer first.");
     }
-    dialog.hint(
-        "Run kitrove apply to return here directly. Add skills or packs to tools on this computer. This does not run collected items or synchronize your collection.",
-    )?;
+    dialog.hint("Choose a tool, then preview what to add. Return here with kitrove apply.")?;
     let targets = choose_tools(dialog)?;
     if targets.is_empty() {
         return Ok(());
     }
     if targets.contains(&HarnessId::Codex) {
-        dialog.hint("Codex's skills folder is shared: Pi and OpenCode may also discover those files. Choosing a destination does not make a skill exclusive to that tool.")?;
+        dialog.hint("Pi and OpenCode may also find skills in Codex's shared folder.")?;
     }
     if targets.contains(&HarnessId::Claude) {
-        dialog.hint("OpenCode may also discover Claude's skills folder. Choosing a destination does not make a skill exclusive to that tool.")?;
+        dialog.hint("OpenCode may also find skills in Claude's folder.")?;
     }
     let (scope, project_root) = match dialog.decision(
         "Where should these items be available?\n1. All projects on this computer\n2. This project only\nEnter/n  Not now\nq        Quit", b"12n", true)?.as_str() {
@@ -169,7 +167,7 @@ pub(super) fn apply<R: PromptInput, W: Write>(
                 let value: serde_json::Value =
                     serde_json::from_str(&done.output).map_err(|_| io_error())?;
                 let count = value["items"].as_array().map_or(0, Vec::len);
-                dialog.outcome(&serde_json::json!({"Destinations completed":count,"Inspect collection":"kitrove status"}).to_string())
+                dialog.outcome(&serde_json::json!({"Destinations completed":count,"Check collection":"kitrove status"}).to_string())
             }
             Err(error) if error.code == "apply.confirmation_required" => {
                 dialog.say("Application skipped.")
