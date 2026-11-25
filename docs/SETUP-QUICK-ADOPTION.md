@@ -1,12 +1,12 @@
-# Quick skill collection (RC5.21)
+# Quick skill collection (RC5.22)
 
-These instructions assume RC5.21. Quick collection was introduced in RC5.6;
+These instructions assume RC5.22. Quick collection was introduced in RC5.6;
 RC5.5 has the older per-item prompts. Check
 `kitrove --version` before following these shortcuts. This guide does not itself
 establish publication or update an installed binary. Use the current download
 and installation guidance, with verification before executing a new artifact.
 
-In `kitrove init` or `kitrove configure`, choose **Add skills from this computer**.
+In `kitrove init` or `kitrove configure`, choose **Collect skills from this computer**.
 Setup shows counts and the first 20 numbered observations. Enter previews recommendations;
 it does not write them yet. `v` shows the full inventory and numbered list.
 
@@ -132,7 +132,7 @@ The collection preview distinguishes:
 For example, 13 candidates can become zero ready items when 11 names are already
 in the collection and the other two have blocked plans. Those are different
 checks, not missing skills. Unselected copies are omitted from the default
-summary; `d` still shows all skipped details, including exclusions. Up to ten
+summary; `d` still shows all skipped details, including exclusions. Up to three
 named blocker explanations appear by default before the full-details option.
 
 Browsing, JSON, verbose and non-terminal scan remain read-only. The collection
