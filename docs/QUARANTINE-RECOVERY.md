@@ -51,8 +51,19 @@ inspection-only platform into a destructive one.
 
 ## Preserve device-mismatched retained files on macOS
 
-This source workflow is for a reported device-only mismatch. Run the read-only
-plan for each affected root before deciding whether to proceed:
+When a storage check reports that a retained file's device ID changed and its
+file ID still matches, open `kitrove` and choose **Check collection storage**.
+The check shows a preview when there are eligible directories to preserve.
+Review the counts for each listed root. Type `y` and press Enter to preserve
+those directories, or press Enter alone to leave them in place.
+
+Kitrove moves each approved directory intact into its own private holding
+location, then checks storage again. If an earlier move completes and a later
+one fails, the completed move remains in place. After storage checks pass,
+return to the operation you were attempting and review its new preview.
+
+To choose an explicit collection path or review one root at a time, use the
+following commands. Start with the read-only plans:
 
 ```sh
 kitrove recover plan --environment "$HOME/Kitrove" --root collection
