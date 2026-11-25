@@ -5,7 +5,7 @@ capabilities elsewhere. It does not install those tools or copy their accounts.
 
 ## Install the latest preview
 
-These instructions describe a fresh installation of **RC5.21**. On an Apple Silicon Mac with
+These instructions describe a fresh installation of **RC5.22**. On an Apple Silicon Mac with
 [Homebrew](https://brew.sh/) already installed:
 
 ```sh
@@ -22,7 +22,7 @@ not initialize Kitrove, scan skills, or grant execution trust during installatio
 Leave quarantine and Gatekeeper enabled.
 
 For Linux x86-64 and Windows x86-64, use the exact
-[RC5.21 downloads](https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.21)
+[RC5.22 downloads](https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.22)
 and follow the [verification guide](INSTALLER.md) with an independently trusted
 or reviewed-source-built verifier **before execution**. A checksum alone is not
 provenance. Intel Macs are unsupported in this preview.
@@ -131,9 +131,9 @@ kitrove configure
 
 The walkthrough asks for your existing collection. The menu separates these goals:
 
-1. **Add skills from this computer** copies selected skills into your collection.
+1. **Collect skills from this computer** copies selected skills into your collection.
 2. **Add skills or packs to a tool** previews applying a selection locally.
-3. **Share this collection with another computer** reviews bidirectional sync.
+3. **Sync this collection with another computer** reviews bidirectional sync.
 4. **Copy selected items from another collection** performs a one-time import.
 5. **Finish for now** leaves setup.
 
@@ -152,7 +152,7 @@ locations are requested per operation rather than saved with credentials.
 
 ## Prepare a collection for another computer
 
-In Configure, choose **Share this collection with another computer**. Select an
+In Configure, choose **Sync this collection with another computer**. Select an
 existing filesystem/shared directory or **Git repository**. Paste the repository
 URL: `https://...` selects HTTPS and `ssh://...` selects
 SSH. A URL without its scheme asks which connection to use. SSH also asks for an
@@ -290,7 +290,7 @@ is not recognized. Its second menu choice is “Choose skills to add to your AI
 tools”; sharing and one-time copying have their own choices. RC5.6 still has the
 older menu labels/numbers. Do not use RC5.7 menu numbers with that binary.
 
-The fresh-install instructions do not migrate an older collection. RC5.21 has no
+The fresh-install instructions do not migrate an older collection. RC5.22 has no
 rollback-compatible predecessor; RC4.2 cannot read authored-pack collections.
 Keep older collections and local state separate. Binary rollback is not data
 rollback.
@@ -303,5 +303,5 @@ state, or use `--zap` to bypass a conflict. Never point `kitrove-installer` at a
 Homebrew-managed binary. Normal cask removal preserves Kitrove collections and
 local state; use the token that actually owns your installed binary.
 
-The older APT/DNF package channels remain RC4.2, not an RC5.21 install or upgrade
+The older APT/DNF package channels remain RC4.2, not an RC5.22 install or upgrade
 path. See the [Linux package guide](LINUX-INSTALL.md) for their exact scope.
