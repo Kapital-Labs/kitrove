@@ -5,7 +5,7 @@ capabilities elsewhere. It does not install those tools or copy their accounts.
 
 ## Install the latest preview
 
-These instructions describe a fresh installation of **RC5.22**. On an Apple Silicon Mac with
+These instructions describe a fresh installation of **RC5.23**. On an Apple Silicon Mac with
 [Homebrew](https://brew.sh/) already installed:
 
 ```sh
@@ -14,7 +14,7 @@ kitrove --version
 ```
 
 The package is named `kitrove`; the installed version still identifies itself as
-`0.1.0-rc.5.22`. This is an evaluation preview, not stable support. Use a new isolated
+`0.1.0-rc.5.23`. This is an evaluation preview, not stable support. Use a new isolated
 collection and empty destinations with synthetic or disposable capabilities.
 Homebrew checks the pinned archive checksum; you trust Homebrew and the reviewed
 [tap](https://github.com/Kapital-Labs/homebrew-tap) to select the package. It does
@@ -22,7 +22,7 @@ not initialize Kitrove, scan skills, or grant execution trust during installatio
 Leave quarantine and Gatekeeper enabled.
 
 For Linux x86-64 and Windows x86-64, use the exact
-[RC5.22 downloads](https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.22)
+[RC5.23 downloads](https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.23)
 and follow the [verification guide](INSTALLER.md) with an independently trusted
 or reviewed-source-built verifier **before execution**. A checksum alone is not
 provenance. Intel Macs are unsupported in this preview.
@@ -48,9 +48,6 @@ Use `kitrove --help` to find a command. For usage, run the command with
 `--help` (for example, `kitrove apply --help`).
 
 ## Start on your first computer
-
-The guided screens below describe the CLI in this source tree. If you installed
-RC5.22, use its [versioned setup guide](https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.22/docs/GETTING-STARTED.md).
 
 To browse tasks, run `kitrove` in a terminal. For initial setup, run this in a terminal:
 
@@ -207,9 +204,9 @@ kitrove scan
 kitrove scan --harness claude --scope user
 ```
 
-In a terminal, scan starts with a compact summary. Use Up/Down and Enter on
-supported Mac/Linux terminals, or press a displayed shortcut. Native Windows,
-narrow and unrecognized terminals use shortcuts and a marked Enter default.
+In a terminal, scan starts with a compact summary. Use Up/Down or a displayed
+shortcut to highlight a choice, then press Enter. Native Windows and narrow
+terminals use a numbered prompt with a marked Enter default.
 
 - Choose **View scan issues** (`i`) to identify folders that could not be read.
   A folder error is not a skill. The inventory may be incomplete, so zero listed
@@ -287,7 +284,7 @@ is not recognized. Its second menu choice is “Choose skills to add to your AI
 tools”; sharing and one-time copying have their own choices. RC5.6 still has the
 older menu labels/numbers. Do not use RC5.7 menu numbers with that binary.
 
-The fresh-install instructions do not migrate an older collection. RC5.22 has no
+The fresh-install instructions do not migrate an older collection. RC5.23 has no
 rollback-compatible predecessor; RC4.2 cannot read authored-pack collections.
 Keep older collections and local state separate. Binary rollback is not data
 rollback.
@@ -300,5 +297,5 @@ state, or use `--zap` to bypass a conflict. Never point `kitrove-installer` at a
 Homebrew-managed binary. Normal cask removal preserves Kitrove collections and
 local state; use the token that actually owns your installed binary.
 
-The older APT/DNF package channels remain RC4.2, not an RC5.22 install or upgrade
+The older APT/DNF package channels remain RC4.2, not an RC5.23 install or upgrade
 path. See the [Linux package guide](LINUX-INSTALL.md) for their exact scope.

@@ -1,7 +1,6 @@
-# Quick skill collection
+# Quick skill collection (RC5.23)
 
-This guide describes the CLI in this source tree. For the installed RC5.22
-preview, see its [versioned quick collection guide](https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.22/docs/SETUP-QUICK-ADOPTION.md).
+These steps describe the RC5.23 preview.
 
 Run `kitrove` and choose **Find or collect skills**, or use **Collect skills
 from this computer** in `kitrove configure`. The scan summarizes eligible
