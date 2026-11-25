@@ -1,4 +1,4 @@
-//! Scan navigation only: arrows select an action; write approvals use the existing prompts.
+//! Shared inline selection with a line-based fallback.
 #[cfg(unix)]
 use std::io::IsTerminal as _;
 use std::io::Write;
@@ -15,15 +15,23 @@ use crate::args::CliError;
 pub(super) fn choose(
     dialog: &mut Dialog<impl PromptInput, impl Write>,
     title: &str,
-    choices: &[(u8, String)],
+    choices: &[(u8, impl AsRef<str>)],
     default: usize,
 ) -> Result<u8, CliError> {
     let keys: Vec<_> = choices.iter().map(|(key, _)| *key).collect();
-    let arrows = dialog.single_key && supports_arrows(choices.len());
+    let arrows = dialog.terminal_input && supports_arrows(choices);
     let menu = message(title, choices, default, arrows);
     if !arrows {
-        let answer = dialog.decision(&menu, &keys, true)?;
-        return Ok(answer.as_bytes().first().copied().unwrap_or(keys[default]));
+        loop {
+            let answer = dialog.menu_answer(&menu, keys.contains(&b'q'))?;
+            match answer.as_bytes() {
+                [] => return Ok(keys[default]),
+                [key] if keys.contains(&key.to_ascii_lowercase()) => {
+                    return Ok(key.to_ascii_lowercase());
+                }
+                _ => dialog.say("Choose a listed shortcut, then press Enter.")?,
+            }
+        }
     }
     #[cfg(unix)]
     {
@@ -40,8 +48,15 @@ pub(super) fn choose(
                 Ok(Event::Up) => selected = (selected + choices.len() - 1) % choices.len(),
                 Ok(Event::Down) => selected = (selected + 1) % choices.len(),
                 Ok(Event::Enter) => break Ok(keys[selected]),
-                Ok(Event::Key(key)) if keys.contains(&key) => break Ok(key),
-                Ok(Event::Key(_)) => continue,
+                Ok(Event::Key(key)) => {
+                    if let Some(index) = keys.iter().position(|candidate| *candidate == key) {
+                        selected = index;
+                    } else if key == b'q' {
+                        break Err(cancelled());
+                    } else {
+                        continue;
+                    }
+                }
                 Err(error) => break Err(error),
             }
             if redraw(&mut dialog.output, choices, selected, dialog.color).is_err() {
@@ -58,19 +73,24 @@ pub(super) fn choose(
     unreachable!("arrow navigation is enabled only on supported Unix terminals")
 }
 
-fn supports_arrows(count: usize) -> bool {
-    // Native Windows and unknown/narrow terminals retain the immediate-key menu.
+fn supports_arrows(choices: &[(u8, impl AsRef<str>)]) -> bool {
+    // Native Windows and terminals with limited space can use the numbered prompt.
     #[cfg(unix)]
     {
         io::stdin().is_terminal()
             && io::stdout().is_terminal()
             && presentation::enabled(true, false, std::env::var("TERM").ok().as_deref())
-            && rustix::termios::tcgetwinsize(io::stdout())
-                .is_ok_and(|size| size.ws_col >= 70 && usize::from(size.ws_row) >= count + 5)
+            && rustix::termios::tcgetwinsize(io::stdout()).is_ok_and(|size| {
+                size.ws_col >= 70
+                    && usize::from(size.ws_row) >= choices.len() + 5
+                    && choices
+                        .iter()
+                        .all(|(_, label)| label.as_ref().len() + 8 < usize::from(size.ws_col))
+            })
     }
     #[cfg(not(unix))]
     {
-        let _ = count;
+        let _ = choices;
         false
     }
 }
@@ -83,16 +103,21 @@ fn row(key: u8, label: &str, selected: bool) -> String {
     )
 }
 
-fn message(title: &str, choices: &[(u8, String)], selected: usize, arrows: bool) -> String {
+fn message(
+    title: &str,
+    choices: &[(u8, impl AsRef<str>)],
+    selected: usize,
+    arrows: bool,
+) -> String {
     let mut text = title.to_owned();
     for (index, (key, label)) in choices.iter().enumerate() {
         text.push('\n');
-        text.push_str(&row(*key, label, index == selected));
+        text.push_str(&row(*key, label.as_ref(), index == selected));
     }
     text.push_str(if arrows {
-        "\nUp/Down to move; Enter to select; or press a shortcut."
+        "\nUp/Down or shortcut to highlight. Enter to select."
     } else {
-        "\nPress a shortcut; Enter selects the marked action."
+        "\nType a shortcut, then Enter. Enter alone selects the marked action."
     });
     text
 }
@@ -100,7 +125,7 @@ fn message(title: &str, choices: &[(u8, String)], selected: usize, arrows: bool)
 #[cfg(unix)]
 fn redraw(
     out: &mut impl Write,
-    choices: &[(u8, String)],
+    choices: &[(u8, impl AsRef<str>)],
     selected: usize,
     color: bool,
 ) -> io::Result<()> {
@@ -112,13 +137,13 @@ fn redraw(
             out,
             color && index == selected,
             presentation::Tone::Prompt,
-            &row(*key, label, index == selected),
+            &row(*key, label.as_ref(), index == selected),
         )?;
         write!(out, "\r\n")?;
     }
     write!(
         out,
-        "\x1b[2K  Up/Down to move; Enter to select; or press a shortcut.\r\n\x1b[2K> "
+        "\x1b[2K  Up/Down or shortcut to highlight. Enter to select.\r\n\x1b[2K> "
     )?;
     out.flush()
 }
@@ -165,11 +190,11 @@ fn read_event(
             decoded
         }
         b'\r' | b'\n' => Ok(Event::Enter),
-        b'q' | b'Q' | 3 | 4 => Err(cancelled()),
+        3 | 4 => Err(cancelled()),
         key => Ok(Event::Key(key.to_ascii_lowercase())),
     };
     // No queued answer can cross from navigation into a collection confirmation.
-    if !matches!(event, Ok(Event::Up | Event::Down)) {
+    if matches!(event, Ok(Event::Enter) | Err(_)) {
         input.consume(queued);
     }
     event
@@ -218,7 +243,6 @@ mod tests {
     fn cancellation_and_unknown_sequences_cannot_select_or_leak_later_answers() {
         for bytes in [
             b"\x1b[15~ay".as_slice(),
-            b"qay",
             b"\x03ay",
             b"\x04ay",
             b"\x1b",
@@ -232,7 +256,7 @@ mod tests {
             );
             assert!(input.fill_buf().unwrap().is_empty());
         }
-        for bytes in [b"ay\ny\n".as_slice(), b"\ry\n"] {
+        for bytes in [b"\ny\n".as_slice(), b"\ry\n"] {
             let mut input = io::Cursor::new(bytes);
             read_event(&mut input, |_| Ok(())).unwrap();
             assert!(input.fill_buf().unwrap().is_empty());

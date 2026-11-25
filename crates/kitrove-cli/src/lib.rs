@@ -82,6 +82,13 @@ fn run(arguments: impl IntoIterator<Item = OsString>) -> u8 {
         arguments.next();
     }
     let arguments: Vec<_> = arguments.collect();
+    if arguments.is_empty()
+        && !json_errors
+        && io::stdin().is_terminal()
+        && io::stdout().is_terminal()
+    {
+        return setup::launch();
+    }
     if let Some(text) = help::requested(&arguments) {
         out!("{text}");
         return 0;

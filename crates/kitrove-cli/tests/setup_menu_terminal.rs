@@ -1,7 +1,7 @@
 //! Real terminal regression; only disposable synthetic homes and collections.
 #[cfg(unix)]
 #[test]
-fn numbered_menus_advance_without_enter_and_restore_line_input() {
+fn menus_submit_with_enter_and_restore_line_input() {
     // State fixtures require trusted ancestry, including on Linux where /tmp is shared.
     let fixture = kitrove_testkit::trusted_tempdir(".kitrove-menu-terminal-");
     isolate_project_discovery(fixture.path());

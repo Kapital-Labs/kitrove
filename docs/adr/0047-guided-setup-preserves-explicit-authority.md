@@ -283,3 +283,27 @@ and Unix termios snapshot change no trust, filesystem permissions or portable
 state. Scripted test dialogs keep line input; production still refuses non-TTY
 setup. No new registry package, release or version is authorized by this UI
 change. It remains unreleased until separately published.
+
+
+### Consistent selection and storage guidance (unreleased)
+
+Short guided menus submit on Enter. Arrow keys and shortcuts highlight items
+when the terminal supports inline menus. A numbered prompt submits on Enter
+on other terminals. Paths and filters use line input. A blank Enter can open
+a read-only preview. Saving, applying, trusting, preserving and syncing
+require a fresh explicit approval. Input queued on an earlier screen cannot
+approve a later action. This supersedes the immediate-key and adoption
+Enter defaults described above.
+
+Collecting into Kitrove can hand off to a tool picker with a ready-only
+preview for the just-saved skills. The existing planners still decide
+compatibility, ownership and trust before placement. A new or changed
+selection always needs a fresh destination preview.
+
+On macOS, guided storage recovery can present preservable collection and
+private-state directories together. Each listed directory keeps its own
+existing digest and locked validation. Preservation reports each completed
+move. It grants no approval for a failed collect or apply operation. Guided
+apply requires another destination preview and approval after a successful
+preservation and storage inspection. The explicit doctor and recovery
+commands retain their existing read-only and exact-confirmation behavior.

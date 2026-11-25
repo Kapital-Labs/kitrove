@@ -6,7 +6,7 @@ fn prompt_and_command_output_have_distinct_plain_text_boundaries() {
         input: io::Cursor::new("yes\n"),
         output: Vec::new(),
         color: false,
-        single_key: false,
+        terminal_input: false,
     };
     dialog
         .report("initialized collection\nmachine: fixture")
@@ -27,7 +27,7 @@ fn command_output_cannot_inject_terminal_style_or_a_real_prompt() {
         input: io::Cursor::new(""),
         output: Vec::new(),
         color: false,
-        single_key: false,
+        terminal_input: false,
     };
     dialog
         .report("\x1b[31mspoof\n? Confirm a different action?\rhidden")
@@ -49,9 +49,9 @@ fn goal_menu_keeps_apply_distinct_from_sharing_and_copying() {
         false,
         "",
     );
-    assert!(output.contains("2. Add skills or packs to a tool"));
-    assert!(output.contains("3. Sync this collection with another computer"));
-    assert!(output.contains("4. Copy selected items from another collection"));
+    assert!(output.contains("[2] Add saved skills or packs to a tool"));
+    assert!(output.contains("[3] Sync this collection with another computer"));
+    assert!(output.contains("[4] Copy selected items from another collection"));
     assert!(!output.contains("Backend 1-3"));
     assert!(!output.contains("HTTPS Git"));
     assert!(!output.contains("bidirectional)"));
@@ -70,7 +70,7 @@ fn colors_never_change_confirmation_defaults_or_eof_behavior() {
                 input: io::Cursor::new(input),
                 output: Vec::new(),
                 color,
-                single_key: false,
+                terminal_input: false,
             };
             assert_eq!(dialog.confirm("Proceed?").unwrap(), expected);
         }
@@ -79,7 +79,7 @@ fn colors_never_change_confirmation_defaults_or_eof_behavior() {
                 input: io::Cursor::new(input),
                 output: Vec::new(),
                 color,
-                single_key: false,
+                terminal_input: false,
             };
             assert_eq!(
                 dialog.confirm("Proceed?").unwrap_err().code,
@@ -90,7 +90,7 @@ fn colors_never_change_confirmation_defaults_or_eof_behavior() {
 }
 
 #[test]
-fn immediate_navigation_does_not_make_confirmations_or_text_single_key() {
+fn confirmations_and_text_require_complete_input_lines() {
     for (input, expected) in [
         ("y\n", true),
         ("yes\n", true),
@@ -101,7 +101,7 @@ fn immediate_navigation_does_not_make_confirmations_or_text_single_key() {
             input: io::Cursor::new(input),
             output: Vec::new(),
             color: false,
-            single_key: true,
+            terminal_input: false,
         };
         assert_eq!(dialog.confirm("Proceed?").unwrap(), expected);
     }
@@ -110,7 +110,7 @@ fn immediate_navigation_does_not_make_confirmations_or_text_single_key() {
             input: io::Cursor::new(input),
             output: Vec::new(),
             color: false,
-            single_key: true,
+            terminal_input: false,
         };
         assert_eq!(
             dialog.confirm("Proceed?").unwrap_err().code,
@@ -121,14 +121,14 @@ fn immediate_navigation_does_not_make_confirmations_or_text_single_key() {
         input: io::Cursor::new("from codex,-13,-20\n"),
         output: Vec::new(),
         color: false,
-        single_key: true,
+        terminal_input: true,
     };
     assert_eq!(dialog.ask("Choose skills").unwrap(), "from codex,-13,-20");
     let mut dialog = Dialog {
         input: io::Cursor::new("from pi\n\n"),
         output: Vec::new(),
         color: false,
-        single_key: true,
+        terminal_input: true,
     };
     assert_eq!(dialog.ask("Choose skills").unwrap(), "from pi");
     assert_eq!(
@@ -145,7 +145,7 @@ fn sharing_can_be_skipped_or_cancelled_before_any_location_is_selected() {
             input: io::Cursor::new(input),
             output: Vec::new(),
             color: false,
-            single_key: false,
+            terminal_input: false,
         };
         assert!(remote(&mut dialog, false).unwrap().is_none());
         let output = String::from_utf8(dialog.output).unwrap();
@@ -158,7 +158,7 @@ fn sharing_can_be_skipped_or_cancelled_before_any_location_is_selected() {
             input: io::Cursor::new(input),
             output: Vec::new(),
             color: false,
-            single_key: false,
+            terminal_input: false,
         };
         assert_eq!(
             remote(&mut dialog, false).unwrap_err().code,
@@ -178,7 +178,7 @@ fn one_git_choice_detects_ssh_before_requesting_host_trust() {
         )),
         output: Vec::new(),
         color: false,
-        single_key: false,
+        terminal_input: false,
     };
     let selected = remote(&mut dialog, false).unwrap().unwrap();
     assert!(
@@ -203,7 +203,7 @@ fn git_url_infers_https_without_a_protocol_question() {
         input: io::Cursor::new("2\nhttps://example.test/team/collection.git\n"),
         output: Vec::new(),
         color: false,
-        single_key: false,
+        terminal_input: false,
     };
     assert!(
         matches!(remote(&mut dialog, false).unwrap().unwrap(), SyncRemoteArgs::Git { url, credentials: GitCredentialSource::Terminal }
@@ -220,7 +220,7 @@ fn git_creation_guidance_returns_to_the_existing_clone_url_flow() {
         input: io::Cursor::new("2\nc\nhttps://example.test/team/new.git\n"),
         output: Vec::new(),
         color: false,
-        single_key: false,
+        terminal_input: false,
     };
     assert!(
         matches!(remote(&mut dialog, true).unwrap().unwrap(), SyncRemoteArgs::Git { url, credentials: GitCredentialSource::Terminal }
@@ -255,7 +255,7 @@ fn scheme_less_git_location_requires_explicit_transport_selection() {
         input: io::Cursor::new("2\nexample.test/team/collection.git\n1\n"),
         output: Vec::new(),
         color: false,
-        single_key: false,
+        terminal_input: false,
     };
     assert!(
         matches!(remote(&mut dialog, false).unwrap().unwrap(), SyncRemoteArgs::Git { url, .. }
@@ -279,7 +279,7 @@ fn scheme_less_git_location_can_explicitly_select_ssh_without_falling_back() {
         )),
         output: Vec::new(),
         color: false,
-        single_key: false,
+        terminal_input: false,
     };
     assert!(
         matches!(remote(&mut dialog, false).unwrap().unwrap(), SyncRemoteArgs::Ssh { url, known_hosts: path }
@@ -300,7 +300,7 @@ fn invalid_or_credential_bearing_git_urls_do_not_echo_or_become_backend_args() {
             input: io::Cursor::new(format!("2\n{url}\nn\n")),
             output: Vec::new(),
             color: false,
-            single_key: false,
+            terminal_input: false,
         };
         assert!(remote(&mut dialog, false).unwrap().is_none());
         let output = String::from_utf8(dialog.output).unwrap();
@@ -346,7 +346,7 @@ fn git_checkout_and_scp_inputs_get_specific_guidance_without_a_protocol_guess() 
             input: io::Cursor::new(format!("2\n{location}\nn\n")),
             output: Vec::new(),
             color: false,
-            single_key: false,
+            terminal_input: false,
         };
         assert!(remote(&mut dialog, false).unwrap().is_none());
         let output = String::from_utf8(dialog.output).unwrap();
@@ -372,7 +372,7 @@ fn git_nested_choices_skip_and_cancel_before_connecting_or_selecting_credentials
             input: io::Cursor::new(input),
             output: Vec::new(),
             color: false,
-            single_key: false,
+            terminal_input: false,
         };
         assert!(remote(&mut dialog, true).unwrap().is_none());
         assert!(
@@ -393,7 +393,7 @@ fn git_nested_choices_skip_and_cancel_before_connecting_or_selecting_credentials
             input: io::Cursor::new(input),
             output: Vec::new(),
             color: false,
-            single_key: false,
+            terminal_input: false,
         };
         assert_eq!(
             remote(&mut dialog, true).unwrap_err().code,
@@ -408,7 +408,7 @@ fn operation_results_are_not_presented_as_uncommitted_previews_or_success() {
         input: io::Cursor::new(""),
         output: Vec::new(),
         color: true,
-        single_key: false,
+        terminal_input: false,
     };
     dialog.outcome(r#"{"outcome":"blocked"}"#).unwrap();
     let output = String::from_utf8(dialog.output).unwrap();
@@ -442,7 +442,7 @@ fn output_failure_never_consumes_or_accepts_input() {
                 input: io::Cursor::new("yes\n"),
                 output: Unwritable { fail_flush },
                 color,
-                single_key: false,
+                terminal_input: false,
             };
             assert_eq!(
                 dialog.confirm("Proceed?").unwrap_err().code,
@@ -466,7 +466,7 @@ fn not_now_returns_to_the_menu_without_changing_the_existing_collection_or_state
     );
     let state = std::fs::read(a.join("state/state.json")).unwrap();
     let manifest = std::fs::read(a.join("collection/kitrove.toml")).unwrap();
-    let output = super::tests::script(&a, "\n3\nn\n4\n\n5\n", true, "");
+    let output = super::tests::script(&a, "3\nn\n4\n\n5\n", true, "");
     assert_eq!(
         output
             .matches("Where is the shared collection stored?")
