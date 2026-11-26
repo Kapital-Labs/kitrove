@@ -12,6 +12,8 @@ use super::{cancelled, io_error};
 use super::{menu_input, presentation};
 use crate::args::CliError;
 
+const INLINE_MENU_HINT: &str = "Press a shortcut to select, or use Up/Down and Enter.";
+
 pub(super) fn choose(
     dialog: &mut Dialog<impl PromptInput, impl Write>,
     title: &str,
@@ -41,22 +43,22 @@ pub(super) fn choose(
         let mut mode = menu_input::Mode::enter().map_err(|_| io_error())?;
         let mut selected = default;
         let result = loop {
-            let event = dialog
-                .input
-                .with_reader(|reader| read_event(reader, |timed| mode.timed_continuation(timed)));
+            let event = dialog.input.with_reader(|reader| {
+                read_event(reader, &keys, |timed| mode.timed_continuation(timed))
+            });
             match event {
                 Ok(Event::Up) => selected = (selected + choices.len() - 1) % choices.len(),
                 Ok(Event::Down) => selected = (selected + 1) % choices.len(),
                 Ok(Event::Enter) => break Ok(keys[selected]),
-                Ok(Event::Key(key)) => {
-                    if let Some(index) = keys.iter().position(|candidate| *candidate == key) {
-                        selected = index;
-                    } else if key == b'q' {
-                        break Err(cancelled());
-                    } else {
-                        continue;
+                Ok(Event::Shortcut(index)) => {
+                    if index != selected
+                        && redraw(&mut dialog.output, choices, index, dialog.color).is_err()
+                    {
+                        break Err(io_error());
                     }
+                    break Ok(keys[index]);
                 }
+                Ok(Event::Ignored) => continue,
                 Err(error) => break Err(error),
             }
             if redraw(&mut dialog.output, choices, selected, dialog.color).is_err() {
@@ -114,10 +116,11 @@ fn message(
         text.push('\n');
         text.push_str(&row(*key, label.as_ref(), index == selected));
     }
+    text.push('\n');
     text.push_str(if arrows {
-        "\nUp/Down or shortcut to highlight. Enter to select."
+        INLINE_MENU_HINT
     } else {
-        "\nType a shortcut, then Enter. Enter alone selects the marked action."
+        "Type a shortcut, then Enter. Enter alone selects the marked action."
     });
     text
 }
@@ -141,10 +144,7 @@ fn redraw(
         )?;
         write!(out, "\r\n")?;
     }
-    write!(
-        out,
-        "\x1b[2K  Up/Down or shortcut to highlight. Enter to select.\r\n\x1b[2K> "
-    )?;
+    write!(out, "\x1b[2K  {INLINE_MENU_HINT}\r\n\x1b[2K> ")?;
     out.flush()
 }
 
@@ -154,12 +154,14 @@ enum Event {
     Up,
     Down,
     Enter,
-    Key(u8),
+    Shortcut(usize),
+    Ignored,
 }
 
 #[cfg(any(unix, test))]
 fn read_event(
     input: &mut dyn BufRead,
+    keys: &[u8],
     mut timed: impl FnMut(bool) -> io::Result<()>,
 ) -> Result<Event, CliError> {
     let mut queued = 0;
@@ -191,10 +193,17 @@ fn read_event(
         }
         b'\r' | b'\n' => Ok(Event::Enter),
         3 | 4 => Err(cancelled()),
-        key => Ok(Event::Key(key.to_ascii_lowercase())),
+        key => {
+            let key = key.to_ascii_lowercase();
+            match keys.iter().position(|candidate| *candidate == key) {
+                Some(index) => Ok(Event::Shortcut(index)),
+                None if key == b'q' => Err(cancelled()),
+                None => Ok(Event::Ignored),
+            }
+        }
     };
-    // No queued answer can cross from navigation into a collection confirmation.
-    if matches!(event, Ok(Event::Enter) | Err(_)) {
+    // Drop buffered input whenever the menu exits, including on a shortcut.
+    if matches!(event, Ok(Event::Enter | Event::Shortcut(_)) | Err(_)) {
         input.consume(queued);
     }
     event
@@ -228,7 +237,7 @@ mod tests {
         ] {
             let mut toggles = Vec::new();
             assert_eq!(
-                read_event(&mut Fragmented(sequence.to_vec()), |timed| {
+                read_event(&mut Fragmented(sequence.to_vec()), b"1i", |timed| {
                     toggles.push(timed);
                     Ok(())
                 })
@@ -245,20 +254,33 @@ mod tests {
             b"\x1b[15~ay".as_slice(),
             b"\x03ay",
             b"\x04ay",
+            b"qay",
             b"\x1b",
             b"\x1b[",
             b"",
         ] {
             let mut input = io::Cursor::new(bytes);
             assert_eq!(
-                read_event(&mut input, |_| Ok(())).unwrap_err().code,
+                read_event(&mut input, b"1", |_| Ok(())).unwrap_err().code,
                 "setup.cancelled"
             );
             assert!(input.fill_buf().unwrap().is_empty());
         }
         for bytes in [b"\ny\n".as_slice(), b"\ry\n"] {
             let mut input = io::Cursor::new(bytes);
-            read_event(&mut input, |_| Ok(())).unwrap();
+            read_event(&mut input, b"1", |_| Ok(())).unwrap();
+            assert!(input.fill_buf().unwrap().is_empty());
+        }
+    }
+
+    #[test]
+    fn displayed_shortcuts_select_and_discard_buffered_input() {
+        for (bytes, index) in [(b"1\ny\n".as_slice(), 0), (b"Iy\r", 1), (b"q\ry\n", 2)] {
+            let mut input = io::Cursor::new(bytes);
+            assert_eq!(
+                read_event(&mut input, b"1iq", |_| Ok(())).unwrap(),
+                Event::Shortcut(index)
+            );
             assert!(input.fill_buf().unwrap().is_empty());
         }
     }
@@ -267,7 +289,7 @@ mod tests {
     fn failed_continuation_restores_blocking_mode_before_returning() {
         let mut toggles = Vec::new();
         assert!(
-            read_event(&mut io::Cursor::new(b"\x1b["), |timed| {
+            read_event(&mut io::Cursor::new(b"\x1b["), b"1", |timed| {
                 toggles.push(timed);
                 Ok(())
             })

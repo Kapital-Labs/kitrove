@@ -2,6 +2,16 @@
 
 Notable changes to Kitrove are recorded here.
 
+## 0.1.0-rc.5.24
+
+Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.
+
+### Changed
+
+- Select a displayed shortcut immediately in inline menus. Use Up/Down and
+  Enter to select by highlight. Text prompts and write confirmations still
+  submit with Enter.
+
 ## 0.1.0-rc.5.23
 
 Evaluation preview for Apple Silicon macOS, x86-64 Linux and Windows.
