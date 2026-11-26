@@ -118,10 +118,7 @@ def initial_menu():
             session.until(b"How would you like to start?")
             session.menu_ready()
             session.send(b"1")
-            session.until(b"> [1] Set up my first computer")
-            assert b"Where should your portable collection live?" not in session.output
-            session.send(b"\r")
-            session.until(b"Where should your portable collection live?")
+            session.prompt(b"Where should your portable collection live?")
             session.restored()
             session.send(b"q\n")
             session.finish(1)
@@ -139,7 +136,7 @@ def quit_menu(key):
             session.until(b"How would you like to start?")
             session.menu_ready()
             session.send(key)
-            session.finish(0 if key == b"q\r" else 1)
+            session.finish(0 if key == b"q" else 1)
             assert not (root / "state").exists()
         finally:
             session.close()
@@ -360,7 +357,7 @@ def scan_arrow_navigation(quit_from_group=False):
         try:
             session.prompt(b"Next action")
             session.menu_ready()
-            assert b"Up/Down or shortcut" in session.output
+            assert b"Press a shortcut to select, or use Up/Down and Enter." in session.output
             assert b"\x1b[1;" not in session.output, "NO_COLOR must suppress color"
             session.output = b""
             # Deliver one key event; fragmented decoder reads are covered by Rust unit tests.
@@ -432,7 +429,7 @@ def scan_issues_and_rescan():
             session.menu_ready()
             assert b"0 skills listed" in session.output
             assert b"(missing)" not in session.output
-            session.send(b"i\r")
+            session.send(b"i")
             session.prompt(b"After checking the folder")
             session.menu_ready()
             assert b"folder could not be scanned" in session.output
@@ -649,13 +646,13 @@ print("PASS: scan handoff preserves harness/project/explicit roots; preview/skip
 
 
 scan_inventory_menu()
-print("PASS: scan uses Enter to open sections and pages, with diagnostics on demand")
+print("PASS: scan opens sections and pages, with diagnostics on demand")
 initial_menu()
-print("PASS: a number highlights; Enter advances and restores line input")
-for key in (b"q\r", b"\x03", b"\x04", b"\x1b"):
+print("PASS: a number advances immediately and restores line input")
+for key in (b"q", b"\x03", b"\x04", b"\x1b"):
     quit_menu(key)
 print("PASS: Quit and cancellation controls restore the terminal")
-for key in (b"5\r", b"\r", b"\n"):
+for key in (b"5", b"\r", b"\n"):
     configuration_menu(key)
 print("PASS: picking Finish leaves fixture bytes intact")
 adoption_decision(b"y\r", True)
@@ -799,9 +796,11 @@ def storage_menu(approve):
         try:
             session.prompt(b"What would you like to do?")
             session.menu_ready()
-            session.send(b"4\r")
+            # Select storage with one key. A buffered approval is still out of scope.
+            session.send(b"4" if approve else b"4y\r")
             session.prompt(b"Preserve the listed directories?")
             session.restored()
+            assert session.process.poll() is None
             assert b"Collection" in session.output and b"Private state" in session.output
             assert all((directory / name).is_file() for directory, name in retained)
             session.send(b"y\r" if approve else b"\r")
