@@ -37,7 +37,7 @@
         ><a href="#help">More documentation</a>
       </nav>
       <main id="main" class="docs-content">
-        <p class="eyebrow">Getting started · RC5.23</p>
+        <p class="eyebrow">Getting started · RC5.24</p>
         <h1>Your first collection.</h1>
         <p>
           Kitrove collects skills from your agent tools and helps you apply
@@ -46,8 +46,8 @@
         </p>
         <h2 id="install">Install the preview</h2>
         <p>
-          RC5.23 is a fresh-install evaluation preview for Apple Silicon macOS,
-          x86-64 Linux and x86-64 Windows. Intel Macs are unsupported in RC5.23.
+          RC5.24 is a fresh-install evaluation preview for Apple Silicon macOS,
+          x86-64 Linux and x86-64 Windows. Intel Macs are unsupported in RC5.24.
           Use a new isolated collection and empty destination with synthetic or
           disposable capabilities.
         </p>
@@ -58,7 +58,7 @@
         <pre><code>brew install --cask kapital-labs/tap/kitrove
 kitrove --version</code></pre>
         <p>
-          This installs the latest reviewed preview, currently RC5.23. The
+          This installs the latest reviewed preview, currently RC5.24. The
           shorter package name does not make it a stable release. Homebrew
           checks the pinned archive checksum; you trust Homebrew and the
           <a href="https://github.com/Kapital-Labs/homebrew-tap"
@@ -81,17 +81,17 @@ kitrove --version</code></pre>
         </p>
         <p>
           <a
-            href="https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.23"
-            >Download RC5.23</a
+            href="https://github.com/Kapital-Labs/kitrove/releases/tag/v0.1.0-rc.5.24"
+            >Download RC5.24</a
           >
           and read its
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.23/release/notes/v0.1.0-rc.5.23.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.24/release/notes/v0.1.0-rc.5.24.md"
             >versioned release notes</a
           >. Verify before running a manual download on macOS, Linux or Windows:
           follow the
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.23/docs/INSTALLER.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.24/docs/INSTALLER.md"
             >versioned verification and staging guide</a
           >
           with an independently trusted or reviewed-source-built verifier. Match
@@ -103,9 +103,9 @@ kitrove --version</code></pre>
         <details>
           <summary>Older Linux package channels · RC4.2 only</summary>
           <p>
-            APT/DNF still distribute RC4.2 and do not install RC5.23. The RC4.2
-            WinGet submission is not an RC5.23 install path. No Chocolatey
-            package is published. These channels were not updated by RC5.23.
+            APT/DNF still distribute RC4.2 and do not install RC5.24. The RC4.2
+            WinGet submission is not an RC5.24 install path. No Chocolatey
+            package is published. These channels were not updated by RC5.24.
           </p>
           <p>
             Linux x86-64 users can choose
@@ -117,7 +117,7 @@ kitrove --version</code></pre>
             <a
               href="https://github.com/Kapital-Labs/kitrove/blob/main/docs/LINUX-INSTALL.md#fedora--dnf"
               >Fedora / DNF</a
-            >. These are RC4.2 package instructions, not RC5.23 installation or
+            >. These are RC4.2 package instructions, not RC5.24 installation or
             upgrade instructions. Authenticate a download before its first
             execution.
           </p>
@@ -167,8 +167,9 @@ kitrove --version</code></pre>
           the same scan; <code>s</code> also works after a nonempty preview.
         </p>
         <p class="note">
-          Enter submits a choice or typed value. Arrows or shortcuts highlight
-          choices in supported terminals. Keystrokes left over from an earlier
+          Displayed shortcuts select immediately in supported inline menus.
+          Use Up/Down and Enter to select by highlight. Enter submits typed
+          answers and write confirmations. Keystrokes left over from an earlier
           prompt cannot approve a later preview. Saving, adding to a tool, and
           syncing require separate approvals. Bulk collection is sequential.
           A stale source or failed operation stops later items, and completed
@@ -281,15 +282,15 @@ kitrove --version</code></pre>
         </p>
         <p>
           Conflicting content under the same identity stops the operation for
-          review. RC5.23 does not choose an automatic winner or create a
+          review. RC5.24 does not choose an automatic winner or create a
           keep-both rewrite.
         </p>
         <h2 id="scan">Inspect skills and choose by name</h2>
         <pre><code>kitrove scan
 kitrove scan --harness claude --scope user</code></pre>
         <p>
-          In a terminal, scan starts with a compact summary. Use Up/Down or a
-          displayed shortcut to highlight a choice, then press Enter.
+          In a terminal, scan starts with a compact summary. Press a displayed
+          shortcut to select immediately, or use Up/Down and Enter.
           Choose <strong>View scan issues</strong> (<code>i</code>) for folders
           that could not be read, <code>r</code> to scan again with the same
           filters, <code>d</code> for diagnostics, or <code>q</code> to quit.
@@ -336,30 +337,30 @@ kitrove scan --harness claude --scope user</code></pre>
             overwriting existing files.
           </li>
           <li>
-            Keep RC5.23 collections separate from older previews. RC4.2 cannot
+            Keep RC5.24 collections separate from older previews. RC4.2 cannot
             read authored packs. Do not downgrade a collection or treat binary
             rollback as data recovery.
           </li>
         </ul>
         <p>
-          RC5.23 remains a prerelease. Publication and Homebrew promotion require
+          RC5.24 remains a prerelease. Publication and Homebrew promotion require
           independent inventory, provenance, notice-byte and native Mac image
           verification. Those checks do not establish first-launch acceptance. Prior
           bounded source-built Mac/Linux tests covered skill and authored-pack
           transfer, updates, conflict refusal and unmanaged-file protection.
-          They are not RC5.23 production-artifact fresh-install acceptance,
+          They are not RC5.24 production-artifact fresh-install acceptance,
           clean-Mac online/offline first launch, all capability types, live
           agent-tool execution, Git-provider acceptance or concurrent sync.
         </p>
         <p>
-          RC5.23 includes exact agent plan/approval workflows, locally authored
+          RC5.24 includes exact agent plan/approval workflows, locally authored
           packs and explicit partial-fidelity warnings for native-only skill
           fields. These features are not in the older RC4.2 package channels.
           Cloud-provider sync is roadmap work, not an available feature.
         </p>
         <h2 id="existing-installations">Existing installations</h2>
         <p>
-          These instructions assume a fresh install. RC5.23 is not a supported
+          These instructions assume a fresh install. RC5.24 is not a supported
           in-place upgrade from RC4.2; no rollback-compatible predecessor is
           declared. Binary rollback does not roll back collection data.
         </p>
@@ -383,7 +384,7 @@ kitrove scan --harness claude --scope user</code></pre>
         <p>
           Get a read-only collection and storage report. For another collection,
           use <code>--environment</code>. The
-          <a href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.23/docs/DOCTOR.md"
+          <a href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.24/docs/DOCTOR.md"
             >diagnostic guide</a
           > explains the results. Doctor names the first failed retained-cleanup check
           directly in its normal report. For a retained identity mismatch on Unix, it also tells you whether the device ID, file ID or both differ. Doctor makes no changes or repairs.
@@ -393,7 +394,7 @@ kitrove scan --harness claude --scope user</code></pre>
           storage</strong>. If retained files qualify for preservation, review
           the preview and explicitly approve the move. Kitrove checks storage
           again afterward. See the
-          <a href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.23/docs/QUARANTINE-RECOVERY.md"
+          <a href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.24/docs/QUARANTINE-RECOVERY.md"
             >retained file recovery guide</a
           >. Start with a read-only preview.
         </p>
@@ -404,11 +405,11 @@ kitrove scan --harness claude --scope user</code></pre>
             >full setup guide</a
           >,
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.23/docs/INSTALLER.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.24/docs/INSTALLER.md"
             >release verification instructions</a
           >, and
           <a
-            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.23/docs/RELEASE-ACCEPTANCE.md"
+            href="https://github.com/Kapital-Labs/kitrove/blob/v0.1.0-rc.5.24/docs/RELEASE-ACCEPTANCE.md"
             >acceptance checklist</a
           >.
         </p>

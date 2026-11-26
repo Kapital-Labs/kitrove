@@ -1,6 +1,6 @@
-# Quick skill collection (RC5.23)
+# Quick skill collection (RC5.24)
 
-These steps describe the RC5.23 preview.
+These steps describe the RC5.24 preview.
 
 Run `kitrove` and choose **Find or collect skills**, or use **Collect skills
 from this computer** in `kitrove configure`. The scan summarizes eligible
@@ -46,8 +46,9 @@ After preview:
   before a new preview. Invalid or occupied names must be renamed or skipped.
 - `n` skips collection; `q` or end of input stops setup.
 
-Enter submits a menu selection or a typed value. Arrow keys and shortcuts can
-highlight decisions in supported terminals. Queued input cannot approve a later preview.
+Displayed shortcuts select immediately in supported inline menus. Up/Down and
+Enter let you select by highlight. Enter submits typed answers and write
+confirmations. Queued input cannot approve a later preview.
 
 Bulk approval is not an all-or-nothing transaction. Each item uses the existing
 exact-plan approval and fresh source/state checks. A stale source, changed
@@ -155,8 +156,7 @@ Displayed shortcuts work immediately too. Narrow, unrecognized and native Window
 terminals use the same short action list with shortcuts and a marked Enter
 default. Browsing a group defaults to Back; an empty scan defaults to Quit.
 Adding skills still opens collection selection and a fresh preview before any
-approval. This navigation update is included in RC5.18; the scan-to-collection
-handoff introduced in RC5.17 remains available.
+approval. Scan-to-collection has been available since RC5.17.
 
 ## Content status and grouped copies (RC5.17)
 
